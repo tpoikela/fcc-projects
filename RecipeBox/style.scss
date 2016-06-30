@@ -1,0 +1,62 @@
+
+$main-color: darken(Yellow, 10%);
+
+@mixin fonts {
+    font-family: 'Josefin Sans', sans-serif;
+}
+
+@mixin round-border($rad) {
+    border: 1px solid black;
+    border-radius: $rad;
+}
+
+body {
+    background-color: $main-color;
+    @include fonts;
+}
+
+button {
+    margin-right: 5px;
+}
+
+#recipe-box {
+    margin-top: 20px;
+}
+
+.recipe {
+    margin-top: 10px;
+}
+
+.recipe-name {
+    @include round-border(5px);
+    font-size: 18px;
+    padding-left: 5px;
+    padding-top: 3px;
+    background-color: $main-color;
+}
+
+.recipe-ingredients {
+    border: 1px solid black;
+    border-radius: 0 0 5px 5px;
+    margin-left: 5px;
+    margin-right: 5px;
+    padding: 5px;
+}
+
+.recipe-hidden {
+    display: none;
+}
+
+.ingredients-list {
+
+}
+
+.ingredient {
+    text-decoration: none;
+}
+
+
+#add-button {
+    margin-top: 10px;
+
+}
