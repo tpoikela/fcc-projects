@@ -1,0 +1,176 @@
+
+
+// Sets the $position position of all components
+$l-offset: 10px;
+$t-offset: 75px;
+
+$main-color: darken(gray, 20%);
+$shadow-color: #888888;
+
+$position: absolute;
+
+$square-dim: 2*100px;
+$sqr-dim: $square-dim;
+$sqr-rad: $square-dim;
+$sqr-margin: 20px;
+
+// Main circle
+$main-border: 20px;
+$main-width: 2*$main-border + $sqr-margin + 2* $sqr-dim;
+$main-height: $main-width;
+$main-left: $l-offset;
+$main-top: $t-offset;
+
+$main-bottom: $t-offset + $main-height;
+
+// Top-left square center coordinates
+$sqr-center-left: $l-offset + $sqr-dim / 2 + $main-border;
+$sqr-center-top: $t-offset + $sqr-dim / 2 + $main-border;
+
+// Border between two circles
+$circle-border: 20px;
+
+// Outer circle center coordinates
+$oc-width: $square-dim + $sqr-margin;
+$oc-height: $square-dim + $sqr-margin;
+$oc-center-left: $sqr-center-left;
+$oc-center-top: $sqr-center-top;
+
+// Inner circle center coordinates
+$ic-width: $oc-width - 2 * $circle-border;
+$ic-height: $oc-height - 2 * $circle-border;
+$ic-center-left: $sqr-center-left + $circle-border;
+$ic-center-top: $sqr-center-top + $circle-border;
+
+// Control panel
+$ctrl-panel-width: 75px;
+$ctrl-panel-height: 100px;
+$ctrl-panel-left: $ic-center-left + 40px;
+$ctrl-panel-top: $ic-center-top + 10px;
+
+@mixin tl-sqr-center {
+  left: $sqr-center-left;
+  top: $sqr-center-top;
+}
+
+@mixin square($color) {
+  width: $square-dim;
+  height: $square-dim;
+  position: $position;
+  display: inline;
+  background-color: lighten($color, 15%);
+  cursor: crosshair;
+}
+
+.contents {
+    //margin-top: 50px;
+}
+
+.main-circle {
+    position: $position;
+    width: $main-width;
+    height: $main-height;
+    left: $main-left;
+    top: $main-top;
+    background-color: $main-color;
+    border-radius: $main-width / 2;
+    box-shadow: 10px 10px 5px $shadow-color;
+}
+
+.sqr-light {
+    opacity: 0.8;
+}
+
+.sqr-red {
+  @include square(red);
+  top: $t-offset + $main-border;
+  left: $l-offset + $main-border;
+  border-radius: $sqr-rad 0 0 0;
+}
+
+.sqr-blue {
+  @include square(blue);
+
+  top: $t-offset + $main-border;
+  left: $l-offset + $square-dim + $sqr-margin + $main-border;
+  border-radius: 0 $sqr-rad 0 0;
+}
+
+.sqr-yellow {
+  @include square(yellow);
+  left: $l-offset + $main-border;
+  top: $t-offset + $square-dim + $sqr-margin + $main-border;
+  border-radius: 0 0 0 $sqr-rad;
+}
+
+.sqr-green {
+  @include square(green);
+  top: $t-offset + $square-dim + $sqr-margin + $main-border;
+  left: $l-offset + $square-dim + $sqr-margin + $main-border;
+  border-radius: 0 0 $sqr-rad 0;
+}
+
+.outer-center-circle {
+  position: $position;
+  display: inline;
+  top: $oc-center-top;
+  left: $oc-center-left;
+  border-radius: $oc-width / 2;
+  width: $oc-width;
+  height: $oc-height;
+  background-color: $main-color;
+}
+
+.inner-center-circle {
+  position: $position;
+  display: inline;
+  top: $ic-center-top;
+  left: $ic-center-left;
+  border-radius: $ic-width / 2;
+  width: $ic-width;
+  height: $ic-height;
+  background-color: white;
+}
+
+#ctrl-panel {
+    //position: $position;
+    position: relative;
+    width: $ctrl-panel-width;
+    height: $ctrl-panel-height;
+    left: 0;
+    top: 10px;
+    //left: $ctrl-panel-left;
+    //top: $ctrl-panel-top;
+}
+
+#start-button {
+}
+
+#on-off-light {
+    margin: 5px auto;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    border: 1px solid black;
+    box-shadow: 0 0 0 2px #F0F0F0;
+    background-color: black;
+}
+
+#on-off-light.game-on {
+    background-color: red;
+}
+
+#author-box {
+    margin-top: 5px;
+    position: $position;
+    top: $main-bottom;
+}
+
+#winner-box {
+    position: $position;
+    font-size: 36px;
+    margin-top: 20px;
+    top: $main-bottom + 20px;
+    border: 1px solid black;
+}
+

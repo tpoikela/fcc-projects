@@ -1,0 +1,80 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+  <!--
+    Created by: Tuomas Poikela, tuomas.sakari.poikela@gmail.com
+    Created on: 2016-06-12
+  -->
+
+  <title></title>
+
+  <!-- jQuery -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+
+  <!-- Latest compiled and minified CSS -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+
+  <!-- Optional theme -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap-theme.min.css">
+
+  <!-- Latest compiled and minified JavaScript -->
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+
+
+  <link rel="stylesheet" href="style.css" type="text/css" media="screen" charset="utf-8">
+
+  <script src="simon.js" type="text/javascript" charset="utf-8"></script>
+
+</head>
+
+<body>
+
+
+  <!-- These are the main buttons for the game -->
+  <div class="contents container">
+
+    <h1>Simon Game</h1>
+
+    <div class="main-circle"></div>
+
+    <div id="btn0" class="game-button sqr-red sqr-light"> </div>
+    <div id="btn1" class="game-button sqr-blue sqr-light"> </div>
+    <div id="btn2" class="game-button sqr-yellow sqr-light"> </div>
+    <div id="btn3" class="game-button sqr-green sqr-light"> </div>
+
+    <div class="outer-center-circle"></div>
+
+    <div class="inner-center-circle">
+
+      <div id="ctrl-panel" class="container">
+
+        <span class="label label-default">Count</span>
+        <input id="count-box" type="text" class="form-control" value="1" readonly>
+
+        <div class="checkbox">
+          <label>
+            <input type="checkbox" value="strict" id="strict-box">
+            Strict
+          </label>
+        </div>
+
+        <button class="btn btn-default" id="start-button" >Start</button>
+        <div id="on-off-light" class="name"></div>
+      </div> <!-- ctrl-panel -->
+
+    </div>
+
+    <p id="author-box" class="text-center">Written by 
+      <a href="http://www.freecodecamp.com/tpoikela">tpoikela</a>
+    </p>
+
+    <p id="winner-box"></p>
+
+  </div>
+
+<script src="script.js" type="text/javascript" charset="utf-8"></script>
+</body>
+
+</html>
