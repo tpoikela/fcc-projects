@@ -20,3 +20,7 @@ game. Game has 4 buttons which light up randomly.
 A simple app to add, edit and delete recipes with ingredients. Uses a local
 storage for retaining the recipes between sessions.
 
+[Game of Life](#)
+
+The classic game with cellular automata. You can select the board size, 
+randomize the starting board and select the speed of the game. 
