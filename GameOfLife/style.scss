@@ -1,0 +1,62 @@
+
+
+$cell-width: 10px;
+$cell-height: 10px;
+
+$main-color: darken(white, 10%);
+
+$ctrl-top-color: darken($main-color, 10%);
+
+@mixin fonts {
+    font-family: 'Josefin Sans', sans-serif;
+}
+
+@mixin ctrl-panel {
+    border: 1px solid black;
+    border-radius: 5px;
+    padding: 10px;
+    background-color: $ctrl-top-color;
+}
+
+body {
+    @include fonts;
+    background-color: $main-color;
+
+};
+
+td {
+    width: $cell-width;
+    height: $cell-height;
+    border: 1px solid black;
+}
+
+.cell-active {
+    background-color: red;
+}
+
+.ctrl-top {
+    margin-bottom: 10px;
+    @include ctrl-panel;
+
+}
+
+ul {
+    .button-list {
+        display: inline;
+        text-decoration: none;
+        list-style: none;
+    }
+    li {
+        display: inline;
+
+    }
+}
+
+.num-generations {
+    margin-left: 20px;
+}
+
+.ctrl-bottom {
+    margin-top: 10px;
+    @include ctrl-panel;
+}

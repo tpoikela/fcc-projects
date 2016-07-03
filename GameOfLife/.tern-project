@@ -1,0 +1,21 @@
+{
+  "libs": [
+    "browser",
+    "jquery",
+    "react",
+    "react-dom",
+    "chai"
+  ],
+  "loadEagerly": [
+    "/lib/node_modules/react/lib/*.js",
+    "./gameoflife.js",
+    "./app.jsx"
+  ],
+  "plugins": {
+    "node": {},
+    "requirejs": {
+      "baseURL": "./",
+      "paths": {}
+    }
+  }
+}
