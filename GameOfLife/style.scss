@@ -1,9 +1,13 @@
-
+/**
+ * Style sheet (.scss) for Game of Life.
+ */
 
 $cell-width: 10px;
 $cell-height: 10px;
 
 $main-color: darken(white, 10%);
+$main-color-2: darken($main-color, 15%);
+$main-color-3: darken($main-color-2, 15%);
 
 $ctrl-top-color: darken($main-color, 10%);
 
@@ -11,6 +15,7 @@ $ctrl-top-color: darken($main-color, 10%);
     font-family: 'Josefin Sans', sans-serif;
 }
 
+// Control panel theme
 @mixin ctrl-panel {
     border: 1px solid black;
     border-radius: 5px;
@@ -18,10 +23,20 @@ $ctrl-top-color: darken($main-color, 10%);
     background-color: $ctrl-top-color;
 }
 
+// Defines the main gradient for the background
+@mixin gray-gradient {
+    background: $main-color;
+    background: -o-radial-gradient($main-color, $main-color-2, $main-color-3);
+    background: -webkit-radial-gradient($main-color, $main-color-2, $main-color-3);
+    background: -moz-radial-gradient($main-color, $main-color-2, $main-color-3);
+    background: radial-gradient($main-color, $main-color-2, $main-color-3);
+}
+
+/** Elements, classes and IDs.*/
+
 body {
     @include fonts;
-    background-color: $main-color;
-
+    @include gray-gradient;
 };
 
 td {
@@ -40,6 +55,11 @@ td {
 
 }
 
+#game-board {
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
 ul {
     .button-list {
         display: inline;
@@ -48,7 +68,11 @@ ul {
     }
     li {
         display: inline;
+        margin-right: 5px;
+    }
 
+    span {
+        margin-left: 10px;
     }
 }
 

@@ -1,10 +1,13 @@
 
 // Set to 1 for some debug information
-var $DEBUG = 1;
+var $DEBUG = 0;
 
+// Titles for the buttons
 var titles = {
     Next: "You can advance game by one state by pressing 'Next'.",
-
+    Clear: "Clears the game board completely.",
+    Random: "Generate a new starting pattern for the board.",
+    Pause: "Pauses the game. You can push 'Next' or 'Start' for a paused game.",
 };
 
 /** Top-level component which renders all other components. Keeps also track
@@ -106,6 +109,7 @@ var GameOfLifeTop = React.createClass({
 
 });
 
+/** Control panel for starting, stopping, clearing and randomizing. */
 var GameCtrlTop = React.createClass({
 
     onClickNext: function(evt) {
@@ -134,10 +138,10 @@ var GameCtrlTop = React.createClass({
         return (
             <div className="ctrl-top">
                 <button className="btn btn-default" onClick={this.onClickStart}>Start</button>
-                <button className="btn btn-default" onClick={this.onClickStop}>Stop</button>
+                <button title={titles.Pause} className="btn btn-default" onClick={this.onClickStop}>Pause</button>
                 <button title={titles.Next} className="btn btn-default" onClick={this.onClickNext}>Next</button>
-                <button className="btn btn-default" onClick={this.onClickClear}>Clear</button>
-                <button className="btn btn-default" onClick={this.onClickRandom}>Random</button>
+                <button title={titles.Clear} className="btn btn-default" onClick={this.onClickClear}>Clear</button>
+                <button title={titles.Random} className="btn btn-default" onClick={this.onClickRandom}>Random</button>
                 <span className="num-generations">Generations: {numGens}</span>
             </div>
         );
@@ -145,6 +149,7 @@ var GameCtrlTop = React.createClass({
 
 });
 
+/** Component which renders the game rows. */
 var GameBoard = React.createClass({
 
     tableClasses: "",
@@ -174,8 +179,10 @@ var GameBoard = React.createClass({
 
 });
 
+/** A row component which holds a number of cells.*/
 var GameRow = React.createClass({
 
+    // Render only changed rows
     shouldComponentUpdate: function(nextProps, nextState) {
         return this.props.rowData !== nextProps.rowData;
     },
@@ -227,16 +234,20 @@ var GameCell = React.createClass({
 
 });
 
+/** Bottom control panel which contains buttons for selecting size of the board
+ * and the speed of the game.*/
 var GameCtrlBottom = React.createClass({
 
     setSize: function(evt) {
-        console.log("setSize called with " + evt.target);
+        debug("<GameCtrlBottom> setSize called with " + evt.target);
         var text = evt.target.name;
-        console.log("name is " + text);
+        debug("<GameCtrlBottom> name is " + text);
         var colsRows = text.split("x");
         this.props.setSize(colsRows[0], colsRows[1]);
     },
 
+    /** Calls setSpeed callback with arg value based on which button was
+     * pushed.*/
     setSpeed: function(evt) {
         var text = evt.target.name;
         switch(text) {
@@ -254,8 +265,6 @@ var GameCtrlBottom = React.createClass({
                     <li><button name="50x30" className="btn btn-default" onClick={this.setSize}>50x30</button></li>
                     <li><button name="70x50" className="btn btn-default" onClick={this.setSize}>70x50</button></li>
                     <li><button name="100x70" className="btn btn-default" onClick={this.setSize}>100x70</button></li>
-                </ul>
-                <ul className="button-list">
                     <span>Speed:</span>
                     <li><button name="Slow" className="btn btn-default" onClick={this.setSpeed}>Slow</button></li>
                     <li><button name="Medium" className="btn btn-default" onClick={this.setSpeed}>Medium</button></li>
