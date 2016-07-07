@@ -1,0 +1,102 @@
+/**
+ * Style sheet (.scss) for Game of Life.
+ */
+
+$cell-width: 10px;
+$cell-height: 10px;
+
+$main-color: darken(white, 10%);
+$main-color-2: darken($main-color, 15%);
+$main-color-3: darken($main-color-2, 15%);
+
+$ctrl-top-color: darken($main-color, 10%);
+
+@mixin fonts {
+    font-family: 'Josefin Sans', sans-serif;
+}
+
+// Control panel theme
+@mixin ctrl-panel {
+    border: 1px solid black;
+    border-radius: 5px;
+    padding: 10px;
+    background-color: $ctrl-top-color;
+}
+
+// Defines the main gradient for the background
+@mixin gray-gradient {
+    background: $main-color;
+    background: -o-radial-gradient($main-color, $main-color-2, $main-color-3);
+    background: -webkit-radial-gradient($main-color, $main-color-2, $main-color-3);
+    background: -moz-radial-gradient($main-color, $main-color-2, $main-color-3);
+    background: radial-gradient($main-color, $main-color-2, $main-color-3);
+}
+
+/** Elements, classes and IDs.*/
+
+body {
+    @include fonts;
+    @include gray-gradient;
+};
+
+td {
+    width: $cell-width;
+    height: $cell-height;
+    border: 1px solid black;
+}
+
+//------------------------------------------------------------------
+// CELL StyleS
+//------------------------------------------------------------------
+
+.cell-active {
+    background-color: red;
+}
+
+.cell-actors {
+    background-color: blue;
+}
+
+.cell-elements {
+    background-color: #777777;
+}
+
+.cell-items {
+    background-color: green;
+}
+
+.ctrl-top {
+    margin-bottom: 10px;
+    @include ctrl-panel;
+
+}
+
+#game-board {
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+ul {
+    .button-list {
+        display: inline;
+        text-decoration: none;
+        list-style: none;
+    }
+    li {
+        display: inline;
+        margin-right: 5px;
+    }
+
+    span {
+        margin-left: 10px;
+    }
+}
+
+.num-generations {
+    margin-left: 20px;
+}
+
+.ctrl-bottom {
+    margin-top: 10px;
+    @include ctrl-panel;
+}
