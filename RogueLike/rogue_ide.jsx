@@ -20,7 +20,7 @@ var RoguelikeTop = React.createClass({
     delay: 100, //ms, Delay between state updates
     intervalID: undefined,
 
-    nextActor = null,
+    nextActor : null,
 
     getInitialState: function() {
         var game = new RG.RogueGame();
@@ -39,9 +39,6 @@ var RoguelikeTop = React.createClass({
         game.addLevel(level);
         this.nextActor = actor;
 
-        //var freeCells = map.getFree();
-        //var player = new Player();
-        //map.setProp(freeCells[0][0], freeCells[0][1], "player", player);
         return {
             game: game
         };
@@ -102,28 +99,40 @@ var RoguelikeTop = React.createClass({
     },
 
     handleKeyDown: function(evt) {
-        var code = evt.keycode;
-        this.playerCommand(code);
-        while (!nextActor.isPlayer() && !game.isGameOver()) {
-            var action = nextActor.nextAction();
-            action.doAction();
-            this.setState({game: game});
-            nextActor = game.nextActor();
+        if (this.nextActor !== null) {
+            var code = evt.keyCode;
+            this.playerCommand(code);
+            while (!this.nextActor.isPlayer() && !game.isGameOver()) {
+                var action = this.nextActor.nextAction();
+                action.doAction();
+                this.setState({game: game});
+                this.nextActor = game.nextActor();
+                if (this.nextActor === null) break;
+            }
         }
     },
 
     playerCommand: function(code) {
-        var x = nextActor.getX();
-        var y = nextActor.getY();
-        if (code >= ROT.VK_LEFT && code <= ROT.VK_DOWN) {
-            if (code === ROT.VK_RIGHT) ++x;
+        var x = this.nextActor.getX();
+        var y = this.nextActor.getY();
+        var game = this.state.game;
+        console.log("Pressed key code was " + code);
+        //if (code >= ROT.VK_LEFT && code <= ROT.VK_DOWN) {
+            if (code === ROT.VK_D) ++x;
+            if (code === ROT.VK_A) --x;
+            if (code === ROT.VK_W) --y;
+            if (code === ROT.VK_X) ++y;
+            if (code === ROT.VK_Q) {--y; --x;}
+            if (code === ROT.VK_E) {--y; ++x;}
+            if (code === ROT.VK_C) {++y; ++x;}
+            if (code === ROT.VK_Z) {++y; --x;}
             // Need existing position
             // Check if new position possible
             // Move player to new position
-            nextActor.setXY(x, y);
+            game.moveActorTo(this.nextActor, x, y);
             // Schedule new event
-            this.setState({game: game});
-        }
+            this.setState({game: this.state.game});
+            //}
     },
 
     setSize: function(cols, rows) {
@@ -249,17 +258,9 @@ var GameRow = React.createClass({
         var onCellClick = this.props.onCellClick;
         var y = this.props.y;
         var rowCells = this.props.rowCellData.map( function(cell, index) {
-            if (cell.getVal()) {
-                return (<GameCell cell={cell}
-                    x={index} y={y} onCellClick={onCellClick} value={true}
-                    className="cell-active" key={index}/>);
-            }
-            else {
-                var cellClass = RG.getStyleClassForCell(cell);
-                console.log("Rendering class " + cellClass + " for x: " + index + " y: " + y);
-                return (<GameCell cell={cell}
-                    className={cellClass} value={false} x={index} y={y} onCellClick={onCellClick} key={index}/>);
-            }
+            var cellClass = RG.getStyleClassForCell(cell);
+            return (<GameCell cell={cell}
+                className={cellClass} value={false} x={index} y={y} onCellClick={onCellClick} key={index}/>);
         });
         return (
             <tr>

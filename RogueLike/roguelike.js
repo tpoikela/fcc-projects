@@ -2,18 +2,40 @@
  * Contains the main object "RoguelikeGame", the top-level game object.
  */
 
-var $NODE = 0;
+var has_require = typeof require !== 'undefined';
+
+if (typeof window !== 'undefined') {
+    var ROT = window.ROT;
+}
+
+if (typeof ROT === 'undefined' ) {
+    if (has_require) {
+      ROT = require('./rot.js');
+    }
+    else throw new Error('roguelike requires ROT');
+}
 
 var RG = {
 
     IdCount: 0,
 
-    cellPropRenderOrder: ['elements', 'actors', 'items', 'traps'],
+    cellPropRenderOrder: ['actors', 'items', 'traps', 'elements'],
 
+    /** Maps a cell to specific class in stylesheet. For rendering purposes
+     * only.*/
     getStyleClassForCell: function(cell) {
         for (var i = 0; i < this.cellPropRenderOrder.length; i++) {
             var type = this.cellPropRenderOrder[i];
             if (cell.hasProp(type)) {
+                var props = cell.getProp(type);
+                var styles = this.cellStyles[type];
+                var propType = props[0].getType();
+                if (styles.hasOwnProperty(propType)) {
+                    return styles[type][propType];
+                }
+                else {
+                    return styles[type]["default"];
+                }
                 return this.cellStyles[type];
             }
         }
@@ -21,12 +43,21 @@ var RG = {
     },
 
     cellStyles: {
-        elements: "cell-elements",
-        actors: "cell-actors",
-        items: "cell-items",
-        traps: "cell-traps",
+        elements: {
+            "default": "cell-elements",
+            wall: "cell-element-wall",
+            floor: "cell-element-floor",
+        },
+        actors: {
+            "default": "cell-actors",
+        },
+        items: {
+            "default": "cell-items",
+        },
+        traps: {
+            "default": "cell-traps",
+        },
     },
-
 
     debug: function(msg) {
         console.log("[DEBUG]: " + msg);
@@ -36,11 +67,22 @@ var RG = {
         console.error(obj + ": " + fun + " -> " + msg);
     },
 
+
+    extend2: function(Child, Parent) {
+        var p = Parent.prototype;
+        var c = Child.prototype;
+        for (var i in p) {
+            c[i] = p[i];
+        }
+        c.uber = p;
+    }
 };
 
 RG.Locatable = function() {
     var _x;
     var _y;
+    var _level;
+    var _type;
 
     this.setX = function(x) {
         _x = x;
@@ -73,6 +115,22 @@ RG.Locatable = function() {
         return true;
     };
 
+    this.setLevel = function(level) {
+        _level = level;
+    };
+
+    this.getLevel = function() {
+        return _level;
+    };
+
+    this.setType = function(type) {
+        _type = type;
+    };
+
+    this.getType = function() {
+        return _type;
+    };
+
 };
 
 /** Top-level object for the game. */
@@ -83,7 +141,7 @@ RG.RogueGame = function() {
     var _activeLevels = [];
     var _time = "";
 
-    var _scheduler = new ROT.Scheduler.Action();
+    var _scheduler = new RG.RogueScheduler();
     var _mapGen = new RG.RogueMapGen();
 
     var _initDone = false;
@@ -117,7 +175,7 @@ RG.RogueGame = function() {
     };
 
     this.doAction = function(action) {
-        _scheduler.setDuration(action.getDuration());
+        _scheduler.setAction(action);
     };
 
     this.addLevel = function(level) {
@@ -127,7 +185,6 @@ RG.RogueGame = function() {
 
     this.getActiveLevels = function() {
         return _activeLevels;
-
     };
 
     /* Returns the visible map to be rendered by GUI. */
@@ -135,6 +192,11 @@ RG.RogueGame = function() {
         var player = this.getPlayer();
         var map = player.getLevel().getMap();
         return map;
+    };
+
+    this.moveActorTo = function(actor, x, y) {
+        var level = actor.getLevel();
+        level.moveActorTo(actor, x, y);
     };
 
 };
@@ -151,14 +213,18 @@ RG.RogueLevel = function(cols, rows) {
         return _map;
     };
 
+    /** Returns all properties in given location.*/
+    this.getProps = function(x, y) {
+
+    };
+
     this.addActor = function(actor, x, y) {
         if (actor instanceof RG.RogueActor) {
             _actors.push(actor);
             actor.setLevel(this);
             if (x !== null && y !== null) {
                 _map.setProp(x, y, "actors", actor);
-                actor.x = x;
-                actor.y = y;
+                actor.setXY(x, y);
                 RG.debug("Added actor to map x: " + x + " y: " + y);
             }
             else {
@@ -167,13 +233,36 @@ RG.RogueLevel = function(cols, rows) {
         }
     };
 
+    this.moveActorTo = function(actor, x, y) {
+        var index = _actors.indexOf(actor);
+        var cell = _map.getCell(x, y);
+        console.log("Index is " + index);
+        if (cell.isFree()) {
+            if (index >= 0) {
+                var xOld = actor.getX();
+                var yOld = actor.getY();
+                if (_map.removeProp(xOld, yOld, "actors", actor)) {
+                    _map.setProp(x, y, "actors", actor);
+                    actor.setXY(x, y);
+                    return true;
+                }
+                else {
+                    RG.err("Level", "moveActorTo", "Couldn't remove actor.");
+                }
+            }
+        }
+        return false;
+
+    };
+
 };
 
-RG.RogueActor = function(ctrl) {
+RG.RogueActor = function(isPlayer) {
+    RG.Locatable.call(this);
+    this.setType("actors");
     var _actions = [];
     var _brain = null;
-    var _isPlayer = ctrl;
-    var _level = null;
+    var _isPlayer = isPlayer === undefined ? false : isPlayer;
     this.id = RG.IdCount++;
 
     this.isPlayer = function() {
@@ -191,17 +280,31 @@ RG.RogueActor = function(ctrl) {
         }
     };
 
-    this.getLevel = function() {
-        return _level;
-    };
+};
 
-    this.setLevel = function(level) {
-        _level = level;
+//RG.RogueActor.extend(RG.Locatable);
+RG.extend2(RG.RogueActor, RG.Locatable);
+
+/** Element is a wall or other obstacle or a feature in the map. It's not
+ * necessarily blocking movement.
+ */
+RG.RogueElement = function(elemType) {
+    RG.Locatable.call(this);
+    this.setType(elemType);
+
+    var _elemType = elemType.toLowerCase();
+    var _allowMove;
+    switch(elemType) {
+        case "wall": _allowMove = false; break;
+        case "floor": _allowMove = true; break;
+    }
+
+    this.canMove = function() {
+        return _allowMove;
     };
 
 };
-
-RG.RogueActor.prototype = Object.create(RG.Locatable.prototype);
+RG.extend2(RG.RogueElement, RG.Locatable);
 
 /** Models an action. Each action has a duration and a callback.*/
 RG.RogueAction = function(dur, cb) {
@@ -226,6 +329,37 @@ RG.RogueAction = function(dur, cb) {
 
 /** Brain is used by the AI to perform and decide on actions.*/
 RG.RogueBrain = function() {
+
+};
+
+/** Scheduler for the game actions. */
+RG.RogueScheduler = function() {
+
+    // Internally use ROT scheduler
+    var _scheduler = new ROT.Scheduler.Action();
+
+    this.add = function(actor, repeat, offset) {
+        _scheduler.add(actor, repeat, offset);
+    };
+
+    // Returns null if no next actor exists.
+    this.next = function() {
+        return _scheduler.next();
+    };
+
+    this.setAction = function(action) {
+        _scheduler.setDuration(action.getDuration());
+    };
+
+    /** Tries to remove an actor, Return true if success.*/
+    this.remove = function(actor) {
+        return _scheduler.remove(actor);
+    };
+
+    this.getTime = function() {
+        return _scheduler.getTime();
+    };
+
 
 };
 
@@ -256,20 +390,34 @@ RG.RogueMapGen = function() {
     };
 
     this.getMap = function() {
-        var map = new Map(this.cols, this.rows);
+        var map = new RG.Map(this.cols, this.rows);
         _mapGen.create(function(x, y, val) {
             map.setXY(x, y, val > 0 ? true: false);
+            if (val === 1) {
+                map.setProp(x, y, "elements", new RG.RogueElement("wall"));
+            }
+            else if (val === 0) {
+                map.setProp(x, y, "elements", new RG.RogueElement("floor"));
+            }
         });
         return map;
     };
 
 };
 
-var MapCell = function(x, y, val) {
+RG.MapCell = function(x, y, val) {
 
     var cellVal = val;
     var cellX   = x;
     var cellY   = y;
+
+    // Cell can have different properties
+    var _p = {
+        items: [],
+        actors   : [],
+        elements : [],
+        traps    : [],
+    };
 
     this.setVal = function(val) {
         cellVal = val;
@@ -284,40 +432,62 @@ var MapCell = function(x, y, val) {
     };
 
     this.setProp = function(prop, obj) {
-        if (this.hasOwnProperty(prop)) {
-            this[prop].push(obj);
+        if (_p.hasOwnProperty(prop)) {
+            _p[prop].push(obj);
         }
         else {
             RG.err("MapCell", "setProp", "No property " + prop);
         }
     };
 
+    /** Removes the given object from cell properties.*/
+    this.removeProp = function(prop, obj) {
+        if (_p.hasProp(prop)) {
+            var props = _p[prop];
+            var index = props.indexOf(obj);
+            if (index === -1) return false;
+            _p[prop].splice(index, 1);
+            return true;
+        }
+        return false;
+    };
+
     this.hasProp = function(prop) {
-        if (this.hasOwnProperty(prop)) {
-            return this[prop].length > 0;
+        if (_p.hasOwnProperty(prop)) {
+            return _p[prop].length > 0;
         }
     };
 
+    /** Returns true if any cell property has the given type. Ie.
+     * myCell.hasPropType("wall")
+     */
+    this.hasPropType = function(propType) {
+        for (var prop in _p) {
+            var arrProps = _p[prop];
+            for (var i = 0; i < arrProps.length; i++) {
+                if (arrProps[i].getType() === propType) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
     this.getProp = function(prop) {
-        if (this.hasOwnProperty(prop)) {
-            return this[prop];
+        if (_p.hasOwnProperty(prop)) {
+            return _p[prop];
         }
         return null;
 
     };
 
-    // Cell can have different properties
-    this.items    = [];
-    this.actors   = [];
-    this.elements = [];
-    this.traps    = [];
 
 };
 
 /** Map object which contains a number of cells. A map is used for rendering
  * while the level contains actual information about game elements such as
  * monsters and items. */
-var Map = function(cols, rows) {
+RG.Map = function(cols, rows) {
     var map = [];
     this.cols = cols;
     this.rows = rows;
@@ -325,7 +495,7 @@ var Map = function(cols, rows) {
     for (var x = 0; x < this.cols; x++) {
         map.push([]);
         for (var y = 0; y < this.rows; y++) {
-            map[x].push(new MapCell(x, y, 0));
+            map[x].push(new RG.MapCell(x, y, 0));
         }
     }
 
@@ -334,12 +504,20 @@ var Map = function(cols, rows) {
         map[x][y].setProp(prop, obj);
     };
 
+    this.removeProp = function(x, y, prop, obj) {
+        return map[x][y].removeProp(prop, obj);
+    };
+
     this.setXY = function(x, y, val) {
         map[x][y].setVal(val);
     };
 
     this.getXY = function(x, y) {
         return map[x][y].getVal();
+    };
+
+    this.getCell = function(x, y) {
+        return map[x][y];
     };
 
     this.getRow = function(y) {
@@ -373,6 +551,12 @@ var Map = function(cols, rows) {
 
 };
 
-if ($NODE) {
-    module.exports = RG;
+if ( typeof exports !== 'undefined' ) {
+    if( typeof RG !== 'undefined' && module.exports ) {
+        exports = module.exports = RG;
+    }
+    exports.RG = RG;
+}
+else {
+    window.RG = RG;
 }

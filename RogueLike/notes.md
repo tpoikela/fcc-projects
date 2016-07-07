@@ -5,7 +5,7 @@ These are the development notes for the roguelike game. It is built as a part of
 the FreeCodeCamp projects.
 
 Because React.js will be used for rendering the game "graphics", I am not going
-to use any ASCII graphics features provided by the existing libraries. 
+to use any ASCII graphics features provided by the existing libraries.
 
 Existing libraries and features
 -------------------------------
@@ -46,11 +46,44 @@ a certain extent (small, medium, large) world.
 
 Simulation range is always scanned for events every time the player takes an
 action. Each action/event will then take place. Monsters move only in this
-range. 
+range.
 
 Viewport is zoomable, and can be resized easily for smaller screen.
 This means that monsters can come from outside the viewport.
 
+Scheduling
+----------
+
+I implemented a scheduler system in Perl some years ago already. For this game,
+I skip it and use an existing solution. rot.js has already nice scheduler API.
+I chose to use ROT.Scheduler.Action because it offers the possibility of changing
+speeds of individual actions. This offers much more realistic experience than
+all actions having the same speed.
+
+Initially, all monsters can start at the same speed, but this can be easily
+changed later on.
+
+Monster implementation
+----------------------
+
+
+
 TODO-list
 ---------
+    1. Render an empty M x N level with '@' representing the player.
+    2. Make keybindings to move the player around.
+    3. Add message printing routines.
+    4. Create a monster that moves around randomly.
+
+DONE-list
+---------
+
+
+
+Development notes
+-----------------
+
+After 1h of starting with rot.js, I was able to generate the first arena with my
+react-rendered GUI.
+
 
