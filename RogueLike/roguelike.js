@@ -29,14 +29,19 @@ var RG = {
             if (cell.hasProp(type)) {
                 var props = cell.getProp(type);
                 var styles = this.cellStyles[type];
+                console.log("Type is " + type);
                 var propType = props[0].getType();
+                console.log("propType is " + propType);
                 if (styles.hasOwnProperty(propType)) {
-                    return styles[type][propType];
+                    return styles[propType];
                 }
                 else {
-                    return styles[type]["default"];
+                    return styles["default"];
                 }
-                return this.cellStyles[type];
+            }
+            else { // class based on Base element
+                type = cell.getBaseElem().getType();
+                return this.cellStyles.elements[type];
             }
         }
         return "";
@@ -75,7 +80,15 @@ var RG = {
             c[i] = p[i];
         }
         c.uber = p;
-    }
+    },
+
+    nullOrUndefError: function(obj, msg, val) {
+        if (val === null || typeof val === "undefined") {
+            var type = typeof obj;
+            console.error("nullOrUndefError: " + type + ": " + msg);
+
+        }
+    },
 };
 
 RG.Locatable = function() {
@@ -112,6 +125,7 @@ RG.Locatable = function() {
     this.isSamePos = function(obj) {
         if (_x !== obj.getX()) return false;
         if (_y !== obj.getY()) return false;
+        if (_level !== obj.getLevel()) return false;
         return true;
     };
 
@@ -125,6 +139,7 @@ RG.Locatable = function() {
 
     this.setType = function(type) {
         _type = type;
+        RG.nullOrUndefError(this, "arg type", type);
     };
 
     this.getType = function() {
@@ -241,9 +256,11 @@ RG.RogueLevel = function(cols, rows) {
             if (index >= 0) {
                 var xOld = actor.getX();
                 var yOld = actor.getY();
+                console.log("Trying to move actor from " + x + ", " + y);
                 if (_map.removeProp(xOld, yOld, "actors", actor)) {
                     _map.setProp(x, y, "actors", actor);
                     actor.setXY(x, y);
+                    console.log("set actor x,y" + x + ", " + y);
                     return true;
                 }
                 else {
@@ -251,8 +268,11 @@ RG.RogueLevel = function(cols, rows) {
                 }
             }
         }
-        return false;
+        else {
+            console.log("Cell wasn't free at " + x + ", " + y);
 
+        }
+        return false;
     };
 
 };
@@ -389,15 +409,15 @@ RG.RogueMapGen = function() {
         }
     };
 
+    /** Returns a randomized map based on initialized generator settings.*/
     this.getMap = function() {
         var map = new RG.Map(this.cols, this.rows);
         _mapGen.create(function(x, y, val) {
-            map.setXY(x, y, val > 0 ? true: false);
-            if (val === 1) {
-                map.setProp(x, y, "elements", new RG.RogueElement("wall"));
+            if (val > 0) {
+                map.setBaseElemXY(x, y, new RG.RogueElement("wall"));
             }
             else if (val === 0) {
-                map.setProp(x, y, "elements", new RG.RogueElement("floor"));
+                map.setBaseElemXY(x, y, new RG.RogueElement("floor"));
             }
         });
         return map;
@@ -405,11 +425,11 @@ RG.RogueMapGen = function() {
 
 };
 
-RG.MapCell = function(x, y, val) {
+RG.MapCell = function(x, y, elem) {
 
-    var cellVal = val;
-    var cellX   = x;
-    var cellY   = y;
+    var _baseElem = elem;
+    var _x   = x;
+    var _y   = y;
 
     // Cell can have different properties
     var _p = {
@@ -419,16 +439,16 @@ RG.MapCell = function(x, y, val) {
         traps    : [],
     };
 
-    this.setVal = function(val) {
-        cellVal = val;
+    this.setBaseElem = function(elem) {
+        _baseElem = elem;
     };
 
-    this.getVal = function() {
-        return cellVal;
+    this.getBaseElem = function() {
+        return _baseElem;
     };
 
     this.isFree = function() {
-        return cellVal === 0;
+        return _baseElem.getType() !== "wall";
     };
 
     this.setProp = function(prop, obj) {
@@ -442,7 +462,7 @@ RG.MapCell = function(x, y, val) {
 
     /** Removes the given object from cell properties.*/
     this.removeProp = function(prop, obj) {
-        if (_p.hasProp(prop)) {
+        if (this.hasProp(prop)) {
             var props = _p[prop];
             var index = props.indexOf(obj);
             if (index === -1) return false;
@@ -462,14 +482,17 @@ RG.MapCell = function(x, y, val) {
      * myCell.hasPropType("wall")
      */
     this.hasPropType = function(propType) {
+        if (_baseElem.getType() === propType) return true;
         for (var prop in _p) {
             var arrProps = _p[prop];
             for (var i = 0; i < arrProps.length; i++) {
                 if (arrProps[i].getType() === propType) {
+                    console.log("Returning true for propType " + propType);
                     return true;
                 }
             }
         }
+        console.log("Returning false for propType " + propType);
         return false;
     };
 
@@ -508,22 +531,22 @@ RG.Map = function(cols, rows) {
         return map[x][y].removeProp(prop, obj);
     };
 
-    this.setXY = function(x, y, val) {
-        map[x][y].setVal(val);
+    this.setBaseElemXY = function(x, y, elem) {
+        map[x][y].setBaseElem(elem);
     };
 
-    this.getXY = function(x, y) {
-        return map[x][y].getVal();
+    this.getBaseElemXY = function(x, y) {
+        return map[x][y].getBaseElem();
     };
 
     this.getCell = function(x, y) {
         return map[x][y];
     };
 
-    this.getRow = function(y) {
+    this.getBaseElemRow = function(y) {
         var row = [];
         for (var i = 0; i < this.cols; ++i) {
-            row.push(map[i][y].getVal());
+            row.push(map[i][y].getBaseElem());
         }
         return row;
     };

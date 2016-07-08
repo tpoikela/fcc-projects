@@ -260,7 +260,7 @@ var GameRow = React.createClass({
         var rowCells = this.props.rowCellData.map( function(cell, index) {
             var cellClass = RG.getStyleClassForCell(cell);
             return (<GameCell cell={cell}
-                className={cellClass} value={false} x={index} y={y} onCellClick={onCellClick} key={index}/>);
+                className={cellClass} x={index} y={y} onCellClick={onCellClick} key={index}/>);
         });
         return (
             <tr>

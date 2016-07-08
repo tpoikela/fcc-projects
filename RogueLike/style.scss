@@ -49,10 +49,6 @@ td {
 // CELL StyleS
 //------------------------------------------------------------------
 
-.cell-active {
-    background-color: red;
-}
-
 .cell-actors {
     background-color: blue;
 }
@@ -60,6 +56,15 @@ td {
 .cell-elements {
     background-color: purple;
 }
+
+.cell-element-wall {
+    background-color: red;
+}
+
+.cell-element-floor {
+    //background-color: lighten(20%, gray);
+}
+
 
 .cell-items {
     background-color: green;

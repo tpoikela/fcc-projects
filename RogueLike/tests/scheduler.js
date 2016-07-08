@@ -1,11 +1,10 @@
 /**
- * Tests for checking action scheduling and turn taking between actors.
+ * Unit Tests for checking action scheduling and turn taking between actors.
  *
  */
 
 var chai = require("chai");
 var expect = chai.expect;
-
 var RG = require("../roguelike.js");
 
 var Actor = RG.RogueActor;
@@ -34,15 +33,16 @@ describe('Moving actors around in the game', function() {
         expect(actor.getX()).to.equal(1);
         expect(actor.getY()).to.equal(2);
 
-        level.moveActorTo(actor, 2, 3);
+        // Actors x,y changes due to move
+        expect(level.moveActorTo(actor, 2, 3)).to.equal(true);
         expect(actor.getX()).to.equal(2);
         expect(actor.getY()).to.equal(3);
 
         // Create a wall to block the passage
-        var wall = new Element();
-        level.getMap().setProp(3, 3, "elements", wall);
-        expect(level.moveActorTo(actor, 3, 3)).to.equal(true);
-        expect(actor.getX(), "X didn't change").to.equal(2);
+        var wall = new Element("wall");
+        level.getMap().setBaseElemXY(4, 4, wall);
+        expect(level.moveActorTo(actor, 4, 4)).to.equal(false);
+        expect(actor.getX(), "X didn't change due to wall").to.equal(2);
         expect(actor.getY()).to.equal(3);
 
     });
