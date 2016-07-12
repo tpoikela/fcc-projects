@@ -64,12 +64,13 @@ var RG = {
         },
     },
 
-    debug: function(msg) {
-        console.log("[DEBUG]: " + msg);
+    debug: function(obj, msg) {
+        var inst = typeof obj;
+        console.log("[DEBUG]: " + inst + " " + msg);
     },
 
     err: function(obj, fun, msg) {
-        console.error(obj + ": " + fun + " -> " + msg);
+        console.error("[ERROR]: " + obj + ": " + fun + " -> " + msg);
     },
 
 
@@ -89,13 +90,29 @@ var RG = {
 
         }
     },
+
+    isNullOrUndef: function(list) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i] === null || typeof list[i] === "undefined" ||
+                list === undefined) {
+                return true;
+            }
+        }
+        return false;
+    },
+
+    // Default FOV range for actors
+    FOV_RANGE: 10,
+    ROWS: 30,
+    COLS: 50,
 };
 
+/** This class is used by all locatable objects in the game.*/
 RG.Locatable = function() {
-    var _x;
-    var _y;
-    var _level;
-    var _type;
+    var _x = null;
+    var _y = null;
+    var _level = null;
+    var _type = null;
 
     this.setX = function(x) {
         _x = x;
@@ -122,6 +139,11 @@ RG.Locatable = function() {
         return [_x, _y];
     };
 
+    this.isLocated = function() {
+        return (_x !== null) && (_y !== null) && (_level !== null);
+    };
+
+    /** Returns true if locatables are in same position.*/
     this.isSamePos = function(obj) {
         if (_x !== obj.getX()) return false;
         if (_y !== obj.getY()) return false;
@@ -131,6 +153,7 @@ RG.Locatable = function() {
 
     this.setLevel = function(level) {
         _level = level;
+        RG.nullOrUndefError(this, "arg |level|", level);
     };
 
     this.getLevel = function() {
@@ -139,7 +162,7 @@ RG.Locatable = function() {
 
     this.setType = function(type) {
         _type = type;
-        RG.nullOrUndefError(this, "arg type", type);
+        RG.nullOrUndefError(this, "arg |type|", type);
     };
 
     this.getType = function() {
@@ -151,10 +174,14 @@ RG.Locatable = function() {
 /** Top-level object for the game. */
 RG.RogueGame = function() {
 
-    var _players = [];
-    var _levels = [];
+    var _cols = RG.COLS;
+    var _rows = RG.ROWS;
+
+    var _players      = [];
+    var _levels       = [];
     var _activeLevels = [];
-    var _time = "";
+    var _shownLevel   = null;
+    var _time         = "";
 
     var _scheduler = new RG.RogueScheduler();
     var _mapGen = new RG.RogueMapGen();
@@ -164,6 +191,32 @@ RG.RogueGame = function() {
         if (!_initDone) {
 
         }
+    };
+
+    /** Move actor to level n. */
+    this.moveToLevel = function(actor, nlevel) {
+        if (nlevel === _levels.length) {
+            this.createNewLevel(_cols, _rows);
+        }
+        else if (nlevel > _levels.length) {
+            RG.err("Game", "moveToLevel", "Level " + nlevel + "doesn't exist.");
+        }
+        else {
+            //TODO move to existing level
+
+        }
+    };
+
+    /** Creates a new level and adds it to the game. */
+    this.createNewLevel = function(cols, rows) {
+        var map = _mapgen.getMap();
+        var level = new RG.RogueLevel(cols, rows);
+        level.setMap(map);
+        _levels.push(level);
+    };
+
+    this.shownLevel = function() {
+        return _shownLevel;
     };
 
     /** Returns next actor from the scheduling queue.*/
@@ -184,9 +237,27 @@ RG.RogueGame = function() {
         }
     };
 
+    /** Adds player to the game. By default, it's added to the first level.*/
     this.addPlayer = function(player) {
-        _players.push(player);
-        _scheduler.add(player, true, 0);
+        if (_levels.length > 0) {
+            if (_levels[0].addActorToFreeCell(player)) {
+                _players.push(player);
+                _scheduler.add(player, true, 0);
+                if (_shownLevel === null) {
+                    _shownLevel = _levels[0];
+                }
+                RG.debug(this, "Added a player to the Game.");
+                return true;
+            }
+            else {
+                RG.err("Game", "addPlayer", "Failed to add the player.");
+                return false;
+            }
+        }
+        else {
+            RG.err("Game", "addPlayer", "No levels exist. Cannot add player.");
+        }
+        return false;
     };
 
     this.doAction = function(action) {
@@ -228,36 +299,80 @@ RG.RogueLevel = function(cols, rows) {
         return _map;
     };
 
-    /** Returns all properties in given location.*/
+    /** Returns all properties in a given location.*/
     this.getProps = function(x, y) {
+        if (!RG.isNullOrUndef([x, y])) {
 
-    };
-
-    this.addActor = function(actor, x, y) {
-        if (actor instanceof RG.RogueActor) {
-            _actors.push(actor);
-            actor.setLevel(this);
-            if (x !== null && y !== null) {
-                _map.setProp(x, y, "actors", actor);
-                actor.setXY(x, y);
-                RG.debug("Added actor to map x: " + x + " y: " + y);
-            }
-            else {
-
-            }
+        }
+        else {
+            RG.nullOrUndefError(this, "arg |x|", x);
+            RG.nullOrUndefError(this, "arg |y|", y);
+            return null;
         }
     };
 
+    /** Adds an actor to the level. If x,y is given, tries to add there. If not,
+     * finds first free cells and adds there. Returns true on success.
+     */
+    this.addActor = function(actor, x, y) {
+        RG.debug(this, "addActor called with x,y " + x + ", " + y);
+        if (!RG.isNullOrUndef([x, y])) {
+            if (_map.hasXY(x, y)) {
+                this._addActorToLevel(actor, x, y);
+                RG.debug(this, "Added actor to map x: " + x + " y: " + y);
+                return true;
+            }
+            else {
+                RG.err("Level", "addActor", "No coordinates " + x + ", " + y + " in the map.");
+                return false;
+            }
+        }
+        else {
+            RG.nullOrUndefError(this, "arg |x|", x);
+            RG.nullOrUndefError(this, "arg |y|", y);
+            return false;
+        }
+    };
+
+    /** USing this method, actor can be added to a free cell without knowing the
+     * exact x,y coordinates.*/
+    this.addActorToFreeCell = function(actor) {
+        RG.debug(this, "Adding actor to free slot");
+        var freeCells = _map.getFree();
+        if (freeCells.length > 0) {
+            var xCell = freeCells[0].getX();
+            var yCell = freeCells[0].getY();
+            this._addActorToLevelXY(actor, xCell, yCell);
+            RG.debug(this, "Added actor to free cell in " + xCell + ", " + yCell);
+            return true;
+        }
+        else {
+            RG.err("Level", "addActor", "No free cells for the actor.");
+            return false;
+        }
+    };
+
+    this._addActorToLevelXY = function(actor, x, y) {
+        _actors.push(actor);
+        actor.setXY(x,y);
+        actor.setLevel(this);
+        _map.setProp(x, y, "actors", actor);
+    };
+
+    /** Moves actor to x,y if possible and returns true. Returns false
+     * otherwise.*/
     this.moveActorTo = function(actor, x, y) {
         var index = _actors.indexOf(actor);
         var cell = _map.getCell(x, y);
-        console.log("Index is " + index);
+        RG.debug(this, "moveActorTo: Index is " + index);
         if (cell.isFree()) {
             if (index >= 0) {
                 var xOld = actor.getX();
                 var yOld = actor.getY();
-                console.log("Trying to move actor from " + x + ", " + y);
+                RG.debug(this, "Trying to move actor from " + xOld + ", " + yOld);
+
                 if (_map.removeProp(xOld, yOld, "actors", actor)) {
+                    console.log("About to setProp set actor x,y" + x + ", " + y);
                     _map.setProp(x, y, "actors", actor);
                     actor.setXY(x, y);
                     console.log("set actor x,y" + x + ", " + y);
@@ -269,10 +384,26 @@ RG.RogueLevel = function(cols, rows) {
             }
         }
         else {
-            console.log("Cell wasn't free at " + x + ", " + y);
+            RG.debug(this, "Cell wasn't free at " + x + ", " + y);
 
         }
         return false;
+    };
+
+    /** Explores the level from given actor's viewpoint. Sets new cells as
+     * explored. There's no exploration tracking per actor.*/
+    this.exploreCells = function(actor) {
+        var visibleCells = _map.getVisibleCells(actor);
+        if (actor.isPlayer()) {
+            for (var i = 0; i < visibleCells.length; i++) {
+                visibleCells[i].setExplored();
+            }
+        }
+        return visibleCells;
+    };
+
+    this.getExploredCells = function() {
+        return _map.getExploredCells();
     };
 
 };
@@ -285,6 +416,7 @@ RG.RogueActor = function(isPlayer) {
     var _isPlayer = isPlayer === undefined ? false : isPlayer;
     this.id = RG.IdCount++;
 
+    /** Returns true if actor is a player.*/
     this.isPlayer = function() {
         return _isPlayer;
     };
@@ -298,6 +430,10 @@ RG.RogueActor = function(isPlayer) {
             // Use AI brain to determine the action
 
         }
+    };
+
+    this.getFOVRange = function() {
+        return RG.FOV_RANGE;
     };
 
 };
@@ -416,9 +552,6 @@ RG.RogueMapGen = function() {
             if (val > 0) {
                 map.setBaseElemXY(x, y, new RG.RogueElement("wall"));
             }
-            else if (val === 0) {
-                map.setBaseElemXY(x, y, new RG.RogueElement("floor"));
-            }
         });
         return map;
     };
@@ -430,6 +563,7 @@ RG.MapCell = function(x, y, elem) {
     var _baseElem = elem;
     var _x   = x;
     var _y   = y;
+    var _explored = false;
 
     // Cell can have different properties
     var _p = {
@@ -439,6 +573,10 @@ RG.MapCell = function(x, y, elem) {
         traps    : [],
     };
 
+    this.getX = function() {return _x;};
+    this.getY = function() {return _y;};
+
+    /** Sets the base element for this cell.*/
     this.setBaseElem = function(elem) {
         _baseElem = elem;
     };
@@ -447,8 +585,10 @@ RG.MapCell = function(x, y, elem) {
         return _baseElem;
     };
 
+    /** Returns true if it's possible to move to this cell.*/
     this.isFree = function() {
-        return _baseElem.getType() !== "wall";
+        return _baseElem.getType() !== "wall" &&
+            !this.hasProp("actors");
     };
 
     this.setProp = function(prop, obj) {
@@ -501,9 +641,20 @@ RG.MapCell = function(x, y, elem) {
             return _p[prop];
         }
         return null;
-
     };
 
+    this.lightPasses = function() {
+        if (_baseElem.getType() === "wall") return false;
+        return true;
+    };
+
+    this.setExplored = function() {
+        _explored = true;
+    };
+
+    this.isExplored = function() {
+        return _explored;
+    };
 
 };
 
@@ -518,9 +669,15 @@ RG.Map = function(cols, rows) {
     for (var x = 0; x < this.cols; x++) {
         map.push([]);
         for (var y = 0; y < this.rows; y++) {
-            map[x].push(new RG.MapCell(x, y, 0));
+            var elem = new RG.RogueElement("floor");
+            map[x].push(new RG.MapCell(x, y, elem));
         }
     }
+
+    /** Returns true if x,y are in the map.*/
+    this.hasXY = function(x, y) {
+        return x < this.cols && y < this.rows;
+    };
 
     /** Sets a property for the underlying cell.*/
     this.setProp = function(x, y, prop, obj) {
@@ -565,11 +722,50 @@ RG.Map = function(cols, rows) {
         for (var x = 0; x < this.cols; x++) {
             for (var y = 0; y < this.rows; y++) {
                 if (map[x][y].isFree()) {
-                    freeCells.push([x, y]);
+                    freeCells.push(map[x][y]);
                 }
             }
         }
         return freeCells;
+    };
+
+    var lightPasses = function(x, y) {
+        if (this.hasXY(x, y)) {
+            return map[x][y].lightPasses(); // delegate to cell
+        }
+        return false;
+    }.bind(this);
+
+
+    /** Returns visible cells for given actor.*/
+    this.getVisibleCells = function(actor) {
+        var cells = [];
+        var fov = new ROT.FOV.PreciseShadowcasting(lightPasses);
+        var x = actor.getX();
+        var y = actor.getY();
+        if (actor.isLocated()) {
+            if (actor.getLevel().getMap() === this) {
+                var range = actor.getFOVRange();
+                fov.compute(x, y, range, function(x, y, r, visibility) {
+                    //console.log(x + "," + y + " r: " + r + "vis: " + visibility);
+                    if (visibility) {
+                        cells.push(map[x][y]);
+                    }
+                });
+            }
+        }
+        return cells;
+    };
+
+    this.getExploredCells = function() {
+        var cells = [];
+        for (var x = 0; x < this.cols; x++) {
+            for (var y = 0; y < this.rows; y++) {
+                if (map[x][y].isExplored()) {
+                    cells.push(map[x][y]);
+                }
+            }
+        }
     };
 
 };

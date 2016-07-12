@@ -21,32 +21,6 @@ describe('Basic functions for actors', function() {
     });
 });
 
-describe('Moving actors around in the game', function() {
-    it('Moves but is blocked by walls.', function() {
-        var actor = new Actor(true);
-        var level = new Level(10, 10);
-        var mapgen = new RG.RogueMapGen();
-        mapgen.setGen("arena", 10, 10);
-        var map = mapgen.getMap();
-        level.setMap(map);
-        level.addActor(actor, 1, 2);
-        expect(actor.getX()).to.equal(1);
-        expect(actor.getY()).to.equal(2);
-
-        // Actors x,y changes due to move
-        expect(level.moveActorTo(actor, 2, 3)).to.equal(true);
-        expect(actor.getX()).to.equal(2);
-        expect(actor.getY()).to.equal(3);
-
-        // Create a wall to block the passage
-        var wall = new Element("wall");
-        level.getMap().setBaseElemXY(4, 4, wall);
-        expect(level.moveActorTo(actor, 4, 4)).to.equal(false);
-        expect(actor.getX(), "X didn't change due to wall").to.equal(2);
-        expect(actor.getY()).to.equal(3);
-
-    });
-});
 
 describe('Scheduling one action', function() {
     it('Repeats the same actor indefinetely', function() {

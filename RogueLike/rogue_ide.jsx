@@ -34,9 +34,8 @@ var RoguelikeTop = React.createClass({
         level.setMap(map);
 
         var actor = new Actor(true); // player
-        level.addActor(actor, 2, 2);
-        game.addPlayer(actor);
         game.addLevel(level);
+        game.addPlayer(actor);
         this.nextActor = actor;
 
         return {
@@ -275,7 +274,7 @@ var GameRow = React.createClass({
 var GameCell = React.createClass({
 
     shouldComponentUpdate: function(nextProps, nextState) {
-        //return this.props.value !== nextProps.value;
+        //return this.props.cell.isExplored();
         return true;
     },
 
