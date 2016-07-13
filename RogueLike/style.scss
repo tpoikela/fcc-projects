@@ -49,9 +49,26 @@ td {
 // CELL StyleS
 //------------------------------------------------------------------
 
+
+//--------
+// ACTORS
+//--------
+
 .cell-actors {
     background-color: blue;
 }
+
+.cell-player {
+    background-color: green;
+}
+
+.cell-monster {
+    background-color: purple;
+};
+
+//----------
+// ELEMENTS
+//----------
 
 .cell-elements {
     background-color: purple;
@@ -72,7 +89,6 @@ td {
 .cell-not-explored {
     background-color: black;
 };
-
 
 
 .cell-items {

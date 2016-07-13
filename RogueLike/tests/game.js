@@ -43,8 +43,6 @@ describe('How game should proceed', function() {
         game.addLevel(level);
         expect(game.addPlayer(actor)).to.equal(true);
 
-        //var explCells = game.shownLevel().exploreCells(actor);
-
         expect(game.shownLevel()).to.equal(level);
         expect(actor.getLevel()).to.equal(level);
 

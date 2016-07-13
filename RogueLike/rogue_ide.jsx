@@ -34,10 +34,15 @@ var RoguelikeTop = React.createClass({
         level.setMap(map);
 
         var actor = new Actor(true); // player
+        actor.setType("player");
         game.addLevel(level);
         game.addPlayer(actor);
         this.nextActor = actor;
         level.exploreCells(actor);
+
+        var monster = new Actor(false); // Monster
+        monster.setType("monster");
+        game.addActorToLevel(monster, level);
 
         return {
             game: game
@@ -99,12 +104,14 @@ var RoguelikeTop = React.createClass({
     },
 
     handleKeyDown: function(evt) {
+        var game = this.state.game;
         if (this.nextActor !== null) {
             var code = evt.keyCode;
             this.playerCommand(code);
+            this.nextActor = game.nextActor();
             while (!this.nextActor.isPlayer() && !game.isGameOver()) {
                 var action = this.nextActor.nextAction();
-                action.doAction();
+                game.doAction(action);
                 this.setState({game: game});
                 this.nextActor = game.nextActor();
                 if (this.nextActor === null) break;
@@ -116,6 +123,8 @@ var RoguelikeTop = React.createClass({
         // Need existing position
         var x = this.nextActor.getX();
         var y = this.nextActor.getY();
+        var xOld = x;
+        var yOld = y;
 
         var game = this.state.game;
         console.log("Pressed key code was " + code);
@@ -132,9 +141,12 @@ var RoguelikeTop = React.createClass({
         // Check if new position possible
         // Move player to new position
 
-        game.moveActorTo(this.nextActor, x, y);
-        game.shownLevel().exploreCells(this.nextActor);
-        this.setState({game: this.state.game});
+        if (xOld !== x || yOld !== y) {
+            game.playerTookAction(100);
+            game.moveActorTo(this.nextActor, x, y);
+            game.shownLevel().exploreCells(this.nextActor);
+            this.setState({game: this.state.game});
+        }
     },
 
     setSize: function(cols, rows) {

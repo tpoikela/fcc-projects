@@ -30,9 +30,9 @@ var RG = {
             if (cell.hasProp(type)) {
                 var props = cell.getProp(type);
                 var styles = this.cellStyles[type];
-                console.log("Type is " + type);
+                //console.log("Type is " + type);
                 var propType = props[0].getType();
-                console.log("propType is " + propType);
+                //console.log("propType is " + propType);
                 if (styles.hasOwnProperty(propType)) {
                     return styles[propType];
                 }
@@ -55,6 +55,8 @@ var RG = {
             floor: "cell-element-floor",
         },
         actors: {
+            "player": "cell-player",
+            "monster": "cell-monster",
             "default": "cell-actors",
         },
         items: {
@@ -183,6 +185,7 @@ RG.RogueGame = function() {
     var _activeLevels = [];
     var _shownLevel   = null;
     var _time         = "";
+    var _gameOver     = false;
 
     var _scheduler = new RG.RogueScheduler();
     var _mapGen = new RG.RogueMapGen();
@@ -261,8 +264,31 @@ RG.RogueGame = function() {
         return false;
     };
 
+    this.addActorToLevel = function(actor, level) {
+        var index = _levels.indexOf(level);
+        if (index >= 0) {
+            if (_levels[0].addActorToFreeCell(actor)) {
+                _scheduler.add(actor, true, 0);
+                return true;
+            }
+            else {
+                RG.err("Game", "addActorToLevel", "Failed to add the actor.");
+            }
+        }
+        else {
+            RG.err("Game", "actorToLevel", "No level exist. Cannot add actor.");
+        }
+        return false;
+    };
+
+    this.playerTookAction = function(dur) {
+        var action = new RG.RogueAction(function(){}, 100, {});
+        _scheduler.setAction(action);
+    };
+
     this.doAction = function(action) {
         _scheduler.setAction(action);
+        action.doAction();
     };
 
     this.addLevel = function(level) {
@@ -417,6 +443,11 @@ RG.RogueActor = function(isPlayer) {
     var _isPlayer = isPlayer === undefined ? false : isPlayer;
     this.id = RG.IdCount++;
 
+    if (!isPlayer) {
+        _brain = new RG.RogueBrain();
+
+    }
+
     /** Returns true if actor is a player.*/
     this.isPlayer = function() {
         return _isPlayer;
@@ -429,7 +460,9 @@ RG.RogueActor = function(isPlayer) {
         }
         else {
             // Use AI brain to determine the action
-
+            console.log("Monster takes a turn.");
+            var cb = _brain.decideNextAction(this);
+            return new RG.RogueAction(100, cb, {});
         }
     };
 
@@ -464,7 +497,7 @@ RG.RogueElement = function(elemType) {
 RG.extend2(RG.RogueElement, RG.Locatable);
 
 /** Models an action. Each action has a duration and a callback.*/
-RG.RogueAction = function(dur, cb) {
+RG.RogueAction = function(dur, cb, obj) {
 
     var _duration = dur;
 
@@ -479,7 +512,7 @@ RG.RogueAction = function(dur, cb) {
     };
 
     this.doAction = function() {
-        _cb();
+        _cb(obj);
     };
 
 };
@@ -487,7 +520,33 @@ RG.RogueAction = function(dur, cb) {
 /** Brain is used by the AI to perform and decide on actions.*/
 RG.RogueBrain = function() {
 
+    this.decideNextAction = function(actor) {
+        var level = actor.getLevel();
+        var cells = level.getMap().getVisibleCells(actor);
+        var index = -1;
+        for (var i = 0; i < cells.length; i++) {
+            if (cells[i].isFree()) {
+                index = i;
+                break;
+            }
+        }
+
+        return function() {
+            var x = cells[index].getX();
+            var y = cells[index].getY();
+            level.moveActorTo(actor, x, y);
+        };
+    };
+
 };
+
+RG.ZombieBrain = function() {
+    RG.RogueBrain.call(this);
+
+};
+RG.extend2(RG.ZombieBrain, RG.RogueBrain);
+
+
 
 /** Scheduler for the game actions. */
 RG.RogueScheduler = function() {
