@@ -67,8 +67,12 @@ td {
 
 .cell-dark {
     background-color: #101010;
-
 }
+
+.cell-not-explored {
+    background-color: black;
+};
+
 
 
 .cell-items {

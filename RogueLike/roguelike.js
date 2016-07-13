@@ -24,6 +24,7 @@ var RG = {
     /** Maps a cell to specific class in stylesheet. For rendering purposes
      * only.*/
     getStyleClassForCell: function(cell) {
+        if (!cell.isExplored()) return "cell-not-explored";
         for (var i = 0; i < this.cellPropRenderOrder.length; i++) {
             var type = this.cellPropRenderOrder[i];
             if (cell.hasProp(type)) {
@@ -102,7 +103,7 @@ var RG = {
     },
 
     // Default FOV range for actors
-    FOV_RANGE: 10,
+    FOV_RANGE: 5,
     ROWS: 30,
     COLS: 50,
 };
@@ -372,10 +373,10 @@ RG.RogueLevel = function(cols, rows) {
                 RG.debug(this, "Trying to move actor from " + xOld + ", " + yOld);
 
                 if (_map.removeProp(xOld, yOld, "actors", actor)) {
-                    console.log("About to setProp set actor x,y" + x + ", " + y);
+                    console.log("About to setProp set actor x,y " + x + ", " + y);
                     _map.setProp(x, y, "actors", actor);
                     actor.setXY(x, y);
-                    console.log("set actor x,y" + x + ", " + y);
+                    console.log("set actor succesfully to x,y " + x + ", " + y);
                     return true;
                 }
                 else {
@@ -385,7 +386,6 @@ RG.RogueLevel = function(cols, rows) {
         }
         else {
             RG.debug(this, "Cell wasn't free at " + x + ", " + y);
-
         }
         return false;
     };
@@ -402,6 +402,7 @@ RG.RogueLevel = function(cols, rows) {
         return visibleCells;
     };
 
+    /** Returns all explored cells in the map.*/
     this.getExploredCells = function() {
         return _map.getExploredCells();
     };
@@ -552,6 +553,9 @@ RG.RogueMapGen = function() {
             if (val > 0) {
                 map.setBaseElemXY(x, y, new RG.RogueElement("wall"));
             }
+            else {
+                map.setBaseElemXY(x, y, new RG.RogueElement("floor"));
+            }
         });
         return map;
     };
@@ -656,6 +660,13 @@ RG.MapCell = function(x, y, elem) {
         return _explored;
     };
 
+    this.toString = function() {
+        var str = "MapCell " + _x + ", " + _y;
+        str += " explored: " + _explored;
+        str += " passes light: " + this.lightPasses();
+        return str;
+    };
+
 };
 
 /** Map object which contains a number of cells. A map is used for rendering
@@ -665,6 +676,9 @@ RG.Map = function(cols, rows) {
     var map = [];
     this.cols = cols;
     this.rows = rows;
+
+    var _cols = cols;
+    var _rows = rows;
 
     for (var x = 0; x < this.cols; x++) {
         map.push([]);
@@ -676,7 +690,8 @@ RG.Map = function(cols, rows) {
 
     /** Returns true if x,y are in the map.*/
     this.hasXY = function(x, y) {
-        return x < this.cols && y < this.rows;
+        return (x >= 0) && (x < this.cols) && (y >= 0) && (y < this.rows);
+        //return x < this.cols && y < this.rows;
     };
 
     /** Sets a property for the underlying cell.*/
@@ -729,12 +744,16 @@ RG.Map = function(cols, rows) {
         return freeCells;
     };
 
+    var _hasXY = function(x, y) {
+        return (x >= 0) && (x < _cols) && (y >= 0) && (y < _rows);
+    };
+
     var lightPasses = function(x, y) {
-        if (this.hasXY(x, y)) {
+        if (_hasXY(x, y)) {
             return map[x][y].lightPasses(); // delegate to cell
         }
         return false;
-    }.bind(this);
+    };
 
 
     /** Returns visible cells for given actor.*/
@@ -749,7 +768,10 @@ RG.Map = function(cols, rows) {
                 fov.compute(x, y, range, function(x, y, r, visibility) {
                     //console.log(x + "," + y + " r: " + r + "vis: " + visibility);
                     if (visibility) {
-                        cells.push(map[x][y]);
+                        if (_hasXY(x, y)) {
+                            //console.log(map[x][y].toString());
+                            cells.push(map[x][y]);
+                        }
                     }
                 });
             }

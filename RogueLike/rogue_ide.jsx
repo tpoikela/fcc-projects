@@ -37,6 +37,7 @@ var RoguelikeTop = React.createClass({
         game.addLevel(level);
         game.addPlayer(actor);
         this.nextActor = actor;
+        level.exploreCells(actor);
 
         return {
             game: game
@@ -112,26 +113,28 @@ var RoguelikeTop = React.createClass({
     },
 
     playerCommand: function(code) {
+        // Need existing position
         var x = this.nextActor.getX();
         var y = this.nextActor.getY();
+
         var game = this.state.game;
         console.log("Pressed key code was " + code);
-        //if (code >= ROT.VK_LEFT && code <= ROT.VK_DOWN) {
-            if (code === ROT.VK_D) ++x;
-            if (code === ROT.VK_A) --x;
-            if (code === ROT.VK_W) --y;
-            if (code === ROT.VK_X) ++y;
-            if (code === ROT.VK_Q) {--y; --x;}
-            if (code === ROT.VK_E) {--y; ++x;}
-            if (code === ROT.VK_C) {++y; ++x;}
-            if (code === ROT.VK_Z) {++y; --x;}
-            // Need existing position
-            // Check if new position possible
-            // Move player to new position
-            game.moveActorTo(this.nextActor, x, y);
-            // Schedule new event
-            this.setState({game: this.state.game});
-            //}
+
+        if (code === ROT.VK_D) ++x;
+        if (code === ROT.VK_A) --x;
+        if (code === ROT.VK_W) --y;
+        if (code === ROT.VK_X) ++y;
+        if (code === ROT.VK_Q) {--y; --x;}
+        if (code === ROT.VK_E) {--y; ++x;}
+        if (code === ROT.VK_C) {++y; ++x;}
+        if (code === ROT.VK_Z) {++y; --x;}
+
+        // Check if new position possible
+        // Move player to new position
+
+        game.moveActorTo(this.nextActor, x, y);
+        //game.shownLevel().exploreCells(this.nextActor);
+        this.setState({game: this.state.game});
     },
 
     setSize: function(cols, rows) {
