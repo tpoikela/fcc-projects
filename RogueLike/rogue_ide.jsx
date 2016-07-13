@@ -133,7 +133,7 @@ var RoguelikeTop = React.createClass({
         // Move player to new position
 
         game.moveActorTo(this.nextActor, x, y);
-        //game.shownLevel().exploreCells(this.nextActor);
+        game.shownLevel().exploreCells(this.nextActor);
         this.setState({game: this.state.game});
     },
 
