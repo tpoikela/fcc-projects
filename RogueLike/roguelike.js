@@ -320,9 +320,6 @@ RG.RogueGame = function() {
         level.moveActorTo(actor, x, y);
     };
 
-    this.killActor = function(actor) {
-
-    };
 
 };
 
@@ -483,7 +480,7 @@ RG.Combatant = function(hp) {
     };
 
     this.setHP = function(hp) {
-        //if (hp < _hp) console.log("HP was reduced " + _hp + " -> " + hp);
+        if (hp < _hp) console.log("HP was reduced " + _hp + " -> " + hp);
         _hp = hp;
     };
 
