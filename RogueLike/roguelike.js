@@ -83,7 +83,15 @@ var RG = {
         for (var i in p) {
             c[i] = p[i];
         }
-        c.uber = p;
+        if (c.hasOwnProperty("uber")) {
+            var ubers = [c.uber];
+            ubers.push(p);
+            c.uber = ubers;
+            console.log("Multi-inheritance in PLAY!");
+        }
+        else {
+            c.uber = p;
+        }
     },
 
     nullOrUndefError: function(obj, msg, val) {
@@ -312,6 +320,10 @@ RG.RogueGame = function() {
         level.moveActorTo(actor, x, y);
     };
 
+    this.killActor = function(actor) {
+
+    };
+
 };
 
 RG.RogueLevel = function(cols, rows) {
@@ -345,7 +357,7 @@ RG.RogueLevel = function(cols, rows) {
         RG.debug(this, "addActor called with x,y " + x + ", " + y);
         if (!RG.isNullOrUndef([x, y])) {
             if (_map.hasXY(x, y)) {
-                this._addActorToLevel(actor, x, y);
+                this._addActorToLevelXY(actor, x, y);
                 RG.debug(this, "Added actor to map x: " + x + " y: " + y);
                 return true;
             }
@@ -411,9 +423,30 @@ RG.RogueLevel = function(cols, rows) {
             }
         }
         else {
+            if (cell.hasProp("actors")) {
+                var target = cell.getProp("actors")[0];
+                var combat = new RG.RogueCombat(actor, target);
+                combat.fight();
+                console.log("Actor attacks at " + x + ", " + y);
+                return true;
+            }
             RG.debug(this, "Cell wasn't free at " + x + ", " + y);
         }
         return false;
+    };
+
+    this.removeActor = function(actor) {
+        var index = _actors.indexOf(actor);
+        var x = actor.getX();
+        var y = actor.getY();
+        if (_map.removeProp(x, y, "actors", actor)) {
+            _actors.splice(index, 1);
+            return true;
+        }
+        else {
+            return false;
+
+        }
     };
 
     /** Explores the level from given actor's viewpoint. Sets new cells as
@@ -435,17 +468,96 @@ RG.RogueLevel = function(cols, rows) {
 
 };
 
+/** Combatant object can be used for all actors and objects involved in
+ * combat.*/
+RG.Combatant = function(hp) {
+
+    //console.log("Combatant constructor got HP '" + hp + "'");
+
+    var _hp = hp;
+    var _attack = 10;
+    var _defense = 5;
+
+    this.getHP = function() {
+        return _hp;
+    };
+
+    this.setHP = function(hp) {
+        //if (hp < _hp) console.log("HP was reduced " + _hp + " -> " + hp);
+        _hp = hp;
+    };
+
+    this.isAlive = function() {
+        return _hp > 0;
+    };
+
+    this.getAttack = function() {
+        return _attack;
+    };
+
+    this.setAttack = function(attack) {
+        _attack = attack;
+    };
+
+    this.getDefense = function() {
+        return _defense;
+    };
+    
+    this.setDefense = function(defense) {
+        _defense = defense;
+    };
+
+};
+
+RG.RogueCombat = function(att, def) {
+
+    var _att = att;
+    var _def = def;
+
+    this.fight = function() {
+        var attackPoints = _att.getAttack();
+        var defPoints = _def.getDefense();
+        var diff = attackPoints - defPoints;
+        if (diff > 0) {
+            this.doDamage(_def, diff);
+        }
+    };
+
+    this.doDamage = function(def, dmg) {
+        def.setHP(def.getHP() - dmg);
+        if (!def.isAlive()) {
+            this.killActor(def);
+        }
+    };
+
+    this.killActor = function(actor) {
+        var level = actor.getLevel();
+        if (level.removeActor(actor)) {
+            this.giveExp(_att);
+        }
+        else {
+            RG.err("Combat", "killActor", "Couldn't kill actor");
+        }
+    };
+
+    /** Give some experience points.*/
+    this.giveExp = function(att) {
+
+    };
+
+};
+
 RG.RogueActor = function(isPlayer) {
     RG.Locatable.call(this);
+    RG.Combatant.call(this, 100);
+
     this.setType("actors");
-    var _actions = [];
     var _brain = null;
     var _isPlayer = isPlayer === undefined ? false : isPlayer;
     this.id = RG.IdCount++;
 
     if (!isPlayer) {
         _brain = new RG.RogueBrain();
-
     }
 
     /** Returns true if actor is a player.*/
@@ -474,6 +586,7 @@ RG.RogueActor = function(isPlayer) {
 
 //RG.RogueActor.extend(RG.Locatable);
 RG.extend2(RG.RogueActor, RG.Locatable);
+RG.extend2(RG.RogueActor, RG.Combatant);
 
 /** Element is a wall or other obstacle or a feature in the map. It's not
  * necessarily blocking movement.

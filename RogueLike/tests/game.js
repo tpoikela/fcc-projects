@@ -26,18 +26,23 @@ function checkMap(map, cols, rows) {
     }
 }
 
+function getNewLevel(cols, rows) {
+    var level = new RG.RogueLevel(cols, rows);
+    var mapGen = new RG.RogueMapGen();
+    mapGen.setGen("arena", cols, rows);
+    var map = mapGen.getMap();
+    level.setMap(map);
+    return level;
+
+}
+
 describe('How game should proceed', function() {
     it('Initializes the game and adds player', function() {
-        var mapGen = new RG.RogueMapGen();
         var cols = 50;
         var rows = 30;
+        var level = getNewLevel(cols, rows);
 
-        var level = new RG.RogueLevel(cols, rows);
-
-        mapGen.setGen("arena", cols, rows);
-        var map = mapGen.getMap();
-        checkMap(map, cols, rows);
-        level.setMap(map);
+        //checkMap(map, cols, rows);
 
         var actor = new Actor(true); // player
         game.addLevel(level);
@@ -55,6 +60,44 @@ describe('How game should proceed', function() {
         expect(explCells.length).to.equal(11*11);
 
         //expect(level.moveActorTo(actor, 11, 13)).to.equal(true);
+
+    });
+});
+
+describe('How combat should evolve', function() {
+    it('Deals damage from attacker to defender', function() {
+        var cols = 50;
+        var rows = 30;
+        var level = getNewLevel(cols, rows);
+
+        var attacker = new Actor(false);
+        expect(attacker.isAlive()).to.equal(true);
+        var defender = new Actor(false);
+        expect(defender.isAlive()).to.equal(true);
+        attacker.setAttack(10);
+        defender.setHP(5);
+        defender.setDefense(5);
+
+        level.addActor(attacker, 1, 1);
+        level.addActor(defender, 2, 2);
+
+        var combat = new RG.RogueCombat(attacker, defender);
+        combat.fight();
+        expect(defender.isAlive()).to.equal(false);
+
+        var def2 = new Actor(false);
+        level.addActor(def2, 2, 2);
+        combat = new RG.RogueCombat(attacker, def2);
+        def2.setHP(20);
+        def2.setDefense(2);
+        expect(def2.isAlive()).to.equal(true);
+        combat.fight();
+        expect(def2.getHP()).to.equal(20 - (10-2));
+        expect(def2.isAlive()).to.equal(true);
+        combat.fight();
+        expect(def2.isAlive()).to.equal(true);
+        combat.fight();
+        expect(def2.isAlive()).to.equal(false);
 
     });
 });

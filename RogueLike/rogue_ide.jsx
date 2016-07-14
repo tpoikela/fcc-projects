@@ -142,11 +142,19 @@ var RoguelikeTop = React.createClass({
         // Move player to new position
 
         if (xOld !== x || yOld !== y) {
+            if (game.moveActorTo(this.nextActor, x, y)) {
+                game.playerTookAction(100);
+                game.shownLevel().exploreCells(this.nextActor);
+                this.setState({game: this.state.game});
+            }
+        }
+        else if (code === ROT.VK_S) {
             game.playerTookAction(100);
-            game.moveActorTo(this.nextActor, x, y);
             game.shownLevel().exploreCells(this.nextActor);
             this.setState({game: this.state.game});
         }
+        game.shownLevel().exploreCells(this.nextActor);
+        this.setState({game: this.state.game});
     },
 
     setSize: function(cols, rows) {
