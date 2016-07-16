@@ -7,6 +7,10 @@ var chai = require("chai");
 var expect = chai.expect;
 var RG = require("../roguelike.js");
 
+var RGTest = require("../roguetest.js");
+
+var checkXY = RGTest.checkActorXY;
+
 var Game = RG.RogueGame;
 var Actor = RG.RogueActor;
 
@@ -36,6 +40,18 @@ function getNewLevel(cols, rows) {
 
 }
 
+/** Returns a level with initialized with given actors.*/
+function getLevelWithNActors(cols, rows, nactors) {
+    var level = getNewLevel(cols, rows);
+    var actors = [];
+    for (var i = 0; i < nactors; i++) {
+        var actor = new Actor(false);
+        actors.push(actor);
+        level.addActorToFreeCell(actor);
+    }
+    return [level, actors];
+}
+
 describe('How game should proceed', function() {
     it('Initializes the game and adds player', function() {
         var cols = 50;
@@ -55,7 +71,7 @@ describe('How game should proceed', function() {
         checkMap(newMap, cols, rows);
 
         expect(level.moveActorTo(actor, 10, 12)).to.equal(true);
-        
+
         var explCells = level.exploreCells(actor);
         expect(explCells.length).to.equal(11*11);
 
@@ -102,3 +118,38 @@ describe('How combat should evolve', function() {
     });
 });
 
+describe('How AI brain works', function() {
+    var cols = 30;
+    var rows = 20;
+    var level = getNewLevel(cols, rows);
+    var mons1 = new Actor(false);
+    var player = new Actor(true);
+
+    it('Brain should find player cell', function() {
+        expect(level.addActor(player, 2, 2)).to.equal(true);
+        expect(level.addActor(mons1, 3, 5)).to.equal(true);
+
+        var map = level.getMap();
+        expect(map.isPassable(2,3)).to.equal(true);
+
+        var brain = new RG.RogueBrain(mons1);
+        var seenCells = level.getMap().getVisibleCells(mons1);
+        expect(seenCells.length).to.not.equal(0);
+        var playerCell = brain.findPlayerCell(seenCells);
+        expect(playerCell.hasProp("actors")).to.equal(true);
+
+        var pathCells = brain.getShortestPathTo(playerCell);
+        expect(pathCells).to.be.a('array');
+        expect(pathCells.length).to.not.equal(0);
+    });
+
+    it('description', function() {
+        expect(level.addActor(player, 2, 2)).to.equal(true);
+        expect(level.addActor(mons1, 2, 4)).to.equal(true);
+        var action = mons1.nextAction();
+        action.doAction();
+        checkXY(mons1, 2, 3);
+
+    });
+
+});
