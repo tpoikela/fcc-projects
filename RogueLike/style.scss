@@ -15,6 +15,10 @@ $ctrl-top-color: darken($main-color, 10%);
     font-family: 'Josefin Sans', sans-serif;
 }
 
+@mixin cell-font {
+    font-family: 'VT323', monospace;
+}
+
 // Control panel theme
 @mixin ctrl-panel {
     border: 1px solid black;

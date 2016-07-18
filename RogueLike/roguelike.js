@@ -21,7 +21,7 @@ var RG = {
 
     cellPropRenderOrder: ['actors', 'items', 'traps', 'elements'],
 
-    /** Maps a cell to specific class in stylesheet. For rendering purposes
+    /** Maps a cell to specific object in stylesheet. For rendering purposes
      * only.*/
     getStyleClassForCell: function(cell) {
         if (!cell.isExplored()) return "cell-not-explored";
@@ -46,6 +46,17 @@ var RG = {
             }
         }
         return "";
+    },
+
+    shortestDist: function(x0, y0, x1, y1) {
+        var coords = [];
+        var result = 0;
+        var passableCallback = function(x, y) {return true;};
+        var finder = new ROT.Path.Dijkstra(x0, y0, passableCallback);
+        finder.compute(x1, y1, function(x, y) {
+            ++result;
+        });
+        return result;
     },
 
     cellStyles: {
@@ -94,14 +105,15 @@ var RG = {
         }
     },
 
+    /** Prints an error into console if 'val' is null or undefined.*/
     nullOrUndefError: function(obj, msg, val) {
-        if (val === null || typeof val === "undefined") {
+        if (this.isNullOrUndef([val])) {
             var type = typeof obj;
             console.error("nullOrUndefError: " + type + ": " + msg);
-
         }
     },
 
+    /** Returns true if anything in the list is null or undefined.*/
     isNullOrUndef: function(list) {
         for (var i = 0; i < list.length; i++) {
             if (list[i] === null || typeof list[i] === "undefined" ||
@@ -116,9 +128,10 @@ var RG = {
     FOV_RANGE: 5,
     ROWS: 30,
     COLS: 50,
+    ACTION_DUR: 100,
 };
 
-/** This class is used by all locatable objects in the game.*/
+/** This object is used by all locatable objects in the game.*/
 RG.Locatable = function() {
     var _x = null;
     var _y = null;
@@ -150,6 +163,7 @@ RG.Locatable = function() {
         return [_x, _y];
     };
 
+    /** Returns true if object is located at a position on a level.*/
     this.isLocated = function() {
         return (_x !== null) && (_y !== null) && (_level !== null);
     };
@@ -162,6 +176,7 @@ RG.Locatable = function() {
         return true;
     };
 
+    /** Sets the level of this locatable object.*/
     this.setLevel = function(level) {
         _level = level;
         RG.nullOrUndefError(this, "arg |level|", level);
@@ -289,11 +304,6 @@ RG.RogueGame = function() {
         return false;
     };
 
-    this.playerTookAction = function(dur) {
-        var action = new RG.RogueAction(function(){}, 100, {});
-        _scheduler.setAction(action);
-    };
-
     this.doAction = function(action) {
         _scheduler.setAction(action);
         action.doAction();
@@ -317,7 +327,7 @@ RG.RogueGame = function() {
 
     this.moveActorTo = function(actor, x, y) {
         var level = actor.getLevel();
-        level.moveActorTo(actor, x, y);
+        return level.moveActorTo(actor, x, y);
     };
 
 
@@ -499,9 +509,13 @@ RG.Combatant = function(hp) {
     this.getDefense = function() {
         return _defense;
     };
-    
+
     this.setDefense = function(defense) {
         _defense = defense;
+    };
+
+    this.getAttackRange = function() {
+        return 1;
     };
 
 };
@@ -554,7 +568,10 @@ RG.RogueActor = function(isPlayer) {
     this.id = RG.IdCount++;
 
     if (!isPlayer) {
-        _brain = new RG.RogueBrain();
+        _brain = new RG.RogueBrain(this);
+    }
+    else {
+        _brain = new RG.PlayerBrain(this);
     }
 
     /** Returns true if actor is a player.*/
@@ -562,16 +579,14 @@ RG.RogueActor = function(isPlayer) {
         return _isPlayer;
     };
 
-    this.nextAction = function() {
-        if (_isPlayer) {
-            // Wait for key event
-
+    this.nextAction = function(obj) {
+        // Use actor brain to determine the action
+        var cb = _brain.decideNextAction(obj);
+        if (cb !== null) {
+            return new RG.RogueAction(RG.ACTION_DUR, cb, {});
         }
         else {
-            // Use AI brain to determine the action
-            console.log("Monster takes a turn.");
-            var cb = _brain.decideNextAction(this);
-            return new RG.RogueAction(100, cb, {});
+            return new RG.RogueAction(0, function(){}, {});
         }
     };
 
@@ -627,25 +642,172 @@ RG.RogueAction = function(dur, cb, obj) {
 
 };
 
-/** Brain is used by the AI to perform and decide on actions.*/
-RG.RogueBrain = function() {
+//---------------------------------------------------------------------------
+// BRAINS
+//---------------------------------------------------------------------------
 
-    this.decideNextAction = function(actor) {
-        var level = actor.getLevel();
-        var cells = level.getMap().getVisibleCells(actor);
+/** This brain is used by the player actor. It simply handles the player input
+ * but by having brain, player actor looks like other actors.*/
+RG.PlayerBrain = function(actor) {
+
+    var _actor = actor;
+
+    this.decideNextAction = function(obj) {
+        var code = obj.code;
+        var level = _actor.getLevel();
+
+        // Need existing position
+        var x = _actor.getX();
+        var y = _actor.getY();
+        var xOld = x;
+        var yOld = y;
+
+        console.log("PlayerBrain Pressed key code was " + code);
+
+        var type = "MOVE";
+        if (code === ROT.VK_D) ++x;
+        if (code === ROT.VK_A) --x;
+        if (code === ROT.VK_W) --y;
+        if (code === ROT.VK_X) ++y;
+        if (code === ROT.VK_Q) {--y; --x;}
+        if (code === ROT.VK_E) {--y; ++x;}
+        if (code === ROT.VK_C) {++y; ++x;}
+        if (code === ROT.VK_Z) {++y; --x;}
+        if (code === ROT.VK_S) {
+            // IDLE action
+            type = "IDLE";
+        }
+
+        if (type === "MOVE") {
+            if (level.getMap().isPassable(x, y)) {
+                return function() {
+                    level.moveActorTo(_actor, x, y);
+                };
+            }
+            else if (level.getMap().getCell(x,y).hasProp("actors")) {
+                return function() {
+                    level.moveActorTo(_actor, x, y);
+                };
+            }
+        }
+        else if (type === "IDLE") {
+            return function() {};
+        }
+
+        return null; // Null action
+    };
+
+};
+
+
+/** Brain is used by the AI to perform and decide on actions. Brain returns
+ * actionable callbacks but doesn't know Action objects.*/
+RG.RogueBrain = function(actor) {
+
+    var _actor = actor;
+    var _explored = {};
+
+    var passableCallback = function(x, y) {
+        var map = _actor.getLevel().getMap();
+        if (!RG.isNullOrUndef([map])) {
+            var res = map.isPassable(x, y);
+            if (!res) {
+                res = (x === _actor.getX()) && (y === _actor.getY());
+            }
+            return res;
+        }
+        else {
+            RG.err("Brain", "passableCallback", "_map not well defined.");
+        }
+        return false;
+    };
+
+    /** Main function for retrieving the actionable callback. Acting actor must
+     * be passed in. */
+    this.decideNextAction = function(obj) {
+        var level = _actor.getLevel();
+        var seenCells = level.getMap().getVisibleCells(_actor);
+        var playerCell = this.findPlayerCell(seenCells);
+
+        if (!RG.isNullOrUndef([playerCell])) { // Move or attack
+            var playX = playerCell.getX();
+            var playY = playerCell.getY();
+            if (this.canAttack(playX, playY)) {
+                return function() {
+                    level.moveActorTo(_actor, playX, playY);
+                };
+
+            }
+            else { // Move closer
+                var pathCells = this.getShortestPathTo(playerCell);
+                var pathX = pathCells[1].getX();
+                var pathY = pathCells[1].getY();
+                return function() {
+                    level.moveActorTo(_actor, pathX, pathY);
+                };
+            }
+        }
+
         var index = -1;
-        for (var i = 0; i < cells.length; i++) {
-            if (cells[i].isFree()) {
-                index = i;
-                break;
+        for (var i = 0; i < seenCells.length; i++) {
+            if (seenCells[i].isFree()) {
+                if (!_explored.hasOwnProperty(seenCells[i])) {
+                    _explored[seenCells[i]] = true;
+                    index = i;
+                    break;
+                }
             }
         }
 
         return function() {
-            var x = cells[index].getX();
-            var y = cells[index].getY();
-            level.moveActorTo(actor, x, y);
+            var x = seenCells[index].getX();
+            var y = seenCells[index].getY();
+            level.moveActorTo(_actor, x, y);
         };
+    };
+
+    this.canAttack = function(x, y) {
+        var actorX = _actor.getX();
+        var actorY = _actor.getY();
+        var attackRange = _actor.getAttackRange();
+        var getDist = RG.shortestDist(x, y, actorX, actorY);
+        if (getDist <= attackRange) return true;
+        return false;
+    };
+
+    /** Given a list of cells, returns a cell with player in it or null.*/
+    this.findPlayerCell = function(cells) {
+        for (var i = 0; i < cells.length; i++) {
+            if (cells[i].hasProp("actors")) {
+                var actors = cells[i].getProp("actors");
+                if (actors[0].isPlayer()) return cells[i];
+            }
+        }
+        return null;
+    };
+
+    /** Returns shortest path from actor to the given cell. Resulting cells are
+     * returned in order: closest to the actor first. Thus moving to next cell
+     * can be done by taking the first returned cell.*/
+    this.getShortestPathTo = function(cell) {
+        var path = [];
+        var toX = cell.getX();
+        var toY = cell.getY();
+        var pathFinder = new ROT.Path.Dijkstra(toX, toY, passableCallback);
+        var map = _actor.getLevel().getMap();
+        var sourceX = _actor.getX();
+        var sourceY = _actor.getY();
+
+        if (RG.isNullOrUndef([toX, toY, sourceX, sourceY])) {
+            RG.err("Brain", "getShortestPathTo", "Null/undef coords.");
+        }
+
+        pathFinder.compute(sourceX, sourceY, function(x, y) {
+            if (map.hasXY(x, y)) {
+                path.push(map.getCell(x, y));
+            }
+        });
+        return path;
     };
 
 };
@@ -821,6 +983,10 @@ RG.MapCell = function(x, y, elem) {
         return true;
     };
 
+    this.isPassable = function() {
+        return this.isFree();
+    };
+
     this.setExplored = function() {
         _explored = true;
     };
@@ -860,7 +1026,6 @@ RG.Map = function(cols, rows) {
     /** Returns true if x,y are in the map.*/
     this.hasXY = function(x, y) {
         return (x >= 0) && (x < this.cols) && (y >= 0) && (y < this.rows);
-        //return x < this.cols && y < this.rows;
     };
 
     /** Sets a property for the underlying cell.*/
@@ -913,10 +1078,12 @@ RG.Map = function(cols, rows) {
         return freeCells;
     };
 
+    /** Returns true if the map has a cell in given x,y location.*/
     var _hasXY = function(x, y) {
         return (x >= 0) && (x < _cols) && (y >= 0) && (y < _rows);
     };
 
+    /** Returns true if light passes through this cell.*/
     var lightPasses = function(x, y) {
         if (_hasXY(x, y)) {
             return map[x][y].lightPasses(); // delegate to cell
@@ -924,6 +1091,12 @@ RG.Map = function(cols, rows) {
         return false;
     };
 
+    this.isPassable = function(x, y) {
+        if (_hasXY(x, y)) {
+            return map[x][y].isPassable();
+        }
+        return false;
+    };
 
     /** Returns visible cells for given actor.*/
     this.getVisibleCells = function(actor) {

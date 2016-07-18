@@ -1,9 +1,15 @@
 roguelike=/home/tpoikela/git/freecodecamp/RogueLike/ /home/tpoikela/git/freecodecamp/RogueLike/ filter="*.js *.jsx *.html *.scss *.txt *.md" {
  roguelike.js
+ rot.js
  rot.min.js
  rogue_ide.jsx
  index.html
  style.scss
  notes.md
- .tern-project
+ tests=tests {
+  game.js
+  map.js
+  roguetest.js
+  scheduler.js
+ }
 }

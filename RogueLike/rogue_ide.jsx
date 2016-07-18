@@ -52,17 +52,9 @@ var RoguelikeTop = React.createClass({
     /** When a cell is clicked, shows some debug info. */
     onCellClick: function(evt, x, y, cell) {
         debug("<Top> onCellClick with x: " + x + " y: " + y + " cell: " + cell);
-        //var game = this.state.game;
-        //game.setXY(x, y, !game.getXY(x, y));
-        //this.setState({game: game});
     },
 
     nextState: function() {
-        /*
-        var game = this.state.game;
-        game.nextState();
-        this.setState({game: game, numTurns: this.state.numTurns+1});
-        */
     },
 
     startGame: function() {
@@ -109,6 +101,7 @@ var RoguelikeTop = React.createClass({
             var code = evt.keyCode;
             this.playerCommand(code);
             this.nextActor = game.nextActor();
+
             while (!this.nextActor.isPlayer() && !game.isGameOver()) {
                 var action = this.nextActor.nextAction();
                 game.doAction(action);
@@ -120,41 +113,11 @@ var RoguelikeTop = React.createClass({
     },
 
     playerCommand: function(code) {
-        // Need existing position
-        var x = this.nextActor.getX();
-        var y = this.nextActor.getY();
-        var xOld = x;
-        var yOld = y;
-
         var game = this.state.game;
-        console.log("Pressed key code was " + code);
-
-        if (code === ROT.VK_D) ++x;
-        if (code === ROT.VK_A) --x;
-        if (code === ROT.VK_W) --y;
-        if (code === ROT.VK_X) ++y;
-        if (code === ROT.VK_Q) {--y; --x;}
-        if (code === ROT.VK_E) {--y; ++x;}
-        if (code === ROT.VK_C) {++y; ++x;}
-        if (code === ROT.VK_Z) {++y; --x;}
-
-        // Check if new position possible
-        // Move player to new position
-
-        if (xOld !== x || yOld !== y) {
-            if (game.moveActorTo(this.nextActor, x, y)) {
-                game.playerTookAction(100);
-                game.shownLevel().exploreCells(this.nextActor);
-                this.setState({game: this.state.game});
-            }
-        }
-        else if (code === ROT.VK_S) {
-            game.playerTookAction(100);
-            game.shownLevel().exploreCells(this.nextActor);
-            this.setState({game: this.state.game});
-        }
+        var action = this.nextActor.nextAction({code: code});
+        game.doAction(action);
         game.shownLevel().exploreCells(this.nextActor);
-        this.setState({game: this.state.game});
+        this.setState({game: game});
     },
 
     setSize: function(cols, rows) {
