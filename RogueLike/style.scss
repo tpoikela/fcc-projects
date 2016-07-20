@@ -17,6 +17,7 @@ $ctrl-top-color: darken($main-color, 10%);
 
 @mixin cell-font {
     font-family: 'VT323', monospace;
+    font-size: 8px;
 }
 
 // Control panel theme
@@ -65,10 +66,12 @@ td {
 
 .cell-player {
     background-color: green;
+    color: white;
 }
 
 .cell-monster {
     background-color: purple;
+    color: white;
 };
 
 //----------
@@ -84,7 +87,7 @@ td {
 }
 
 .cell-element-floor {
-    //background-color: lighten(20%, gray);
+    background-color: gray;
 }
 
 .cell-dark {
@@ -95,9 +98,8 @@ td {
     background-color: black;
 };
 
-
 .cell-items {
-    background-color: green;
+    background-color: brown;
 }
 
 .game-messages {
