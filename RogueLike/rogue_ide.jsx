@@ -55,38 +55,9 @@ var RoguelikeTop = React.createClass({
         debug("<Top> onCellClick with x: " + x + " y: " + y + " cell: " + cell);
     },
 
-    nextState: function() {
+    newGame: function() {
     },
 
-    startGame: function() {
-    },
-
-    stopGame: function() {
-        /*
-        if (this.intervalID !== undefined) {
-            clearInterval(this.intervalID);
-        }
-        this.intervalID = undefined;
-        */
-    },
-
-    clearGame: function() {
-        /*
-        this.stopGame();
-        var game = this.state.game;
-        game.clear();
-        this.setState({game: game, numTurns: 0});
-        */
-    },
-
-    genRandom: function() {
-        /*
-        this.stopGame();
-        var game = this.state.game;
-        game.randomize();
-        this.setState({game: game, numTurns: 0});
-        */
-    },
 
     componentDidMount: function() {
       $(document.body).on('keydown', this.handleKeyDown);
@@ -96,26 +67,32 @@ var RoguelikeTop = React.createClass({
       $(document.body).off('keydown', this.handleKeyDown);
     },
 
+    /** Listens for player key presses and handles them.*/
     handleKeyDown: function(evt) {
         var game = this.state.game;
+
         if (!game.isGameOver()) {
             game.clearMessages();
+
             if (this.nextActor !== null) {
                 var code = evt.keyCode;
                 this.playerCommand(code);
                 this.nextActor = game.nextActor();
 
+                // Next/act until player found, then go back waiting for key...
                 while (!this.nextActor.isPlayer() && !game.isGameOver()) {
                     var action = this.nextActor.nextAction();
                     game.doAction(action);
                     this.setState({game: game});
                     this.nextActor = game.nextActor();
-                    if (this.nextActor === null) break;
+                    if (RG.isNullOrUndef(this.nextActor)) break;
                 }
             }
+
         }
         else {
-            RG.POOL.emitEvent(RG.EVT_MSG, "GAME OVER!");
+            game.clearMessages();
+            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "GAME OVER!"});
             this.setState({game: game});
         }
     },
@@ -126,23 +103,6 @@ var RoguelikeTop = React.createClass({
         game.doAction(action);
         this.visibleCells = game.shownLevel().exploreCells(this.nextActor);
         this.setState({game: game});
-    },
-
-    setSize: function(cols, rows) {
-        var map = this.genNewMap(cols, rows);
-        this.setState({map: map});
-    },
-
-    setSpeed: function(delayMs) {
-        /*
-        this.delay = delayMs;
-        this.stopGame();
-        this.startGame();
-        */
-    },
-
-    updateNextGameState: function() {
-        //this.nextState();
     },
 
     render: function() {

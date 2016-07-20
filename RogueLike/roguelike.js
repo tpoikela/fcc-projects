@@ -413,7 +413,8 @@ RG.RogueGame = function() { // {{{2
             if (args.actor.isPlayer()) {
                 if (_players.length === 1) {
                     _gameOver = true;
-                    RG.POOL.emitEvent(RG.EVT_MSG, "GAME OVER!");
+                    RG.POOL.emitEvent(RG.EVT_MSG, {msg: "GAME OVER!"});
+                    console.log("Emitted game over!");
                 }
             }
         }
