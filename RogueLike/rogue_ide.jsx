@@ -21,26 +21,27 @@ var RoguelikeTop = React.createClass({
     intervalID: undefined,
 
     nextActor : null,
+    visibleCells: [],
 
     getInitialState: function() {
         var game = new RG.RogueGame();
         var mapGen = new RG.RogueMapGen();
         var level = new RG.RogueLevel();
 
-        var cols = 50;
-        var rows = 30;
+        var cols = 100;
+        var rows = 50;
         mapGen.setGen("arena", cols, rows);
         var map = mapGen.getMap();
         level.setMap(map);
 
-        var actor = new Actor(true); // player
+        var actor = new Actor(true, "Player"); // player
         actor.setType("player");
         game.addLevel(level);
         game.addPlayer(actor);
         this.nextActor = actor;
-        level.exploreCells(actor);
+        this.visibleCells = level.exploreCells(actor);
 
-        var monster = new Actor(false); // Monster
+        var monster = new Actor(false, "Bjorn"); // Monster
         monster.setType("monster");
         game.addActorToLevel(monster, level);
 
@@ -97,18 +98,25 @@ var RoguelikeTop = React.createClass({
 
     handleKeyDown: function(evt) {
         var game = this.state.game;
-        if (this.nextActor !== null) {
-            var code = evt.keyCode;
-            this.playerCommand(code);
-            this.nextActor = game.nextActor();
-
-            while (!this.nextActor.isPlayer() && !game.isGameOver()) {
-                var action = this.nextActor.nextAction();
-                game.doAction(action);
-                this.setState({game: game});
+        if (!game.isGameOver()) {
+            game.clearMessages();
+            if (this.nextActor !== null) {
+                var code = evt.keyCode;
+                this.playerCommand(code);
                 this.nextActor = game.nextActor();
-                if (this.nextActor === null) break;
+
+                while (!this.nextActor.isPlayer() && !game.isGameOver()) {
+                    var action = this.nextActor.nextAction();
+                    game.doAction(action);
+                    this.setState({game: game});
+                    this.nextActor = game.nextActor();
+                    if (this.nextActor === null) break;
+                }
             }
+        }
+        else {
+            RG.POOL.emitEvent(RG.EVT_MSG, "GAME OVER!");
+            this.setState({game: game});
         }
     },
 
@@ -116,7 +124,7 @@ var RoguelikeTop = React.createClass({
         var game = this.state.game;
         var action = this.nextActor.nextAction({code: code});
         game.doAction(action);
-        game.shownLevel().exploreCells(this.nextActor);
+        this.visibleCells = game.shownLevel().exploreCells(this.nextActor);
         this.setState({game: game});
     },
 
@@ -138,26 +146,58 @@ var RoguelikeTop = React.createClass({
     },
 
     render: function() {
-        var map = this.state.game.getVisibleMap();
-        var player = this.state.game.getPlayer();
+        var game = this.state.game;
+
+        var map = game.getVisibleMap();
+        var player = game.getPlayer();
+        var message = game.getMessages();
         //var numTurns = this.state.numTurns;
         return (
             <div className="main-div">
-                <h1>Roguelike IDE</h1><span>for FreeCodeCamp</span>
-                <GameCtrlTop 
-                    nextState={this.nextState} 
-                    startGame={this.startGame}
-                    stopGame={this.stopGame}
-                    clearGame={this.clearGame}
-                    genRandom={this.genRandom}
-                />
-                <GameBoard player={player} map={map} onCellClick={this.onCellClick}/>
-                <GameCtrlBottom setSize={this.setSize} setSpeed={this.setSpeed}/>
+                <GameMessages message={message}/>
+                <GameBoard player={player} map={map} visibleCells={this.visibleCells} onCellClick={this.onCellClick}/>
+                <GameStats player={player} game={game}/>
             </div>
         );
     }
 
 });
+
+var GameMessages = React.createClass({
+
+    render: function() {
+        var message = this.props.message;
+        return (
+            <div className="game-messages">
+                <p>{message}</p>
+            </div>
+        );
+    }
+
+});
+
+var GameStats = React.createClass({
+
+    render: function() {
+        var player = this.props.player;
+        var game = this.props.game;
+
+        var hp = player.getHP();
+        var att = player.getAttack();
+        var def = player.getDefense();
+        var exp = player.getExp();
+        var expLevel = player.getExpLevel();
+        var maxHP = player.getMaxHP();
+
+        return (
+            <div className="game-stats">
+                <p>HP: {hp}/{maxHP} Att: {att} Def: {def} XP: {exp} Level: {expLevel}</p>
+            </div>
+        );
+    }
+
+});
+
 
 /** Control panel for starting, stopping, clearing and randomizing. */
 var GameCtrlTop = React.createClass({
@@ -199,7 +239,7 @@ var GameCtrlTop = React.createClass({
 
 });
 
-/** Component which renders the game rows. */
+/** Component which renders the game rows. {{{2 */
 var GameBoard = React.createClass({
 
     tableClasses: "",
@@ -207,12 +247,13 @@ var GameBoard = React.createClass({
     render: function() {
         var map = this.props.map;
         var onCellClick = this.props.onCellClick;
+        var visibleCells = this.props.visibleCells;
 
         var rows = [];
         for (var i = 0; i < map.rows; ++i) {
             var rowCellData = map.getCellRow(i);
             rows.push(<GameRow 
-                y={i} onCellClick={onCellClick} rowCellData={rowCellData} key={i} />);
+                y={i} onCellClick={onCellClick} visibleCells={visibleCells} rowCellData={rowCellData} key={i} />);
         }
 
         return (
@@ -227,9 +268,9 @@ var GameBoard = React.createClass({
         );
     }
 
-});
+}); //}}} Gameboard
 
-/** A row component which holds a number of cells.*/
+/** A row component which holds a number of cells. {{{2 */
 var GameRow = React.createClass({
 
     // Render only changed rows
@@ -242,10 +283,14 @@ var GameRow = React.createClass({
     render: function() {
         var onCellClick = this.props.onCellClick;
         var y = this.props.y;
+        var visibleCells = this.props.visibleCells;
         var rowCells = this.props.rowCellData.map( function(cell, index) {
             var cellClass = RG.getStyleClassForCell(cell);
+            var cellIndex = visibleCells.indexOf(cell);
+            var render = cellIndex === -1 ? false : true;
+
             return (<GameCell cell={cell}
-                className={cellClass} x={index} y={y} onCellClick={onCellClick} key={index}/>);
+                className={cellClass} x={index} y={y} render={render} onCellClick={onCellClick} key={index}/>);
         });
         return (
             <tr>
@@ -254,14 +299,13 @@ var GameRow = React.createClass({
         );
     }
 
-});
+}); // }}} GameRow
 
-/** This components represents one cell in game of life.*/
+/** This components represents one cell in game of life. {{{2 */
 var GameCell = React.createClass({
 
     shouldComponentUpdate: function(nextProps, nextState) {
-        //return this.props.cell.isExplored();
-        return true;
+        return nextProps.render;
     },
 
     onCellClick: function(evt) {
@@ -278,7 +322,7 @@ var GameCell = React.createClass({
         );
     }
 
-});
+}); // }}} GameCell
 
 /** Bottom control panel which contains buttons for selecting size of the board
  * and the speed of the game.*/
