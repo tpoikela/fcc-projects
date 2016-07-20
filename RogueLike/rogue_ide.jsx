@@ -38,6 +38,13 @@ var RoguelikeTop = React.createClass({
         actor.setType("player");
         game.addLevel(level);
         game.addPlayer(actor);
+
+        var item = new RG.RogueItem("food");
+        var weapon = new RG.RogueItem("food");
+        level.addItem(item, 3, 3);
+        level.addItem(weapon, 4, 4);
+
+
         this.nextActor = actor;
         this.visibleCells = level.exploreCells(actor);
 
@@ -280,11 +287,12 @@ var GameRow = React.createClass({
         var visibleCells = this.props.visibleCells;
         var rowCells = this.props.rowCellData.map( function(cell, index) {
             var cellClass = RG.getStyleClassForCell(cell);
+            var cellChar  = RG.getCellChar(cell);
             var cellIndex = visibleCells.indexOf(cell);
             var render = cellIndex === -1 ? false : true;
 
-            return (<GameCell cell={cell}
-                className={cellClass} x={index} y={y} render={render} onCellClick={onCellClick} key={index}/>);
+            return (<GameCell cell={cell} cellChar={cellChar} className={cellClass} x={index} 
+                    y={y} render={render} onCellClick={onCellClick} key={index}/>);
         });
         return (
             <tr>
@@ -312,7 +320,7 @@ var GameCell = React.createClass({
     render: function() {
         var className = this.props.className;
         return (
-            <td className={className} onClick={this.onCellClick}></td>
+            <td className={className} onClick={this.onCellClick}>{this.props.cellChar}</td>
         );
     }
 

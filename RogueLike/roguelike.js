@@ -31,9 +31,7 @@ var RG = { // {{{2
             if (cell.hasProp(type)) {
                 var props = cell.getProp(type);
                 var styles = this.cellStyles[type];
-                //console.log("Type is " + type);
                 var propType = props[0].getType();
-                //console.log("propType is " + propType);
                 if (styles.hasOwnProperty(propType)) {
                     return styles[propType];
                 }
@@ -41,11 +39,16 @@ var RG = { // {{{2
                     return styles["default"];
                 }
             }
-            else { // class based on Base element
-                type = cell.getBaseElem().getType();
-                return this.cellStyles.elements[type];
-            }
         }
+
+        var baseType = cell.getBaseElem().getType();
+        return this.cellStyles.elements[baseType];
+    },
+
+    getCellChar: function(cell) {
+        if (!cell.isExplored()) return "";
+        //if (cell.hasProp("items")) return "(";
+        //if (cell.hasProp("actors")) return "@";
         return "";
     },
 
@@ -427,7 +430,13 @@ RG.RogueGame = function() { // {{{2
 RG.RogueLevel = function(cols, rows) { // {{{2
     var _actors = [];
     var _map = null;
-    var _items = [];
+
+    // Level properties
+    var _p = {
+        actors: [],
+        items:  [],
+        elements: [],
+    };
 
     this.setMap = function(map) {
         _map = map;
@@ -439,12 +448,44 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     /** Returns all properties in a given location.*/
     this.getProps = function(x, y) {
         if (!RG.isNullOrUndef([x, y])) {
-
+            console.error("getProps in RogueLevel not implemented.");
         }
         else {
             RG.nullOrUndefError(this, "arg |x|", x);
             RG.nullOrUndefError(this, "arg |y|", y);
             return null;
+        }
+    };
+
+    // ITEM RELATED FUNCTIONS
+
+    this.addItem = function(item, x, y) {
+        if (!RG.isNullOrUndef([x, y])) {
+            return this._addPropToLevelXY("items", item, x, y);
+        }
+        else {
+            var freeCells = _map.getFree();
+            if (freeCells.length > 0) {
+                var xCell = freeCells[0].getX();
+                var yCell = freeCells[0].getY();
+                return this._addPropToLevelXY("items", item, xCell, yCell);
+            }
+
+        }
+        return false;
+    };
+
+    this.removeItem = function(item, x, y) {
+        return _map.removeProp(x, y, "items", item);
+    };
+
+    this.pickupItem = function(actor, x, y) {
+        var cell = _map.getCell(x, y);
+        if (cell.hasProp("items")) {
+            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "You try to pickup but cannot. Too weak!"});
+        }
+        else {
+            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "Nothing to pickup!"});
         }
     };
 
@@ -455,7 +496,7 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         RG.debug(this, "addActor called with x,y " + x + ", " + y);
         if (!RG.isNullOrUndef([x, y])) {
             if (_map.hasXY(x, y)) {
-                this._addActorToLevelXY(actor, x, y);
+                this._addPropToLevelXY("actors", actor, x, y);
                 RG.debug(this, "Added actor to map x: " + x + " y: " + y);
                 return true;
             }
@@ -479,27 +520,35 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         if (freeCells.length > 0) {
             var xCell = freeCells[0].getX();
             var yCell = freeCells[0].getY();
-            this._addActorToLevelXY(actor, xCell, yCell);
-            RG.debug(this, "Added actor to free cell in " + xCell + ", " + yCell);
-            return true;
+            if (this._addPropToLevelXY("actors", actor, xCell, yCell)) {
+                RG.debug(this, "Added actor to free cell in " + xCell + ", " + yCell);
+                return true;
+            }
         }
         else {
             RG.err("Level", "addActor", "No free cells for the actor.");
-            return false;
         }
+        return false;
     };
 
-    this._addActorToLevelXY = function(actor, x, y) {
-        _actors.push(actor);
-        actor.setXY(x,y);
-        actor.setLevel(this);
-        _map.setProp(x, y, "actors", actor);
+    this._addPropToLevelXY = function(propType, obj, x, y) {
+        if (_p.hasOwnProperty(propType)) {
+            _p[propType].push(obj);
+            obj.setXY(x,y);
+            obj.setLevel(this);
+            _map.setProp(x, y, propType, obj);
+            return true;
+        }
+        else {
+            RG.err("Level", "_addPropToLevelXY", "No property " + propType);
+        }
+        return false;
     };
 
     /** Moves actor to x,y if possible and returns true. Returns false
      * otherwise.*/
     this.moveActorTo = function(actor, x, y) {
-        var index = _actors.indexOf(actor);
+        var index = _p.actors.indexOf(actor);
         var cell = _map.getCell(x, y);
         RG.debug(this, "moveActorTo: Index is " + index);
         if (cell.isFree()) {
@@ -539,11 +588,11 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     };
 
     this.removeActor = function(actor) {
-        var index = _actors.indexOf(actor);
+        var index = _p.actors.indexOf(actor);
         var x = actor.getX();
         var y = actor.getY();
         if (_map.removeProp(x, y, "actors", actor)) {
-            _actors.splice(index, 1);
+            _p.actors.splice(index, 1);
             return true;
         }
         else {
@@ -666,6 +715,34 @@ RG.RogueCombat = function(att, def) { // {{{2
 
 }; // }}} Combat
 
+RG.RogueItem = function(type) {
+    RG.Locatable.call(this);
+    this.setType("items");
+
+    var _itemType = type;
+    var _weight = 1;
+    var _p = {}; // Stores all extra properties
+
+    this.getItemType = function() {
+        return _itemType;
+    };
+
+    this.hasProp = function(propName) {
+        return _p.hasOwnProperty(propName);
+    };
+
+    this.getProp = function(propName) {
+        if (_p.hasOwnProperty(propName)) {
+            return _p[propName];
+        }
+        else {
+            return null;
+        }
+    };
+
+};
+RG.extend2(RG.RogueItem, RG.Locatable);
+
 /** Object representing a game actor who takes actions.  */
 RG.RogueActor = function(isPlayer, name) { // {{{2
     RG.Locatable.call(this);
@@ -787,6 +864,13 @@ RG.PlayerBrain = function(actor) { // {{{2
         if (code === ROT.VK_S) {
             // IDLE action
             type = "IDLE";
+        }
+
+        if (code === ROT.VK_PERIOD) {
+            type = "PICKUP";
+            return function() {
+                level.pickupItem(_actor, x, y);
+            };
         }
 
         if (type === "MOVE") {
