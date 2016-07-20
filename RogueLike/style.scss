@@ -2,8 +2,8 @@
  * Style sheet (.scss) for Game of Life.
  */
 
-$cell-width: 10px;
-$cell-height: 10px;
+$cell-width: 11px;
+$cell-height: 11px;
 
 $main-color: darken(white, 10%);
 $main-color-2: darken($main-color, 15%);
@@ -24,7 +24,6 @@ $ctrl-top-color: darken($main-color, 10%);
     border: 1px solid black;
     border-radius: 5px;
     padding: 10px;
-    height: 35px;
     background-color: $ctrl-top-color;
 }
 
@@ -48,6 +47,7 @@ td {
     width: $cell-width;
     height: $cell-height;
     border: 1px solid black;
+    padding: 0;
 }
 
 //------------------------------------------------------------------
@@ -102,6 +102,7 @@ td {
 
 .game-messages {
     margin-bottom: 10px;
+    height: 30px;
     @include ctrl-panel;
 }
 
@@ -112,8 +113,10 @@ td {
 #game-board {
     margin-left: 10px;
     margin-right: 10px;
+    @include cell-font;
 }
 
+/*
 ul {
     .button-list {
         display: inline;
@@ -129,6 +132,7 @@ ul {
         margin-left: 10px;
     }
 }
+*/
 
 .num-generations {
     margin-left: 20px;

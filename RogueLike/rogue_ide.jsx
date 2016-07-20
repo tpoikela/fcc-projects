@@ -114,9 +114,34 @@ var RoguelikeTop = React.createClass({
         //var numTurns = this.state.numTurns;
         return (
             <div className="main-div">
-                <GameMessages message={message}/>
-                <GameBoard player={player} map={map} visibleCells={this.visibleCells} onCellClick={this.onCellClick}/>
-                <GameStats player={player} game={game}/>
+                <div className="row">
+                    <div className="col-md-2">
+                        <GamePanel />
+                    </div>
+                    <div className="col-md-10">
+                        <GameMessages message={message}/>
+                    </div>
+                </div>
+                <div className="row">
+                    <div className="text-left col-md-2">
+                        <GameStats player={player} game={game}/>
+                    </div>
+                    <div className="col-md-10">
+                        <GameBoard player={player} map={map} visibleCells={this.visibleCells} onCellClick={this.onCellClick}/>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+});
+
+var GamePanel = React.createClass({
+
+    render: function() {
+        return (
+            <div>
+                <button>Start</button>
             </div>
         );
     }
@@ -142,16 +167,25 @@ var GameStats = React.createClass({
         var player = this.props.player;
         var game = this.props.game;
 
-        var hp = player.getHP();
-        var att = player.getAttack();
-        var def = player.getDefense();
-        var exp = player.getExp();
-        var expLevel = player.getExpLevel();
-        var maxHP = player.getMaxHP();
+        var stats = {
+            HP: player.getHP() + "/" + player.getMaxHP(),
+            Att: player.getAttack(),
+            Def: player.getDefense(),
+            XP: player.getExp(),
+            Level: player.getExpLevel(),
+        };
+
+        var statsHTML = [];
+        var index = 0;
+        for (var key in stats) {
+            var val = stats[key];
+            statsHTML.push(<li key={index}>{key}: {val}</li>);
+            ++index;
+        }
 
         return (
             <div className="game-stats">
-                <p>HP: {hp}/{maxHP} Att: {att} Def: {def} XP: {exp} Level: {expLevel}</p>
+                <ul>{statsHTML}</ul>
             </div>
         );
     }
