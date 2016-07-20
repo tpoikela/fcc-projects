@@ -15,7 +15,8 @@ if (typeof ROT === 'undefined' ) {
     else throw new Error('roguelike requires ROT');
 }
 
-var RG = {
+/** Main object of the package for encapsulating all other objects. */
+var RG = { // {{{2 
 
     IdCount: 0,
 
@@ -56,7 +57,7 @@ var RG = {
         finder.compute(x1, y1, function(x, y) {
             ++result;
         });
-        return result;
+        return result - 1; // Subtract one because starting cell included
     },
 
     cellStyles: {
@@ -129,10 +130,16 @@ var RG = {
     ROWS: 30,
     COLS: 50,
     ACTION_DUR: 100,
-};
+    DEFAULT_HP: 50,
 
-/** This object is used by all locatable objects in the game.*/
-RG.Locatable = function() {
+    // Different game events
+    EVT_ACTOR_KILLED: "EVT_ACTOR_KILLED",
+    EVT_MSG: "EVT_MSG",
+}; /// }}} RG
+
+
+/** This object is used by all locatable objects in the game.  */
+RG.Locatable = function() { // {{{2
     var _x = null;
     var _y = null;
     var _level = null;
@@ -195,10 +202,72 @@ RG.Locatable = function() {
         return _type;
     };
 
-};
+}; // }}} Locatable
 
-/** Top-level object for the game. */
-RG.RogueGame = function() {
+/** Event pool can be used to emit events and register callbacks for listeners.
+ * This decouples the emitter and listener from each other.  */
+RG.EventPool = function() { // {{{2
+
+    var _listeners = {};
+    var _eventsNoListener = 0;
+
+    /** Emits an event with given name. args must be in object-notation ie.
+     * {data: "abcd"} */
+    this.emitEvent = function (evtName, args) {
+        if (_listeners.hasOwnProperty(evtName)) {
+            var called = _listeners[evtName];
+            for (var i = 0; i < called.length; i++) {
+                called[i].notify(evtName, args);
+            }
+        }
+        else {
+            ++_eventsNoListener;
+        }
+    };
+
+    /** Register an event listener. */
+    this.listenEvent = function(evtName, obj) {
+        if (obj.hasOwnProperty("notify")) {
+            if (_listeners.hasOwnProperty(evtName)) {
+                _listeners[evtName].push(obj);
+            }
+            else {
+                _listeners[evtName] = [];
+                _listeners[evtName].push(obj);
+            }
+        }
+        else {
+            console.error("Cannot add object. Listener must implement notify()!");
+        }
+    };
+};
+RG.POOL = new RG.EventPool(); // Global event pool for the game }}}
+
+/** Handle the game message listening and storing of the messages.  */
+RG.Messages = function() { // {{{2
+    var _message = [];
+
+    this.notify = function(evtName, msg) {
+        if (evtName === RG.EVT_MSG) {
+            if (msg.hasOwnProperty("msg")) {
+                _message.push(msg.msg);
+            }
+        }
+    };
+    RG.POOL.listenEvent(RG.EVT_MSG, this);
+
+    this.getMessages = function() {
+        return _message.join(".");
+    };
+
+    this.clear = function() {
+        _message = [];
+    };
+
+}; // }}} Messages
+
+/** Top-level object for the game.  */
+RG.RogueGame = function() { // {{{2
 
     var _cols = RG.COLS;
     var _rows = RG.ROWS;
@@ -210,14 +279,23 @@ RG.RogueGame = function() {
     var _time         = "";
     var _gameOver     = false;
 
-    var _scheduler = new RG.RogueScheduler();
     var _mapGen = new RG.RogueMapGen();
+    var _scheduler = new RG.RogueScheduler();
+    var _msg = new RG.Messages();
 
     var _initDone = false;
     this.initGame = function() {
         if (!_initDone) {
 
         }
+    };
+
+    this.getMessages = function() {
+        return _msg.getMessages();
+    };
+
+    this.clearMessages = function() {
+        _msg.clear();
     };
 
     /** Move actor to level n. */
@@ -330,10 +408,22 @@ RG.RogueGame = function() {
         return level.moveActorTo(actor, x, y);
     };
 
+    this.notify = function(evtName, args) {
+        if (evtName === RG.EVT_ACTOR_KILLED) {
+            if (args.actor.isPlayer()) {
+                if (_players.length === 1) {
+                    _gameOver = true;
+                    RG.POOL.emitEvent(RG.EVT_MSG, "GAME OVER!");
+                }
+            }
+        }
+    };
+    RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);
 
-};
+}; // }}} Game
 
-RG.RogueLevel = function(cols, rows) {
+/** Object for the game levels. Contains map, actors and items.  */
+RG.RogueLevel = function(cols, rows) { // {{{2
     var _actors = [];
     var _map = null;
     var _items = [];
@@ -430,16 +520,21 @@ RG.RogueLevel = function(cols, rows) {
             }
         }
         else {
-            if (cell.hasProp("actors")) {
-                var target = cell.getProp("actors")[0];
-                var combat = new RG.RogueCombat(actor, target);
-                combat.fight();
-                console.log("Actor attacks at " + x + ", " + y);
-                return true;
-            }
             RG.debug(this, "Cell wasn't free at " + x + ", " + y);
         }
         return false;
+    };
+
+    /** Given actor attacks square x,y.*/
+    this.attackWith = function(actor, x, y) {
+        var cell = _map.getCell(x, y);
+        if (cell.hasProp("actors")) {
+            var target = cell.getProp("actors")[0];
+            var combat = new RG.RogueCombat(actor, target);
+            combat.fight();
+            console.log("Actor attacks at " + x + ", " + y);
+            return true;
+        }
     };
 
     this.removeActor = function(actor) {
@@ -473,26 +568,26 @@ RG.RogueLevel = function(cols, rows) {
         return _map.getExploredCells();
     };
 
-};
+}; // }}} Level
 
 /** Combatant object can be used for all actors and objects involved in
- * combat.*/
-RG.Combatant = function(hp) {
+ * combat. */
+RG.Combatant = function(hp) { // {{{2
 
     //console.log("Combatant constructor got HP '" + hp + "'");
 
+    var _maxHP = hp;
     var _hp = hp;
+
     var _attack = 10;
     var _defense = 5;
+    var _exp = 0;
+    var _expLevel = 1;
 
-    this.getHP = function() {
-        return _hp;
-    };
-
-    this.setHP = function(hp) {
-        if (hp < _hp) console.log("HP was reduced " + _hp + " -> " + hp);
-        _hp = hp;
-    };
+    this.getHP = function() {return _hp;};
+    this.setHP = function(hp) {_hp = hp;};
+    this.getMaxHP = function() {return _maxHP;};
+    this.setMaxHP = function(hp) {_maxHP = hp;};
 
     this.isAlive = function() {
         return _hp > 0;
@@ -518,9 +613,15 @@ RG.Combatant = function(hp) {
         return 1;
     };
 
-};
+    this.setExp = function(exp) {_exp = exp;};
+    this.getExp = function() {return _exp;};
+    this.setExpLevel = function(expLevel) {_expLevel = expLevel;};
+    this.getExpLevel = function() {return _expLevel;};
 
-RG.RogueCombat = function(att, def) {
+}; // }}} Combatant
+
+/** Object representing a combat betweent two actors.  */
+RG.RogueCombat = function(att, def) { // {{{2
 
     var _att = att;
     var _def = def;
@@ -529,6 +630,7 @@ RG.RogueCombat = function(att, def) {
         var attackPoints = _att.getAttack();
         var defPoints = _def.getDefense();
         var diff = attackPoints - defPoints;
+        RG.POOL.emitEvent(RG.EVT_MSG, {msg: _att.getName() + " attacks " + _def.getName()});
         if (diff > 0) {
             this.doDamage(_def, diff);
         }
@@ -539,12 +641,17 @@ RG.RogueCombat = function(att, def) {
         if (!def.isAlive()) {
             this.killActor(def);
         }
+        else {
+            RG.POOL.emitEvent(RG.EVT_MSG, {msg:_def.getName() + " got " + dmg + " damage."});
+        }
     };
 
     this.killActor = function(actor) {
         var level = actor.getLevel();
         if (level.removeActor(actor)) {
             this.giveExp(_att);
+            RG.POOL.emitEvent(RG.EVT_MSG, {msg: _def.getName() + " was killed."});
+            RG.POOL.emitEvent(RG.EVT_ACTOR_KILLED, {actor: actor});
         }
         else {
             RG.err("Combat", "killActor", "Couldn't kill actor");
@@ -556,22 +663,27 @@ RG.RogueCombat = function(att, def) {
 
     };
 
-};
+}; // }}} Combat
 
-RG.RogueActor = function(isPlayer) {
+/** Object representing a game actor who takes actions.  */
+RG.RogueActor = function(isPlayer, name) { // {{{2
     RG.Locatable.call(this);
-    RG.Combatant.call(this, 100);
+    RG.Combatant.call(this, RG.DEFAULT_HP);
 
     this.setType("actors");
     var _brain = null;
     var _isPlayer = isPlayer === undefined ? false : isPlayer;
+    var _name = name;
+
     this.id = RG.IdCount++;
 
     if (!isPlayer) {
         _brain = new RG.RogueBrain(this);
+        if (name === undefined) _name = "NPC";
     }
     else {
         _brain = new RG.PlayerBrain(this);
+        if (name === undefined) _name = "Human";
     }
 
     /** Returns true if actor is a player.*/
@@ -579,6 +691,7 @@ RG.RogueActor = function(isPlayer) {
         return _isPlayer;
     };
 
+    /** Returns the next action for this actor.*/
     this.nextAction = function(obj) {
         // Use actor brain to determine the action
         var cb = _brain.decideNextAction(obj);
@@ -594,16 +707,17 @@ RG.RogueActor = function(isPlayer) {
         return RG.FOV_RANGE;
     };
 
-};
+    this.getName = function() {return _name;};
+    this.setName = function(name) {_name = name;};
 
-//RG.RogueActor.extend(RG.Locatable);
+};
 RG.extend2(RG.RogueActor, RG.Locatable);
 RG.extend2(RG.RogueActor, RG.Combatant);
+// }}} Actor
 
 /** Element is a wall or other obstacle or a feature in the map. It's not
- * necessarily blocking movement.
- */
-RG.RogueElement = function(elemType) {
+ * necessarily blocking movement.  */
+RG.RogueElement = function(elemType) { // {{{2
     RG.Locatable.call(this);
     this.setType(elemType);
 
@@ -620,17 +734,13 @@ RG.RogueElement = function(elemType) {
 
 };
 RG.extend2(RG.RogueElement, RG.Locatable);
+// }}} Element
 
-/** Models an action. Each action has a duration and a callback.*/
-RG.RogueAction = function(dur, cb, obj) {
+/** Models an action. Each action has a duration and a callback.  */
+RG.RogueAction = function(dur, cb, obj) { // {{{2
 
     var _duration = dur;
-
     var _cb = cb; // Action callback
-
-    this.setCb = function(cb) {
-        _cb = cb;
-    };
 
     this.getDuration = function() {
         return _duration;
@@ -640,15 +750,15 @@ RG.RogueAction = function(dur, cb, obj) {
         _cb(obj);
     };
 
-};
+}; // }}} Action
 
 //---------------------------------------------------------------------------
-// BRAINS
+// BRAINS {{{1
 //---------------------------------------------------------------------------
 
 /** This brain is used by the player actor. It simply handles the player input
- * but by having brain, player actor looks like other actors.*/
-RG.PlayerBrain = function(actor) {
+ * but by having brain, player actor looks like other actors.  */
+RG.PlayerBrain = function(actor) { // {{{2
 
     var _actor = actor;
 
@@ -686,7 +796,7 @@ RG.PlayerBrain = function(actor) {
             }
             else if (level.getMap().getCell(x,y).hasProp("actors")) {
                 return function() {
-                    level.moveActorTo(_actor, x, y);
+                    level.attackWith(_actor, x, y);
                 };
             }
         }
@@ -697,12 +807,12 @@ RG.PlayerBrain = function(actor) {
         return null; // Null action
     };
 
-};
+}; // }}} PlayerBrain
 
 
 /** Brain is used by the AI to perform and decide on actions. Brain returns
- * actionable callbacks but doesn't know Action objects.*/
-RG.RogueBrain = function(actor) {
+ * actionable callbacks but doesn't know Action objects.  */
+RG.RogueBrain = function(actor) { // {{{2
 
     var _actor = actor;
     var _explored = {};
@@ -734,9 +844,8 @@ RG.RogueBrain = function(actor) {
             var playY = playerCell.getY();
             if (this.canAttack(playX, playY)) {
                 return function() {
-                    level.moveActorTo(_actor, playX, playY);
+                    level.attackWith(_actor, playX, playY);
                 };
-
             }
             else { // Move closer
                 var pathCells = this.getShortestPathTo(playerCell);
@@ -810,7 +919,7 @@ RG.RogueBrain = function(actor) {
         return path;
     };
 
-};
+}; // }}} RogueBrain
 
 RG.ZombieBrain = function() {
     RG.RogueBrain.call(this);
@@ -819,9 +928,10 @@ RG.ZombieBrain = function() {
 RG.extend2(RG.ZombieBrain, RG.RogueBrain);
 
 
+// }}} BRAINS
 
-/** Scheduler for the game actions. */
-RG.RogueScheduler = function() {
+/** Scheduler for the game actions.  */
+RG.RogueScheduler = function() { // {{{2
 
     // Internally use ROT scheduler
     var _scheduler = new ROT.Scheduler.Action();
@@ -848,16 +958,27 @@ RG.RogueScheduler = function() {
         return _scheduler.getTime();
     };
 
+    /** Hooks to the event system. When actor is killed, removes it from the
+     * pool.*/
+    this.notify = function(evtName, args) {
+        if (evtName === RG.EVT_ACTOR_KILLED) {
+            if (args.hasOwnProperty("actor")) {
+                this.remove(args.actor);
+            }
+        }
+    };
+    RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);
 
-};
+
+}; // }}} Scheduler
 
 
 //---------------------------------------------------------------------------
-// MAP GENERATION SECTION
+// MAP GENERATION SECTION {{{1
 //---------------------------------------------------------------------------
 
-/** Map generator for the roguelike game.*/
-RG.RogueMapGen = function() {
+/** Map generator for the roguelike game.  */
+RG.RogueMapGen = function() { // {{{2
 
     this.cols = 50;
     this.rows = 30;
@@ -891,9 +1012,11 @@ RG.RogueMapGen = function() {
         return map;
     };
 
-};
+}; // }}} RogueMapGen
 
-RG.MapCell = function(x, y, elem) {
+/** Object representing one game cell. It can hold actors, items, traps or
+ * elements. */
+RG.MapCell = function(x, y, elem) { // {{{2 
 
     var _baseElem = elem;
     var _x   = x;
@@ -1002,12 +1125,12 @@ RG.MapCell = function(x, y, elem) {
         return str;
     };
 
-};
+}; // }}} MapCell
 
 /** Map object which contains a number of cells. A map is used for rendering
  * while the level contains actual information about game elements such as
- * monsters and items. */
-RG.Map = function(cols, rows) {
+ * monsters and items.  */
+RG.Map = function(cols, rows) { //{{{2
     var map = [];
     this.cols = cols;
     this.rows = rows;
@@ -1132,7 +1255,9 @@ RG.Map = function(cols, rows) {
         }
     };
 
-};
+}; // }}} Map
+
+// }}} MAP GENERATION
 
 if ( typeof exports !== 'undefined' ) {
     if( typeof RG !== 'undefined' && module.exports ) {
