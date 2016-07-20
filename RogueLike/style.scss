@@ -24,6 +24,7 @@ $ctrl-top-color: darken($main-color, 10%);
     border: 1px solid black;
     border-radius: 5px;
     padding: 10px;
+    height: 35px;
     background-color: $ctrl-top-color;
 }
 
@@ -40,7 +41,7 @@ $ctrl-top-color: darken($main-color, 10%);
 
 body {
     @include fonts;
-    @include gray-gradient;
+    //@include gray-gradient;
 };
 
 td {
@@ -99,10 +100,13 @@ td {
     background-color: green;
 }
 
-.ctrl-top {
+.game-messages {
     margin-bottom: 10px;
     @include ctrl-panel;
+}
 
+.game-stats {
+    @include ctrl-panel;
 }
 
 #game-board {
