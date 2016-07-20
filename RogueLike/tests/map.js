@@ -12,6 +12,7 @@ var Action = RG.RogueAction;
 var Level = RG.RogueLevel;
 var Element = RG.RogueElement;
 var Cell = RG.MapCell;
+var Item = RG.RogueItem;
 
 //---------------------------------------------------------------------------
 // MAP CELL
@@ -56,12 +57,30 @@ describe('Basic properties of map cell', function() {
 describe('Retrieving styling classes for cells', function() {
     it('description', function() {
         var cell = new Cell(0, 0, new Element("wall"));
+        cell.setExplored();
         expect(RG.getStyleClassForCell(cell)).to.equal("cell-element-wall");
 
         var floorCell = new Cell(0, 0, new Element("floor"));
         var actor = new Actor(true);
         floorCell.setProp("actors", actor);
+        floorCell.setExplored();
         expect(RG.getStyleClassForCell(floorCell)).to.equal("cell-actors");
+    });
+});
+
+describe('Items in map cells', function() {
+    it('description', function() {
+        var cell = new Cell(0, 0, new Element("floor"));
+        cell.setExplored();
+        var item = new Item("food");
+        cell.setProp("items", item);
+        expect(cell.hasProp("items")).to.equal(true);
+
+        var items = cell.getProp("items");
+        expect(items.length).to.equal(1);
+
+        expect(RG.getStyleClassForCell(cell)).to.equal("cell-items");
+
     });
 });
 
