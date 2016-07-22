@@ -15,6 +15,7 @@ var Cell = RG.MapCell;
 var Item = RG.RogueItem;
 var Container = RG.RogueItemContainer;
 var InvAndEquip = RG.RogueInvAndEquip;
+var Factory = RG.FACT;
 
 //---------------------------------------------------------------------------
 // MAP CELL
@@ -22,7 +23,7 @@ var InvAndEquip = RG.RogueInvAndEquip;
 
 describe('Basic properties of map cell', function() {
     it('Holds elements and actors', function() {
-        var actor = new Actor(true);
+        var actor = Factory.createPlayer("Player", 50);
         var cell = new Cell(0, 0, new Element("wall"));
         expect(cell.isFree()).to.equal(false);
         expect(cell.hasPropType("wall")).to.equal(true);
@@ -45,8 +46,7 @@ describe('Basic properties of map cell', function() {
         expect(propNull).to.equal(null);
 
         // Actors in cell, cell with actor is not free
-        var floor = new Element("floor");
-        var fCell = new Cell(1, 1, floor);
+        var fCell = Factory.createFloorCell(1, 1);
         expect(fCell.isFree()).to.equal(true);
         fCell.setProp("actors", actor);
         expect(fCell.isFree()).to.equal(false);
@@ -63,7 +63,7 @@ describe('Retrieving styling classes for cells', function() {
         expect(RG.getStyleClassForCell(cell)).to.equal("cell-element-wall");
 
         var floorCell = new Cell(0, 0, new Element("floor"));
-        var actor = new Actor(true);
+        var actor = Factory.createPlayer("Player", 50);
         floorCell.setProp("actors", actor);
         floorCell.setExplored();
         expect(RG.getStyleClassForCell(floorCell)).to.equal("cell-actors");
@@ -135,7 +135,8 @@ describe('Items in map cells', function() {
     it("Actor inventory has a container and equipped items", function() {
         var food = new Item("food");
         var sword = new Item("weapon");
-        var actor = new Actor(true, "Player");
+        var actor = Factory.createPlayer("Player", 50);
+
         var invEq = new InvAndEquip(actor);
         invEq.addItem(food);
         expect(invEq.getInventory().getItems().length).to.equal(1);
@@ -146,7 +147,7 @@ describe('Items in map cells', function() {
 
         var handsEquipped = invEq.getEquipment().getEquipped("hand");
         expect(handsEquipped[0]).to.equal(sword);
-        expect(invEq.unequipItem("hand",0)).to.equal(true);
+        expect(invEq.unequipItem("hand", 0)).to.equal(true);
 
     });
 
@@ -159,17 +160,14 @@ describe('Items in map cells', function() {
 //---------------------------------------------------------------------------
 
 describe('Tests to check that basic operations for map work', function() {
-    var mapgen = new RG.RogueMapGen();
-    mapgen.setGen("arena", 10, 10);
-    var actor = new Actor(true);
-    var level1 = new Level(10, 10);
-    var level2 = new Level(20, 20);
+    var actor = new Actor("Player");
+    actor.setIsPlayer(true);
+    var level1 = Factory.createLevel("arena", 10, 10);
+    var level2 = Factory.createLevel("arena", 20, 20);
 
     it('Is initialized as empty and having floors', function() {
-        var map = mapgen.getMap();
-        var map2 = mapgen.getMap();
-        level1.setMap(map);
-        level2.setMap(map);
+        var map = level1.getMap();
+        var map2 = level2.getMap();
 
         expect(map.hasXY(0,0)).to.equal(true);
         expect(map.hasXY(9,9)).to.equal(true);
@@ -182,7 +180,7 @@ describe('Tests to check that basic operations for map work', function() {
             expect(freeCells[i].lightPasses()).to.equal(true);
         }
 
-        var actorNotInLevel = new Actor(false);
+        var actorNotInLevel = new Actor("monster");
         actor.getFOVRange = function() {return 1;}; // Override default
         level1.addActor(actor, 4, 4);
         var cells = map.getVisibleCells(actor);

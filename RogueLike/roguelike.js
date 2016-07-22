@@ -159,6 +159,7 @@ RG.TypedObject = function(type) {
 
 };
 
+
 /** This object is used by all locatable objects in the game.  */
 RG.Locatable = function() { // {{{2
     RG.TypedObject.call(this, null);
@@ -229,7 +230,7 @@ RG.Ownable = function(owner) {
     this.getLevel = function() {return _owner.getLevel();};
 
     this.setOwner = function(owner) {
-        if (RG.isNullOrUndef(owner)) {
+        if (RG.isNullOrUndef([owner])) {
             RG.err("Item", "setOwner", "Owner cannot be null.");
         }
         else {
@@ -878,6 +879,7 @@ RG.RogueEquipSlot = function(eq, type, n) {
         return _items;
     };
 
+    /** Equips given item to first available place in slot.*/
     this.equipItem = function(item) {
         if (this.canEquip(item)) {
             item.setOwner(this);
@@ -887,6 +889,7 @@ RG.RogueEquipSlot = function(eq, type, n) {
         return false;
     };
 
+    /** Unequips from given slot. */
     this.unequipItem = function(n) {
         if (n < _items.length) {
             _items.splice(n, 1);
@@ -906,6 +909,8 @@ RG.extend2(RG.RogueEquipSlot, RG.Ownable);
 RG.RogueEquipment = function(actor) {
     RG.Ownable.call(this, actor);
 
+    var _equipped = [];
+
     var _slots = {
         hand: new RG.RogueEquipSlot(this, "hand", 2),
         head: new RG.RogueEquipSlot(this, "head", 1),
@@ -914,22 +919,61 @@ RG.RogueEquipment = function(actor) {
         feet: new RG.RogueEquipSlot(this, "feet", 1),
     };
 
+    this.getItems = function(slot) {
+        if (_slots.hasOwnProperty(slot)) {
+            return _slots[slot].getItems();
+        }
+        return [];
+    };
+
     this.equipItem = function(item) {
         // TODO add proper checks for equipping
         if (item.hasOwnProperty("equip")) {
-            return _slots[item.equip].equipItem(item);
+            if (_slots[item.equip].equipItem(item)) {
+                _equipped.push(item);
+                return true;
+            }
         }
-        else {
-            return _slots.hand.equipItem(item);
+        else { // No equip property, can only equip to hand
+            if (_slots.hand.equipItem(item)) {
+                _equipped.push(item);
+                return true;
+            }
         }
+        return false;
+    };
+
+    this.isEquipped = function(item) {
+        var index = _equipped.indexOf(item);
+        console.log("Index is " + index);
+        return index !== -1;
     };
 
     this.getEquipped = function(slotType) {
         return _slots[slotType].getItems();
     };
 
+    /** Unequips given slotType and index. */
     this.unequipItem = function(slotType, n) {
-        return _slots[slotType].unequipItem(n);
+        if (_slots.hasOwnProperty(slotType)) {
+            var items = _slots[slotType].getItems();
+                var item = items[n];
+            if (_slots[slotType].unequipItem(n)) {
+                var index = _equipped.indexOf(item);
+                if (index >= 0) {
+                    _equipped.splice(index, 1);
+                    return true;
+                }
+                else {
+                    RG.err("Equipment", "unequipItem", "Index < 0. Horribly wrong.");
+                }
+            }
+        }
+        else {
+            var msg = "Non-existing slot type " + slotType;
+            RG.err("Equipment", "unequipItem", msg);
+        }
+        return false;
     };
 
 };
@@ -966,12 +1010,16 @@ RG.RogueInvAndEquip = function(actor) {
     };
 
     /** Unequips item and puts it back to inventory.*/
-    this.unequipItem = function(item) {
-        if (_eq.isEquipped(item)) {
-            if (_eq.unequipItem(item)) {
+    this.unequipItem = function(slotType, n) {
+        var eqItems = _eq.getItems(slotType);
+        if (n < eqItems.length) {
+            var item = eqItems[n];
+            if (_eq.unequipItem(slotType, n)) {
                 this.addItem(item);
+                return true;
             }
         }
+        return false;
     };
 
 
@@ -979,25 +1027,33 @@ RG.RogueInvAndEquip = function(actor) {
 RG.extend2(RG.RogueInvAndEquip, RG.Ownable);
 
 /** Object representing a game actor who takes actions.  */
-RG.RogueActor = function(isPlayer, name) { // {{{2
+RG.RogueActor = function(name) { // {{{2
     RG.Locatable.call(this);
     RG.Combatant.call(this, RG.DEFAULT_HP);
-
     this.setType("actors");
-    var _brain = null;
-    var _isPlayer = isPlayer === undefined ? false : isPlayer;
+
+    var _brain = new RG.RogueBrain(this);
+    var _isPlayer = false;
+
     var _name = name;
+    var _invEq = new RG.RogueInvAndEquip(this);
 
     this.id = RG.IdCount++;
 
-    if (!isPlayer) {
-        _brain = new RG.RogueBrain(this);
-        if (name === undefined) _name = "NPC";
-    }
-    else {
-        _brain = new RG.PlayerBrain(this);
-        if (name === undefined) _name = "Human";
-    }
+    this.setName = function(name) {_name = name;};
+    this.getName = function() {return _name;};
+
+    this.setIsPlayer = function(isPlayer) {
+        _isPlayer = isPlayer;
+        if (isPlayer) {
+            _brain = new RG.PlayerBrain(this);
+        }
+    };
+
+    this.setBrain = function(brain) {
+        _brain = brain;
+        _brain.setActor(this);
+    };
 
     /** Returns true if actor is a player.*/
     this.isPlayer = function() {
@@ -1136,6 +1192,9 @@ RG.RogueBrain = function(actor) { // {{{2
 
     var _actor = actor;
     var _explored = {};
+
+    this.setActor = function(actor) {_actor = actor;};
+    this.getActor = function() {return _actor;};
 
     var passableCallback = function(x, y) {
         var map = _actor.getLevel().getMap();
@@ -1576,6 +1635,79 @@ RG.Map = function(cols, rows) { //{{{2
 }; // }}} Map
 
 // }}} MAP GENERATION
+
+/** Factory object for creating some commonly used objects.*/
+RG.Factory = function() {
+
+    var _initCombatant = function(comb, hp, att, def) {
+        if (!RG.isNullOrUndef([hp])) comb.setHP(hp);
+        if (!RG.isNullOrUndef([att])) comb.setAttack(att);
+        if (!RG.isNullOrUndef([def])) comb.setAttack(def);
+    };
+
+    /** Factory method for players.*/
+    this.createPlayer = function(name, hp, att, def) {
+        var player = new RG.RogueActor(name);
+        player.setIsPlayer(true);
+        _initCombatant(player, hp, att, def);
+        return player;
+    };
+
+    /** Factory method for monsters.*/
+    this.createMonster = function(name, hp, att, def, brain) {
+        var monster = new RG.RogueActor(name);
+        _initCombatant(monster, hp, att, def);
+        if (!RG.isNullOrUndef([brain])) {
+            if (typeof brain === "object") {
+                monster.setBrain(brain);
+            }
+            else {
+                var newBrain = this.createBrain(brain);
+                monster.setBrain(newBrain);
+            }
+        }
+        return monster;
+    };
+
+    this.createBrain = function(brainName) {
+        switch(brainName) {
+            case "Zombie": return new RG.ZombieBrain(null);
+            default: return new RG.RogueBrain(null);
+        }
+    };
+
+    this.createFloorCell = function(x, y) {
+        var cell = new RG.MapCell(x, y, new RG.RogueElement("floor"));
+        return cell;
+    };
+
+    this.createWallCell = function(x, y) {
+        var cell = new RG.MapCell(x, y, new RG.RogueElement("wall"));
+        return cell;
+    };
+
+    /** Factory method for creating levels.*/
+    this.createLevel = function(levelType, cols, rows) {
+        var mapgen = new RG.RogueMapGen();
+        mapgen.setGen(levelType, cols, rows);
+        var level = new RG.RogueLevel(cols, rows);
+        var map = mapgen.getMap();
+        level.setMap(map);
+        return level;
+    };
+
+    this.createWorld = function(nlevels) {
+
+    };
+
+    this.createGame = function() {
+
+    };
+
+};
+
+RG.FACT = new RG.Factory();
+
 
 if ( typeof exports !== 'undefined' ) {
     if( typeof RG !== 'undefined' && module.exports ) {
