@@ -13,6 +13,8 @@ var Level = RG.RogueLevel;
 var Element = RG.RogueElement;
 var Cell = RG.MapCell;
 var Item = RG.RogueItem;
+var Container = RG.RogueItemContainer;
+var InvAndEquip = RG.RogueInvAndEquip;
 
 //---------------------------------------------------------------------------
 // MAP CELL
@@ -68,9 +70,13 @@ describe('Retrieving styling classes for cells', function() {
     });
 });
 
+//---------------------------------------------------------------------------
+// ITEMS AND MAP CELLS
+//--------------------------------------------------------------------------
+
 describe('Items in map cells', function() {
-    it('description', function() {
-        var cell = new Cell(0, 0, new Element("floor"));
+    it('Is placed in a cell and needs an owner', function() {
+        var cell = new Cell(0, 1, new Element("floor"));
         cell.setExplored();
         var item = new Item("food");
         cell.setProp("items", item);
@@ -81,8 +87,72 @@ describe('Items in map cells', function() {
 
         expect(RG.getStyleClassForCell(cell)).to.equal("cell-items");
 
+        // Item must have its owners x,y
+        item.setOwner(cell);
+        expect(item.getX()).to.equal(0);
+        expect(item.getY()).to.equal(1);
+
     });
+
+    it('Container can also be placed into the cell', function() {
+        var cell = new Cell(1, 2, new Element("floor"));
+        cell.setExplored();
+        var container = new Container(cell);
+        expect(container.getX()).to.equal(1);
+        expect(container.getY()).to.equal(2);
+        expect(container.isEmpty()).to.equal(true);
+        expect(container.first()).to.equal(null);
+        expect(container.next()).to.equal(null);
+
+        // Test adding items.
+        var food = new Item("food");
+        var weapon = new Item("weapon");
+        expect(food.getOwner()).to.equal(null);
+        container.addItem(food);
+        expect(food.getOwner()).to.equal(container);
+        expect(container.isEmpty()).to.equal(false);
+        expect(container.hasItem(food)).to.equal(true);
+        expect(container.hasItem(weapon)).to.equal(false);
+        expect(container.first()).to.equal(food);
+        expect(container.next()).to.equal(null);
+
+        // Add new weapon, then remove food
+        container.addItem(weapon);
+        expect(container.first()).to.equal(food);
+        expect(container.next()).to.equal(weapon);
+
+        expect(container.removeItem(food)).to.equal(true);
+        expect(container.first()).to.equal(weapon);
+        expect(container.removeItem(food)).to.equal(false);
+
+        var cont2 = new Container(container);
+        container.addItem(cont2);
+        expect(cont2.getX()).to.equal(1);
+        expect(cont2.getY()).to.equal(2);
+
+    });
+
+    it("Actor inventory has a container and equipped items", function() {
+        var food = new Item("food");
+        var sword = new Item("weapon");
+        var actor = new Actor(true, "Player");
+        var invEq = new InvAndEquip(actor);
+        invEq.addItem(food);
+        expect(invEq.getInventory().getItems().length).to.equal(1);
+        invEq.addItem(sword);
+        expect(invEq.getInventory().getItems().length).to.equal(2);
+        expect(invEq.equipItem(sword)).to.equal(true);
+        expect(invEq.getInventory().getItems().length).to.equal(1);
+
+        var handsEquipped = invEq.getEquipment().getEquipped("hand");
+        expect(handsEquipped[0]).to.equal(sword);
+        expect(invEq.unequipItem("hand",0)).to.equal(true);
+
+    });
+
 });
+
+
 
 //---------------------------------------------------------------------------
 // MAP UNIT TESTS

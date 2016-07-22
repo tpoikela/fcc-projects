@@ -96,13 +96,17 @@ var RG = { // {{{2
         var p = Parent.prototype;
         var c = Child.prototype;
         for (var i in p) {
-            c[i] = p[i];
+            if (!c.hasOwnProperty(i)) {
+                c[i] = p[i];
+            }
+            else {
+                console.log(i + " overridden in the child class.");
+            }
         }
         if (c.hasOwnProperty("uber")) {
             var ubers = [c.uber];
             ubers.push(p);
             c.uber = ubers;
-            console.log("Multi-inheritance in PLAY!");
         }
         else {
             c.uber = p;
@@ -141,12 +145,26 @@ var RG = { // {{{2
 }; /// }}} RG
 
 
+RG.TypedObject = function(type) {
+    var _type = type;
+
+    this.setType = function(type) {
+        _type = type;
+        RG.nullOrUndefError(this, "arg |type|", type);
+    };
+
+    this.getType = function() {
+        return _type;
+    };
+
+};
+
 /** This object is used by all locatable objects in the game.  */
 RG.Locatable = function() { // {{{2
+    RG.TypedObject.call(this, null);
     var _x = null;
     var _y = null;
     var _level = null;
-    var _type = null;
 
     this.setX = function(x) {
         _x = x;
@@ -196,16 +214,47 @@ RG.Locatable = function() { // {{{2
         return _level;
     };
 
-    this.setType = function(type) {
-        _type = type;
-        RG.nullOrUndefError(this, "arg |type|", type);
-    };
-
-    this.getType = function() {
-        return _type;
-    };
 
 }; // }}} Locatable
+RG.extend2(RG.Locatable, RG.TypedObject);
+
+/** Ownable is sort of Locatable but it moves with its owner. This ensures that
+ * for example item coordinates are up-to-date with the carrier.*/
+RG.Ownable = function(owner) {
+    RG.TypedObject.call(this, null);
+    var _owner = owner;
+
+    this.isSamePos = function(obj) {return _owner.isSamePos(obj);};
+
+    this.getLevel = function() {return _owner.getLevel();};
+
+    this.setOwner = function(owner) {
+        if (RG.isNullOrUndef(owner)) {
+            RG.err("Item", "setOwner", "Owner cannot be null.");
+        }
+        else {
+            _owner = owner;
+        }
+    };
+    this.getOwner = function() {return _owner;};
+
+    this.getX = function() {
+        if (_owner !== null) return _owner.getX();
+        return null;
+    };
+
+    this.getY = function() {
+        if (_owner !== null) return _owner.getY();
+        return null;
+    };
+
+    this.getLevel = function() {
+        if (_owner !== null) return _owner.getLevel();
+        return null;
+    };
+
+};
+RG.extend2(RG.Ownable, RG.TypedObject);
 
 /** Event pool can be used to emit events and register callbacks for listeners.
  * This decouples the emitter and listener from each other.  */
@@ -715,8 +764,10 @@ RG.RogueCombat = function(att, def) { // {{{2
 
 }; // }}} Combat
 
+/** Models an item. Each item is ownable by someone. During game, there are no
+ * items with null owners. Ownership shouldn't be ever set to null. */
 RG.RogueItem = function(type) {
-    RG.Locatable.call(this);
+    RG.Ownable.call(this, null);
     this.setType("items");
 
     var _itemType = type;
@@ -740,8 +791,192 @@ RG.RogueItem = function(type) {
         }
     };
 
+    this.setWeight = function(weight) {_weight = weight;};
+    this.getWeight = function() {return weight;};
+
+
+
 };
-RG.extend2(RG.RogueItem, RG.Locatable);
+RG.extend2(RG.RogueItem, RG.Ownable);
+
+/** Models an item container. Can hold a number of items.*/
+RG.RogueItemContainer = function(owner) {
+    RG.RogueItem.call(this, "container");
+    this.setOwner(owner);
+
+    var _items = [];
+    var _iter  = 0;
+
+    /** Adds an item. Container becomes item's owner.*/
+    this.addItem = function(item) {
+        if (item.getItemType() === "container") {
+            if (this.getOwner() !== item) {
+                item.setOwner(this);
+                _items.push(item);
+            }
+            else {
+                RG.err("Item", "addItem", "Added item is container's owner. Impossible.");
+            }
+        }
+        else {
+            item.setOwner(this);
+            _items.push(item);
+        }
+    };
+
+    this.getItems = function() {return _items;};
+
+    this.hasItem = function(item) {
+        var index = _items.indexOf(item);
+        if (index !== -1) return true;
+        return false;
+    };
+
+    this.removeItem = function(item) {
+        var index = _items.indexOf(item);
+        if (index !== -1) {
+            _items.splice(index, 1);
+            return true;
+        }
+        return false;
+    };
+
+    /** Returns first item or null for empty container.*/
+    this.first = function() {
+        if (_items.length > 0) {
+            _iter = 1;
+            return _items[0];
+        }
+        return null;
+    };
+
+    /** Returns next item from container or null if there are no more items.*/
+    this.next = function() {
+        if (_iter < _items.length) {
+            return _items[_iter++];
+        }
+        return null;
+    };
+
+    /** Returns true for empty container.*/
+    this.isEmpty = function() {
+        return _items.length === 0;
+    };
+
+};
+RG.extend2(RG.RogueItemContainer, RG.RogueItem);
+
+/** Models one slot in the inventory. */
+RG.RogueEquipSlot = function(eq, type, n) {
+    RG.Ownable.call(this, eq);
+    var _eq = eq;
+    var _nitems = n;
+    var _type = type;
+    var _items = [];
+
+    this.getItems = function() {
+        return _items;
+    };
+
+    this.equipItem = function(item) {
+        if (this.canEquip(item)) {
+            item.setOwner(this);
+            _items.push(item);
+            return true;
+        }
+        return false;
+    };
+
+    this.unequipItem = function(n) {
+        if (n < _items.length) {
+            _items.splice(n, 1);
+            return true;
+        }
+        return false;
+    };
+
+    this.canEquip = function(item) {
+        return _items.length < _nitems;
+    };
+
+};
+RG.extend2(RG.RogueEquipSlot, RG.Ownable);
+
+/** Models equipment on an actor.*/
+RG.RogueEquipment = function(actor) {
+    RG.Ownable.call(this, actor);
+
+    var _slots = {
+        hand: new RG.RogueEquipSlot(this, "hand", 2),
+        head: new RG.RogueEquipSlot(this, "head", 1),
+        chest: new RG.RogueEquipSlot(this, "chest", 1),
+        neck: new RG.RogueEquipSlot(this, "neck", 1),
+        feet: new RG.RogueEquipSlot(this, "feet", 1),
+    };
+
+    this.equipItem = function(item) {
+        // TODO add proper checks for equipping
+        if (item.hasOwnProperty("equip")) {
+            return _slots[item.equip].equipItem(item);
+        }
+        else {
+            return _slots.hand.equipItem(item);
+        }
+    };
+
+    this.getEquipped = function(slotType) {
+        return _slots[slotType].getItems();
+    };
+
+    this.unequipItem = function(slotType, n) {
+        return _slots[slotType].unequipItem(n);
+    };
+
+};
+RG.extend2(RG.RogueEquipment, RG.Ownable);
+
+/** Object models inventory items and equipment on actor. This object handles
+ * movement of items between inventory and equipment. */
+RG.RogueInvAndEquip = function(actor) {
+    RG.Ownable.call(this, actor);
+    var _actor = actor;
+
+    var _inv = new RG.RogueItemContainer(actor);
+    var _eq  = new RG.RogueEquipment(actor);
+
+    // Wrappers for container methods
+    this.addItem = function(item) {
+        _inv.addItem(item);
+    };
+
+    this.getInventory = function() {return _inv;};
+    this.getEquipment = function() {return _eq;};
+
+    /** Removes item from inventory and equips it.*/
+    this.equipItem = function(item) {
+        if (_inv.hasItem(item)) {
+            if (_eq.equipItem(item)) {
+                return _inv.removeItem(item);
+            }
+        }
+        else {
+            RG.err("InvAndEquip", "equipItem", "Cannot equip. Not in inventory.");
+        }
+        return false;
+    };
+
+    /** Unequips item and puts it back to inventory.*/
+    this.unequipItem = function(item) {
+        if (_eq.isEquipped(item)) {
+            if (_eq.unequipItem(item)) {
+                this.addItem(item);
+            }
+        }
+    };
+
+
+};
+RG.extend2(RG.RogueInvAndEquip, RG.Ownable);
 
 /** Object representing a game actor who takes actions.  */
 RG.RogueActor = function(isPlayer, name) { // {{{2
@@ -1170,12 +1405,10 @@ RG.MapCell = function(x, y, elem) { // {{{2
             var arrProps = _p[prop];
             for (var i = 0; i < arrProps.length; i++) {
                 if (arrProps[i].getType() === propType) {
-                    console.log("Returning true for propType " + propType);
                     return true;
                 }
             }
         }
-        console.log("Returning false for propType " + propType);
         return false;
     };
 
