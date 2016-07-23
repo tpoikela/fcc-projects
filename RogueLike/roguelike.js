@@ -478,7 +478,6 @@ RG.RogueGame = function() { // {{{2
 
 /** Object for the game levels. Contains map, actors and items.  */
 RG.RogueLevel = function(cols, rows) { // {{{2
-    var _actors = [];
     var _map = null;
 
     // Level properties
@@ -507,7 +506,9 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         }
     };
 
+    //---------------------------------------------------------------------
     // ITEM RELATED FUNCTIONS
+    //---------------------------------------------------------------------
 
     this.addItem = function(item, x, y) {
         if (!RG.isNullOrUndef([x, y])) {
@@ -532,12 +533,19 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     this.pickupItem = function(actor, x, y) {
         var cell = _map.getCell(x, y);
         if (cell.hasProp("items")) {
-            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "You try to pickup but cannot. Too weak!"});
+            var item = cell.getProp("items")[0];
+            actor.getInvEq().addItem(item);
+            cell.removeProp("items", item);
+            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "You picked up an item!"});
         }
         else {
             RG.POOL.emitEvent(RG.EVT_MSG, {msg: "Nothing to pickup!"});
         }
     };
+
+    //---------------------------------------------------------------------
+    // ACTOR RELATED FUNCTIONS
+    //---------------------------------------------------------------------
 
     /** Adds an actor to the level. If x,y is given, tries to add there. If not,
      * finds first free cells and adds there. Returns true on success.
@@ -584,8 +592,10 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     this._addPropToLevelXY = function(propType, obj, x, y) {
         if (_p.hasOwnProperty(propType)) {
             _p[propType].push(obj);
-            obj.setXY(x,y);
-            obj.setLevel(this);
+            if (obj.hasOwnProperty("setXY")) {
+                obj.setXY(x,y);
+                obj.setLevel(this);
+            }
             _map.setProp(x, y, propType, obj);
             return true;
         }
@@ -1079,6 +1089,10 @@ RG.RogueActor = function(name) { // {{{2
     this.getName = function() {return _name;};
     this.setName = function(name) {_name = name;};
 
+    this.getInvEq = function() {
+        return _invEq;
+    };
+
 };
 RG.extend2(RG.RogueActor, RG.Locatable);
 RG.extend2(RG.RogueActor, RG.Combatant);
@@ -1131,9 +1145,21 @@ RG.PlayerBrain = function(actor) { // {{{2
 
     var _actor = actor;
 
+    var _guiCallbacks = {}; // For attaching GUI callbacks
+
+    this.addGUICallback = function(code, callback) {
+        _guiCallbacks[code] = callback;
+    };
+
     this.decideNextAction = function(obj) {
         var code = obj.code;
         var level = _actor.getLevel();
+
+        // Invoke GUI callback with given code
+        if (_guiCallbacks.hasOwnProperty(code)) {
+            _guiCallbacks[code](code);
+            return null;
+        }
 
         // Need existing position
         var x = _actor.getX();
@@ -1431,6 +1457,9 @@ RG.MapCell = function(x, y, elem) { // {{{2
     this.setProp = function(prop, obj) {
         if (_p.hasOwnProperty(prop)) {
             _p[prop].push(obj);
+            if (obj.hasOwnProperty("setOwner")) {
+                obj.setOwner(this);
+            }
         }
         else {
             RG.err("MapCell", "setProp", "No property " + prop);
@@ -1701,6 +1730,27 @@ RG.Factory = function() {
     };
 
     this.createGame = function() {
+        var cols = 100;
+        var rows = 50;
+        var game = new RG.RogueGame();
+        var level = this.createLevel("digger", cols, rows);
+
+        var actor = this.createPlayer("Player");
+        actor.setType("player");
+        game.addLevel(level);
+        game.addPlayer(actor);
+
+        var item = new RG.RogueItem("food");
+        var weapon = new RG.RogueItem("food");
+        level.addItem(item);
+        level.addItem(weapon);
+
+        for (var i = 0; i < 10; i++) {
+            var monster = this.createMonster("Bjorn" + i, 10);
+            monster.setType("monster");
+            game.addActorToLevel(monster, level);
+        }
+        return game;
 
     };
 

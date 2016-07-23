@@ -151,6 +151,29 @@ describe('Items in map cells', function() {
 
     });
 
+    it('Picking up items from floor by actor', function() {
+        var level = Factory.createLevel("arena", 20, 20);
+        var actor = Factory.createPlayer("Player");
+        var inv   = actor.getInvEq().getInventory();
+        var weapon = new Item("weapon");
+        expect(level.addItem(weapon, 2, 4)).to.equal(true);
+        expect(level.addActor(actor, 2, 4)).to.equal(true);
+
+        // After picking up, cell must not have item anymore
+        var cell = level.getMap().getCell(2 ,4);
+        expect(cell.hasProp("items")).to.equal(true);
+        level.pickupItem(actor, 2, 4);
+        expect(cell.hasProp("items")).to.equal(false);
+
+        var invItems = inv.getItems();
+        expect(invItems[0]).to.equal(weapon);
+        expect(actor.getInvEq().equipItem(weapon)).to.equal(true);
+        expect(inv.isEmpty()).to.equal(true);
+
+
+
+    });
+
 });
 
 

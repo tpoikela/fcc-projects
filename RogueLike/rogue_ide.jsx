@@ -17,41 +17,14 @@ var Actor = RG.RogueActor;
  */
 var RoguelikeTop = React.createClass({
 
-    delay: 100, //ms, Delay between state updates
-    intervalID: undefined,
-
     nextActor : null,
     visibleCells: [],
 
     getInitialState: function() {
-        var game = new RG.RogueGame();
-        var mapGen = new RG.RogueMapGen();
-        var level = new RG.RogueLevel();
-
-        var cols = 100;
-        var rows = 50;
-        mapGen.setGen("arena", cols, rows);
-        var map = mapGen.getMap();
-        level.setMap(map);
-
-        var actor = new Actor(true, "Player"); // player
-        actor.setType("player");
-        game.addLevel(level);
-        game.addPlayer(actor);
-
-        var item = new RG.RogueItem("food");
-        var weapon = new RG.RogueItem("food");
-        level.addItem(item, 3, 3);
-        level.addItem(weapon, 4, 4);
-
-
-        this.nextActor = actor;
-        this.visibleCells = level.exploreCells(actor);
-
-        var monster = new Actor(false, "Bjorn"); // Monster
-        monster.setType("monster");
-        game.addActorToLevel(monster, level);
-
+        var game = RG.FACT.createGame();
+        var player = game.getPlayer();
+        this.nextActor = player;
+        this.visibleCells = player.getLevel().exploreCells(player);
         return {
             game: game
         };
@@ -63,6 +36,8 @@ var RoguelikeTop = React.createClass({
     },
 
     newGame: function() {
+        var game = RG.FACT.createGame();
+        this.setState({game: game});
     },
 
 
@@ -123,7 +98,7 @@ var RoguelikeTop = React.createClass({
             <div className="main-div">
                 <div className="row">
                     <div className="col-md-2">
-                        <GamePanel />
+                        <GamePanel newGame={this.newGame}/>
                     </div>
                     <div className="col-md-10">
                         <GameMessages message={message}/>
@@ -146,9 +121,10 @@ var RoguelikeTop = React.createClass({
 var GamePanel = React.createClass({
 
     render: function() {
+        var newGame = this.props.newGame;
         return (
             <div>
-                <button>Start</button>
+                <button onClick={newGame}>Start</button>
             </div>
         );
     }
