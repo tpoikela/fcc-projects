@@ -84,7 +84,7 @@ var RG = { // {{{2
 
     debug: function(obj, msg) {
         var inst = typeof obj;
-        console.log("[DEBUG]: " + inst + " " + msg);
+        if (0) console.log("[DEBUG]: " + inst + " " + msg);
     },
 
     err: function(obj, fun, msg) {
@@ -133,7 +133,7 @@ var RG = { // {{{2
     },
 
     // Default FOV range for actors
-    FOV_RANGE: 5,
+    FOV_RANGE: 4,
     ROWS: 30,
     COLS: 50,
     ACTION_DUR: 100,
@@ -418,6 +418,14 @@ RG.RogueGame = function() { // {{{2
         return false;
     };
 
+    this.addActor = function(actor) {
+        _scheduler.add(actor, true, 0);
+        if (actor.getLevel() === null) {
+            RG.err("Game", "addActor", "actor has null level");
+
+        }
+    };
+
     this.addActorToLevel = function(actor, level) {
         var index = _levels.indexOf(level);
         if (index >= 0) {
@@ -618,10 +626,8 @@ RG.RogueLevel = function(cols, rows) { // {{{2
                 RG.debug(this, "Trying to move actor from " + xOld + ", " + yOld);
 
                 if (_map.removeProp(xOld, yOld, "actors", actor)) {
-                    console.log("About to setProp set actor x,y " + x + ", " + y);
                     _map.setProp(x, y, "actors", actor);
                     actor.setXY(x, y);
-                    console.log("set actor succesfully to x,y " + x + ", " + y);
                     return true;
                 }
                 else {
@@ -1242,6 +1248,7 @@ RG.RogueBrain = function(actor) { // {{{2
     this.decideNextAction = function(obj) {
         var level = _actor.getLevel();
         var seenCells = level.getMap().getVisibleCells(_actor);
+        //var seenCells = level.getMap().getVisibleForAI(_actor);
         var playerCell = this.findPlayerCell(seenCells);
 
         if (!RG.isNullOrUndef([playerCell])) { // Move or attack
@@ -1254,30 +1261,42 @@ RG.RogueBrain = function(actor) { // {{{2
             }
             else { // Move closer
                 var pathCells = this.getShortestPathTo(playerCell);
-                var pathX = pathCells[1].getX();
-                var pathY = pathCells[1].getY();
-                return function() {
-                    level.moveActorTo(_actor, pathX, pathY);
-                };
+                if (pathCells.length > 1) {
+                    var pathX = pathCells[1].getX();
+                    var pathY = pathCells[1].getY();
+                    return function() {
+                        level.moveActorTo(_actor, pathX, pathY);
+                    };
+                }
+                else { // Cannot move anywhere
+                    return function() {};
+                }
             }
         }
 
+        console.log("Actor " + _actor.getName() + " exploring.");
+
         var index = -1;
-        for (var i = 0; i < seenCells.length; i++) {
+        for (var i = 0, ll = seenCells.length; i < ll; i++) {
             if (seenCells[i].isFree()) {
-                if (!_explored.hasOwnProperty(seenCells[i])) {
-                    _explored[seenCells[i]] = true;
+                var xy = seenCells[i].getX() + "," + seenCells[i].getY();
+                if (!_explored.hasOwnProperty(xy)) {
+                    _explored[xy] = true;
                     index = i;
                     break;
                 }
             }
         }
 
+        if (index === -1) { // Choose random cell
+            index = Math.floor(Math.random() * seenCells.length);
+        }
         return function() {
             var x = seenCells[index].getX();
             var y = seenCells[index].getY();
             level.moveActorTo(_actor, x, y);
         };
+
     };
 
     this.canAttack = function(x, y) {
@@ -1291,7 +1310,7 @@ RG.RogueBrain = function(actor) { // {{{2
 
     /** Given a list of cells, returns a cell with player in it or null.*/
     this.findPlayerCell = function(cells) {
-        for (var i = 0; i < cells.length; i++) {
+        for (var i = 0, iMax=cells.length; i < iMax; i++) {
             if (cells[i].hasProp("actors")) {
                 var actors = cells[i].getProp("actors");
                 if (actors[0].isPlayer()) return cells[i];
@@ -1627,16 +1646,17 @@ RG.Map = function(cols, rows) { //{{{2
         return false;
     };
 
+    var fov = new ROT.FOV.PreciseShadowcasting(lightPasses);
+
     /** Returns visible cells for given actor.*/
     this.getVisibleCells = function(actor) {
         var cells = [];
-        var fov = new ROT.FOV.PreciseShadowcasting(lightPasses);
-        var x = actor.getX();
-        var y = actor.getY();
+        var xActor = actor.getX();
+        var yActor = actor.getY();
         if (actor.isLocated()) {
             if (actor.getLevel().getMap() === this) {
                 var range = actor.getFOVRange();
-                fov.compute(x, y, range, function(x, y, r, visibility) {
+                fov.compute(xActor, yActor, range, function(x, y, r, visibility) {
                     //console.log(x + "," + y + " r: " + r + "vis: " + visibility);
                     if (visibility) {
                         if (_hasXY(x, y)) {
@@ -1645,6 +1665,19 @@ RG.Map = function(cols, rows) { //{{{2
                         }
                     }
                 });
+            }
+        }
+        return cells;
+    };
+
+    this.getVisibleForAI = function(actor) {
+        var xActor = actor.getX();
+        var yActor = actor.getY();
+        var range = actor.getFOVRange();
+        var cells = [];
+        for (var x = xActor-5; x <= xActor+5; x++) {
+            for (var y = yActor-5; y <= yActor+5; y++) {
+                if (_hasXY(x, y)) cells.push(map[x][y]);
             }
         }
         return cells;
@@ -1745,10 +1778,16 @@ RG.Factory = function() {
         level.addItem(item);
         level.addItem(weapon);
 
+        var freeCells = level.getMap().getFree();
+        var maxFree = freeCells.length;
+
         for (var i = 0; i < 10; i++) {
+            var randCell = Math.floor(Math.random() * maxFree);
+            var cell = freeCells[randCell];
             var monster = this.createMonster("Bjorn" + i, 10);
             monster.setType("monster");
-            game.addActorToLevel(monster, level);
+            level.addActor(monster, cell.getX(), cell.getY());
+            game.addActor(monster);
         }
         return game;
 
