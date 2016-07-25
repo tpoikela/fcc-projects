@@ -132,6 +132,30 @@ var RG = { // {{{2
         return false;
     },
 
+    gameMsg: function(msg) {
+        this.POOL.emitEvent(this.EVT_MSG, {msg: msg});
+    },
+
+    /** Checks if actor level can be increased.*/
+    checkExp: function(actor) {
+        var expLevel = actor.getExpLevel();
+        var exp = actor.getExp();
+        var nextLevel = expLevel + 1;
+        var reqExp = 0;
+        for (var i = 1; i <= nextLevel; i++) {
+            reqExp += i * 10;
+        }
+        if (exp >= reqExp) {
+            actor.setExpLevel(nextLevel);
+            actor.setMaxHP(actor.getMaxHP() + 5);
+            actor.setHP(actor.getHP() + 5);
+            actor.setAttack(actor.getAttack() + 1);
+            actor.setDefense(actor.getDefense() + 1);
+            RG.gameMsg(actor.getName() + " advanced to level " + nextLevel);
+        }
+
+    },
+
     // Default FOV range for actors
     FOV_RANGE: 4,
     ROWS: 30,
@@ -144,6 +168,22 @@ var RG = { // {{{2
     EVT_MSG: "EVT_MSG",
 }; /// }}} RG
 
+/** Each Dice has number of throws, type of dice (d6, d20, d200...) and modifier
+ * which is +/- X. */
+RG.Dice = function(num, dice, mod) {
+    var _num = num;
+    var _dice = dice;
+    var _mod = mod;
+
+    this.roll = function() {
+        var res = 0;
+        for (var i = 0; i < _num; i++) {
+            res += Math.floor(Math.random() * (_dice+1));
+        }
+        return res + mod;
+    };
+
+};
 
 RG.TypedObject = function(type) {
     var _type = type;
@@ -360,7 +400,7 @@ RG.RogueGame = function() { // {{{2
             RG.err("Game", "moveToLevel", "Level " + nlevel + "doesn't exist.");
         }
         else {
-            //TODO move to existing level
+            var currLevel = actor.getLevel();
 
         }
     };
@@ -418,11 +458,11 @@ RG.RogueGame = function() { // {{{2
         return false;
     };
 
+    /** Adds an actor to scheduler.*/
     this.addActor = function(actor) {
         _scheduler.add(actor, true, 0);
         if (actor.getLevel() === null) {
             RG.err("Game", "addActor", "actor has null level");
-
         }
     };
 
@@ -474,7 +514,7 @@ RG.RogueGame = function() { // {{{2
             if (args.actor.isPlayer()) {
                 if (_players.length === 1) {
                     _gameOver = true;
-                    RG.POOL.emitEvent(RG.EVT_MSG, {msg: "GAME OVER!"});
+                    RG.gameMsg("GAME OVER!");
                     console.log("Emitted game over!");
                 }
             }
@@ -544,10 +584,10 @@ RG.RogueLevel = function(cols, rows) { // {{{2
             var item = cell.getProp("items")[0];
             actor.getInvEq().addItem(item);
             cell.removeProp("items", item);
-            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "You picked up an item!"});
+            RG.gameMsg("You picked up an item!");
         }
         else {
-            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "Nothing to pickup!"});
+            RG.gameMsg("Nothing to pickup!");
         }
     };
 
@@ -690,47 +730,38 @@ RG.RogueLevel = function(cols, rows) { // {{{2
  * combat. */
 RG.Combatant = function(hp) { // {{{2
 
-    //console.log("Combatant constructor got HP '" + hp + "'");
-
     var _maxHP = hp;
     var _hp = hp;
 
-    var _attack = 10;
-    var _defense = 5;
-    var _exp = 0;
+    var _attack   = 10;
+    var _range    = 1;
+    var _defense  = 5;
+    var _exp      = 0;
     var _expLevel = 1;
 
+    /** Hit points getters and setters.*/
     this.getHP = function() {return _hp;};
     this.setHP = function(hp) {_hp = hp;};
     this.getMaxHP = function() {return _maxHP;};
     this.setMaxHP = function(hp) {_maxHP = hp;};
 
-    this.isAlive = function() {
-        return _hp > 0;
-    };
+    this.isAlive = function() {return _hp > 0;};
+    this.isDead = function() {return _hp <= 0;};
 
-    this.getAttack = function() {
-        return _attack;
-    };
+    /** Attack methods. */
+    this.getAttack = function() {return _attack;};
+    this.setAttack = function(attack) { _attack = attack; };
+    this.setAttackRange = function() {_range = range;};
+    this.getAttackRange = function() {return _range; };
 
-    this.setAttack = function(attack) {
-        _attack = attack;
-    };
+    /** Defense related methods.*/
+    this.getDefense = function() { return _defense; };
+    this.setDefense = function(defense) { _defense = defense; };
 
-    this.getDefense = function() {
-        return _defense;
-    };
-
-    this.setDefense = function(defense) {
-        _defense = defense;
-    };
-
-    this.getAttackRange = function() {
-        return 1;
-    };
-
+    /** Experience-level methods.*/
     this.setExp = function(exp) {_exp = exp;};
     this.getExp = function() {return _exp;};
+    this.addExp = function(nExp) {_exp += nExp;};
     this.setExpLevel = function(expLevel) {_expLevel = expLevel;};
     this.getExpLevel = function() {return _expLevel;};
 
@@ -746,7 +777,7 @@ RG.RogueCombat = function(att, def) { // {{{2
         var attackPoints = _att.getAttack();
         var defPoints = _def.getDefense();
         var diff = attackPoints - defPoints;
-        RG.POOL.emitEvent(RG.EVT_MSG, {msg: _att.getName() + " attacks " + _def.getName()});
+        RG.gameMsg(_att.getName() + " attacks " + _def.getName() + ".");
         if (diff > 0) {
             this.doDamage(_def, diff);
         }
@@ -758,15 +789,15 @@ RG.RogueCombat = function(att, def) { // {{{2
             this.killActor(def);
         }
         else {
-            RG.POOL.emitEvent(RG.EVT_MSG, {msg:_def.getName() + " got " + dmg + " damage."});
+            RG.gameMsg(_def.getName() + " got " + dmg + " damage.");
         }
     };
 
     this.killActor = function(actor) {
         var level = actor.getLevel();
         if (level.removeActor(actor)) {
-            this.giveExp(_att);
-            RG.POOL.emitEvent(RG.EVT_MSG, {msg: _def.getName() + " was killed."});
+            this.giveExp(_att, _def.getExpLevel());
+            RG.gameMsg(_def.getName() + " was killed.");
             RG.POOL.emitEvent(RG.EVT_ACTOR_KILLED, {actor: actor});
         }
         else {
@@ -775,8 +806,9 @@ RG.RogueCombat = function(att, def) { // {{{2
     };
 
     /** Give some experience points.*/
-    this.giveExp = function(att) {
-
+    this.giveExp = function(att, defLevel) {
+        att.addExp(defLevel);
+        RG.checkExp(att);
     };
 
 }; // }}} Combat
@@ -1115,6 +1147,7 @@ RG.RogueElement = function(elemType) { // {{{2
     switch(elemType) {
         case "wall": _allowMove = false; break;
         case "floor": _allowMove = true; break;
+        default: _allowMove = true; break;
     }
 
     this.canMove = function() {
@@ -1124,6 +1157,20 @@ RG.RogueElement = function(elemType) { // {{{2
 };
 RG.extend2(RG.RogueElement, RG.Locatable);
 // }}} Element
+
+RG.RogueStairsElement = function(down, srcLevel, targetLevel) {
+    RG.RogueElement.call(this, "stairs");
+
+    var _down = down;
+    var _srcLevel = srcLevel;
+    var _targetLevel = targetLevel;
+
+    this.useStairs = function(actor) {
+
+    };
+
+};
+RG.extend2(RG.RogueStairsElement, RG.RogueElement);
 
 /** Models an action. Each action has a duration and a callback.  */
 RG.RogueAction = function(dur, cb, obj) { // {{{2
@@ -1274,7 +1321,7 @@ RG.RogueBrain = function(actor) { // {{{2
             }
         }
 
-        console.log("Actor " + _actor.getName() + " exploring.");
+        //console.log("Actor " + _actor.getName() + " exploring.");
 
         var index = -1;
         for (var i = 0, ll = seenCells.length; i < ll; i++) {
@@ -1289,7 +1336,7 @@ RG.RogueBrain = function(actor) { // {{{2
         }
 
         if (index === -1) { // Choose random cell
-            index = Math.floor(Math.random() * seenCells.length);
+            index = Math.floor(Math.random() * (seenCells.length));
         }
         return function() {
             var x = seenCells[index].getX();
@@ -1408,6 +1455,15 @@ RG.RogueMapGen = function() { // {{{2
     this.rows = 30;
     var _mapGen = new ROT.Map.Arena(50, 30);
 
+    var _types = ["arena", "cellular", "digger", "divided", "dungeon",
+        "eller", "icey", "uniform", "rogue"];
+
+    this.getRandType = function() {
+        var len = _types.length;
+        var nRand = Math.floor(Math.random() * len);
+        return _types[nrand];
+    };
+
     this.setGen = function(type, cols, rows) {
         this.cols = cols;
         this.rows = rows;
@@ -1415,9 +1471,13 @@ RG.RogueMapGen = function() { // {{{2
         switch(type) {
             case "arena":  _mapGen = new ROT.Map.Arena(cols, rows); break;
             case "cellular":  _mapGen = new ROT.Map.Cellular(cols, rows); break;
-            case "divided":  _mapGen = new ROT.Map.DividedMaze(cols, rows); break;
-            case "eller":  _mapGen = new ROT.Map.EllerMaze(cols, rows); break;
             case "digger":  _mapGen = new ROT.Map.Digger(cols, rows); break;
+            case "divided":  _mapGen = new ROT.Map.DividedMaze(cols, rows); break;
+            case "dungeon":  _mapGen = new ROT.Map.Dungeon(cols, rows); break;
+            case "eller":  _mapGen = new ROT.Map.EllerMaze(cols, rows); break;
+            case "icey":  _mapGen = new ROT.Map.IceyMaze(cols, rows); break;
+            case "rogue":  _mapGen = new ROT.Map.Rogue(cols, rows); break;
+            case "uniform":  _mapGen = new ROT.Map.Uniform(cols, rows); break;
             default: RG.err("MapGen", "setGen", "_mapGen type " + type + " is unknown");
         }
     };
@@ -1758,6 +1818,14 @@ RG.Factory = function() {
         return level;
     };
 
+    /** Creates a randomized level for the game. Danger level controls how the
+     * randomization is done. */
+    this.createRandLevel = function(cols, rows, danger) {
+        var levelType = RG.RogueMapGen.getRandType();
+        var level = this.createLevel(levelType, cols, rows);
+
+    };
+
     this.createWorld = function(nlevels) {
 
     };
@@ -1765,29 +1833,40 @@ RG.Factory = function() {
     this.createGame = function() {
         var cols = 100;
         var rows = 50;
+        var nLevels = 1;
         var game = new RG.RogueGame();
-        var level = this.createLevel("digger", cols, rows);
 
-        var actor = this.createPlayer("Player");
-        actor.setType("player");
-        game.addLevel(level);
-        game.addPlayer(actor);
+        var player = this.createPlayer("Player");
+        player.setType("player");
 
-        var item = new RG.RogueItem("food");
-        var weapon = new RG.RogueItem("food");
-        level.addItem(item);
-        level.addItem(weapon);
+        //var levels = ["dungeon", "digger", "icey"];
+        var levels = ["digger"];
+        var maxLevelType = levels.length;
 
-        var freeCells = level.getMap().getFree();
-        var maxFree = freeCells.length;
+        // This loop creates level per iteration
+        for (var nl = 0; nl < nLevels; nl++) {
 
-        for (var i = 0; i < 10; i++) {
-            var randCell = Math.floor(Math.random() * maxFree);
-            var cell = freeCells[randCell];
-            var monster = this.createMonster("Bjorn" + i, 10);
-            monster.setType("monster");
-            level.addActor(monster, cell.getX(), cell.getY());
-            game.addActor(monster);
+            var nLevelType = Math.floor(Math.random() * maxLevelType);
+            var level = this.createLevel(levels[nLevelType], cols, rows);
+            game.addLevel(level);
+            if (nl === 0) game.addPlayer(player);
+
+            var item = new RG.RogueItem("food");
+            var weapon = new RG.RogueItem("weapon");
+            level.addItem(item);
+            level.addItem(weapon);
+
+            var freeCells = level.getMap().getFree();
+            var maxFree = freeCells.length;
+
+            for (var i = 0; i < 10; i++) {
+                var randCell = Math.floor(Math.random() * (maxFree+1));
+                var cell = freeCells[randCell];
+                var monster = this.createMonster("Bjorn" + i, 10);
+                monster.setType("monster");
+                level.addActor(monster, cell.getX(), cell.getY());
+                game.addActor(monster);
+            }
         }
         return game;
 
