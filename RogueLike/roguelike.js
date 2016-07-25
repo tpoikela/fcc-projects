@@ -46,10 +46,14 @@ var RG = { // {{{2
     },
 
     getCellChar: function(cell) {
-        if (!cell.isExplored()) return "";
+        if (!cell.isExplored()) return " ";
         //if (cell.hasProp("items")) return "(";
-        //if (cell.hasProp("actors")) return "@";
-        return "";
+        if (cell.hasProp("actors")) return "@";
+        if (cell.hasPropType("wall")) return "#";
+        if (cell.hasPropType("stairs")) {
+            return ">";
+        }
+        return " ";
     },
 
     shortestDist: function(x0, y0, x1, y1) {
@@ -166,6 +170,8 @@ var RG = { // {{{2
     // Different game events
     EVT_ACTOR_KILLED: "EVT_ACTOR_KILLED",
     EVT_MSG: "EVT_MSG",
+    EVT_LEVEL_CHANGED: "LEVEL_CHANGED",
+
 }; /// }}} RG
 
 /** Each Dice has number of throws, type of dice (d6, d20, d200...) and modifier
@@ -519,8 +525,14 @@ RG.RogueGame = function() { // {{{2
                 }
             }
         }
+        else if (evtName === RG.EVT_LEVEL_CHANGED) {
+            var actor = args.actor;
+            _shownLevel = actor.getLevel();
+            console.log("Emitted level changed.");
+        }
     };
     RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);
+    RG.POOL.listenEvent(RG.EVT_LEVEL_CHANGED, this);
 
 }; // }}} Game
 
@@ -533,6 +545,7 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         actors: [],
         items:  [],
         elements: [],
+        stairs: [],
     };
 
     this.setMap = function(map) {
@@ -554,9 +567,28 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         }
     };
 
+    /** Given a level, returns stairs which lead to that level.*/
+    this.getStairs = function(level) {
+        for (var i = 0; i < _p.stairs.length; i++) {
+            if (_p.stairs[i].getTargetLevel() === level) {
+                return _p.stairs[i];
+            }
+        }
+    };
+
     //---------------------------------------------------------------------
     // ITEM RELATED FUNCTIONS
     //---------------------------------------------------------------------
+
+    /** Adds stairs for this level.*/
+    this.addStairs = function(stairs, x, y) {
+        stairs.setX(x);
+        stairs.setY(x);
+        if (stairs.getSrcLevel() !== this) stairs.setSrcLevel(this);
+        _map.setProp(x, y, "elements", stairs);
+        _p.elements.push(stairs);
+        _p.stairs.push(stairs);
+    };
 
     this.addItem = function(item, x, y) {
         if (!RG.isNullOrUndef([x, y])) {
@@ -1158,6 +1190,8 @@ RG.RogueElement = function(elemType) { // {{{2
 RG.extend2(RG.RogueElement, RG.Locatable);
 // }}} Element
 
+/** Object models stairs connecting two levels. Stairs are one-way, thus
+ * connecting 2 levels requires two stair objects. */
 RG.RogueStairsElement = function(down, srcLevel, targetLevel) {
     RG.RogueElement.call(this, "stairs");
 
@@ -1169,6 +1203,13 @@ RG.RogueStairsElement = function(down, srcLevel, targetLevel) {
 
     };
 
+    this.isDown = function() {return _down;};
+
+    this.getSrcLevel = function() {return _srcLevel; };
+    this.setSrcLevel = function(src) {_srcLevel = src;};
+
+    this.getTargetLevel = function() {return _targetLevel; };
+    this.setTargetLevel = function(target) {_targetLevel = target;};
 };
 RG.extend2(RG.RogueStairsElement, RG.RogueElement);
 
@@ -1204,6 +1245,17 @@ RG.PlayerBrain = function(actor) { // {{{2
         _guiCallbacks[code] = callback;
     };
 
+    var _moveStairs = function(level, srcStairs) {
+        var targetLevel = srcStairs.getTargetLevel();
+        level.removeActor(_actor);
+        var stairs = targetLevel.getStairs(level);
+        var newX = stairs.getX();
+        var newY = stairs.getY();
+        targetLevel.addActor(_actor, newX, newY);
+        RG.POOL.emitEvent(RG.EVT_LEVEL_CHANGED, 
+            {target: targetLevel, src: level, actor: _actor});
+    };
+
     this.decideNextAction = function(obj) {
         var code = obj.code;
         var level = _actor.getLevel();
@@ -1219,18 +1271,19 @@ RG.PlayerBrain = function(actor) { // {{{2
         var y = _actor.getY();
         var xOld = x;
         var yOld = y;
+        var currCell = level.getMap().getCell(x, y);
 
         console.log("PlayerBrain Pressed key code was " + code);
 
-        var type = "MOVE";
-        if (code === ROT.VK_D) ++x;
-        if (code === ROT.VK_A) --x;
-        if (code === ROT.VK_W) --y;
-        if (code === ROT.VK_X) ++y;
-        if (code === ROT.VK_Q) {--y; --x;}
-        if (code === ROT.VK_E) {--y; ++x;}
-        if (code === ROT.VK_C) {++y; ++x;}
-        if (code === ROT.VK_Z) {++y; --x;}
+        var type = "NULL";
+        if (code === ROT.VK_D) { ++x; type = "MOVE";}
+        if (code === ROT.VK_A) { --x; type = "MOVE";}
+        if (code === ROT.VK_W) { --y; type = "MOVE";}
+        if (code === ROT.VK_X) { ++y; type = "MOVE";}
+        if (code === ROT.VK_Q) {--y; --x; type = "MOVE";}
+        if (code === ROT.VK_E) {--y; ++x; type = "MOVE";}
+        if (code === ROT.VK_C) {++y; ++x; type = "MOVE";}
+        if (code === ROT.VK_Z) {++y; --x; type = "MOVE";}
         if (code === ROT.VK_S) {
             // IDLE action
             type = "IDLE";
@@ -1242,6 +1295,38 @@ RG.PlayerBrain = function(actor) { // {{{2
                 level.pickupItem(_actor, x, y);
             };
         }
+
+        var targetLevel = null;
+        if (code === ROT.VK_SPACE) {
+            type = "STAIRS_DOWN";
+            if (currCell.hasPropType("stairs")) {
+                var stairsDown = currCell.getPropType("stairs")[0];
+                if (stairsDown.isDown()) {
+                    _moveStairs(level, stairsDown);
+                    return function() {};
+                }
+            }
+            else {
+                RG.gameMsg("There are no stairs here.");
+                return null;
+            }
+        }
+        if (code === ROT.VK_RETURN) {
+            type = "STAIRS_UP";
+            if (currCell.hasPropType("stairs")) {
+                var stairsUp = currCell.getPropType("stairs")[0];
+                if (!stairsUp.isDown()) {
+                    _moveStairs(level, stairsUp);
+                    return function() {};
+                }
+            }
+            else {
+                RG.gameMsg("There are no stairs here.");
+                return null;
+            }
+        }
+
+        if (code === ROT.VK_SHIFT) type = "SHIFT";
 
         if (type === "MOVE") {
             if (level.getMap().isPassable(x, y)) {
@@ -1518,7 +1603,7 @@ RG.MapCell = function(x, y, elem) { // {{{2
     this.getX = function() {return _x;};
     this.getY = function() {return _y;};
 
-    /** Sets the base element for this cell.*/
+    /** Sets the base element for this cell. There can be only one element.*/
     this.setBaseElem = function(elem) {
         _baseElem = elem;
     };
@@ -1564,7 +1649,8 @@ RG.MapCell = function(x, y, elem) { // {{{2
     };
 
     /** Returns true if any cell property has the given type. Ie.
-     * myCell.hasPropType("wall")
+     * myCell.hasPropType("wall"). Doesn't check for basic props like "actors",
+     * "items" etc.
      */
     this.hasPropType = function(propType) {
         if (_baseElem.getType() === propType) return true;
@@ -1577,6 +1663,21 @@ RG.MapCell = function(x, y, elem) { // {{{2
             }
         }
         return false;
+    };
+
+    /** Returns all props with given type in the cell.*/
+    this.getPropType = function(propType) {
+        var props = [];
+        if (_baseElem.getType() === propType) return [_baseElem];
+        for (var prop in _p) {
+            var arrProps = _p[prop];
+            for (var i = 0; i < arrProps.length; i++) {
+                if (arrProps[i].getType() === propType) {
+                    props.push(arrProps[i]);
+                }
+            }
+        }
+        return props;
     };
 
     this.getProp = function(prop) {
@@ -1833,7 +1934,7 @@ RG.Factory = function() {
     this.createGame = function() {
         var cols = 100;
         var rows = 50;
-        var nLevels = 1;
+        var nLevels = 3;
         var game = new RG.RogueGame();
 
         var player = this.createPlayer("Player");
@@ -1842,6 +1943,9 @@ RG.Factory = function() {
         //var levels = ["dungeon", "digger", "icey"];
         var levels = ["digger"];
         var maxLevelType = levels.length;
+
+        var allStairs = [];
+        var allLevels = [];
 
         // This loop creates level per iteration
         for (var nl = 0; nl < nLevels; nl++) {
@@ -1856,20 +1960,48 @@ RG.Factory = function() {
             level.addItem(item);
             level.addItem(weapon);
 
-            var freeCells = level.getMap().getFree();
-            var maxFree = freeCells.length;
-
             for (var i = 0; i < 10; i++) {
-                var randCell = Math.floor(Math.random() * (maxFree+1));
-                var cell = freeCells[randCell];
+                var cell = this.getFreeRandCell(level);
                 var monster = this.createMonster("Bjorn" + i, 10);
                 monster.setType("monster");
                 level.addActor(monster, cell.getX(), cell.getY());
                 game.addActor(monster);
             }
+
+            allLevels.push(level);
         }
+
+        // Connect levels with stairs
+        for (nl = 0; nl < nLevels; nl++) {
+            var src = allLevels[nl];
+            var targetDown = allLevels[nl+1];
+
+            var stairsDown = new RG.RogueStairsElement(true, src, targetDown);
+            var stairCell = this.getFreeRandCell(src);
+            stairCell.setProp("elements", stairsDown);
+
+            if (nl > 0) {
+                var targetUp = allLevels[nl-1];
+                var stairsUp = new RG.RogueStairsElement(false, src, targetUp);
+                stairCell = this.getFreeRandCell(src);
+                stairCell.setProp("elements", stairsUp);
+            }
+        }
+
         return game;
 
+    };
+
+    /** Return random free cell on a given level.*/
+    this.getFreeRandCell = function(level) {
+        var freeCells = level.getMap().getFree();
+        if (freeCells.length > 0) {
+            var maxFree = freeCells.length;
+            var randCell = Math.floor(Math.random() * maxFree);
+            var cell = freeCells[randCell];
+            return cell;
+        }
+        return null;
     };
 
 };
