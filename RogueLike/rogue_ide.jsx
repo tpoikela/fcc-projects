@@ -19,14 +19,15 @@ var RoguelikeTop = React.createClass({
 
     nextActor : null,
     visibleCells: [],
+    game: null,
 
     getInitialState: function() {
-        var game = RG.FACT.createGame();
-        var player = game.getPlayer();
+        this.game = RG.FACT.createGame();
+        var player = this.game.getPlayer();
         this.nextActor = player;
         this.visibleCells = player.getLevel().exploreCells(player);
         return {
-            game: game
+            render: true
         };
     },
 
@@ -36,8 +37,8 @@ var RoguelikeTop = React.createClass({
     },
 
     newGame: function() {
-        var game = RG.FACT.createGame();
-        this.setState({game: game});
+        this.game = RG.FACT.createGame();
+        this.setState({render: true});
     },
 
 
@@ -51,7 +52,7 @@ var RoguelikeTop = React.createClass({
 
     /** Listens for player key presses and handles them.*/
     handleKeyDown: function(evt) {
-        var game = this.state.game;
+        var game = this.game;
 
         if (!game.isGameOver()) {
             game.clearMessages();
@@ -65,34 +66,32 @@ var RoguelikeTop = React.createClass({
                 while (!this.nextActor.isPlayer() && !game.isGameOver()) {
                     var action = this.nextActor.nextAction();
                     game.doAction(action);
-                    this.setState({game: game});
                     this.nextActor = game.nextActor();
-                    if (RG.isNullOrUndef(this.nextActor)) break;
+                    if (RG.isNullOrUndef([this.nextActor])) break;
                 }
+                this.setState({render: true});
             }
 
         }
         else {
             game.clearMessages();
             RG.POOL.emitEvent(RG.EVT_MSG, {msg: "GAME OVER!"});
-            this.setState({game: game});
+            this.setState({render: true});
         }
     },
 
     playerCommand: function(code) {
-        var game = this.state.game;
+        var game = this.game;
         var action = this.nextActor.nextAction({code: code});
         game.doAction(action);
         this.visibleCells = game.shownLevel().exploreCells(this.nextActor);
-        this.setState({game: game});
+        //this.setState({render: true});
     },
 
     render: function() {
-        var game = this.state.game;
-
-        var map = game.getVisibleMap();
-        var player = game.getPlayer();
-        var message = game.getMessages();
+        var map = this.game.getVisibleMap();
+        var player = this.game.getPlayer();
+        var message = this.game.getMessages();
         //var numTurns = this.state.numTurns;
         return (
             <div className="main-div">
@@ -106,7 +105,7 @@ var RoguelikeTop = React.createClass({
                 </div>
                 <div className="row">
                     <div className="text-left col-md-2">
-                        <GameStats player={player} game={game}/>
+                        <GameStats player={player} />
                     </div>
                     <div className="col-md-10">
                         <GameBoard player={player} map={map} visibleCells={this.visibleCells} onCellClick={this.onCellClick}/>
@@ -148,7 +147,6 @@ var GameStats = React.createClass({
 
     render: function() {
         var player = this.props.player;
-        var game = this.props.game;
 
         var stats = {
             HP: player.getHP() + "/" + player.getMaxHP(),
@@ -343,7 +341,6 @@ var GameCtrlBottom = React.createClass({
     }
 
 });
-
 
 ReactDOM.render(
     <RoguelikeTop />,
