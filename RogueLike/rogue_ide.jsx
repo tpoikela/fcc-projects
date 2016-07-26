@@ -22,7 +22,13 @@ var RoguelikeTop = React.createClass({
     game: null,
 
     getInitialState: function() {
-        this.game = RG.FACT.createGame();
+        var conf = {
+            cols: 20,
+            rows: 20,
+            levels : 10,
+            monsters: 2
+        };
+        this.game = RG.FACT.createGame(conf);
         var player = this.game.getPlayer();
         this.nextActor = player;
         this.visibleCells = player.getLevel().exploreCells(player);
@@ -263,7 +269,8 @@ var GameRow = React.createClass({
             var cellClass = RG.getStyleClassForCell(cell);
             var cellChar  = RG.getCellChar(cell);
             var cellIndex = visibleCells.indexOf(cell);
-            var render = cellIndex === -1 ? false : true;
+            //var render = cellIndex === -1 ? false : true;
+            var render = true;
 
             return (<GameCell cell={cell} cellChar={cellChar} className={cellClass} x={index} 
                     y={y} render={render} onCellClick={onCellClick} key={index}/>);
