@@ -16,6 +16,7 @@ var Item = RG.RogueItem;
 var Container = RG.RogueItemContainer;
 var InvAndEquip = RG.RogueInvAndEquip;
 var Factory = RG.FACT;
+var Stairs = RG.RogueStairsElement;
 
 //---------------------------------------------------------------------------
 // MAP CELL
@@ -251,6 +252,65 @@ describe('Moving actors around in the game', function() {
         expect(level.moveActorTo(actor, 4, 4)).to.equal(false);
         expect(actor.getX(), "X didn't change due to wall").to.equal(2);
         expect(actor.getY()).to.equal(3);
+
+    });
+
+    it('Moves actors between levels using stairs', function() {
+        var level1 = Factory.createLevel("arena", 20, 20);
+        var level2 = Factory.createLevel("arena", 20, 20);
+        var player = Factory.createPlayer("Player");
+
+        var stairs1 = new Stairs(true, level1, level2);
+        var stairs2 = new Stairs(false, level2, level1);
+        stairs1.setTargetStairs(stairs2);
+        stairs2.setTargetStairs(stairs1);
+
+        level1.addActor(player, 2, 2);
+        expect(player.getLevel()).to.equal(level1);
+        expect(level1.getMap().getCell(2,2).hasPropType("stairs")).to.equal(false);
+        expect(level2.getMap().getCell(10,10).hasPropType("stairs")).to.equal(false);
+
+        // Now add stairs and check they exist in the cells
+        level1.addStairs(stairs1, 2, 2);
+        level2.addStairs(stairs2, 10, 10);
+        expect(level1.getMap().getCell(2,2).hasPropType("stairs")).to.equal(true);
+        expect(level2.getMap().getCell(10,10).hasPropType("stairs")).to.equal(true);
+
+        var refStairs1 = level1.getMap().getCell(2,2).getPropType("stairs")[0];
+        expect(refStairs1).to.equal(stairs1);
+
+        var refStairs2 = level2.getMap().getCell(10,10).getPropType("stairs")[0];
+        expect(refStairs2).to.equal(stairs2);
+
+        expect(player.getX()).to.equal(2);
+        expect(player.getY()).to.equal(2);
+        level1.useStairs(player);
+        expect(player.getLevel()).to.equal(level2);
+        expect(player.getX()).to.equal(10);
+        expect(player.getY()).to.equal(10);
+
+        // Return to prev level
+        level2.useStairs(player);
+        expect(player.getLevel()).to.equal(level1);
+        expect(player.getX()).to.equal(2);
+        expect(player.getY()).to.equal(2);
+        level1.useStairs(player);
+
+        // Check level with two stairs to different levels
+        var level3 = Factory.createLevel("arena", 30, 30);
+        var stairsDown23 = new Stairs(true, level2, level3);
+        var stairsUp32 = new Stairs(false, level2, level3);
+        level2.addStairs(stairsDown23, 12, 13);
+        level3.addStairs(stairsUp32, 6, 7);
+        stairsDown23.setTargetStairs(stairsUp32);
+        stairsUp32.setTargetStairs(stairsDown23);
+
+        level2.moveActorTo(player, 12, 13);
+        level2.useStairs(player);
+        expect(player.getLevel()).to.equal(level3);
+        expect(player.getX()).to.equal(6);
+        expect(player.getY()).to.equal(7);
+
 
     });
 });
