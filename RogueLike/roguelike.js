@@ -51,7 +51,8 @@ var RG = { // {{{2
         if (cell.hasProp("actors")) return "@";
         if (cell.hasPropType("wall")) return "#";
         if (cell.hasPropType("stairs")) {
-            return ">";
+            if (cell.getPropType("stairs")[0].isDown()) return ">";
+            return "<";
         }
         return " ";
     },
@@ -382,13 +383,6 @@ RG.RogueGame = function() { // {{{2
     var _scheduler = new RG.RogueScheduler();
     var _msg = new RG.Messages();
 
-    var _initDone = false;
-    this.initGame = function() {
-        if (!_initDone) {
-
-        }
-    };
-
     this.getMessages = function() {
         return _msg.getMessages();
     };
@@ -397,31 +391,8 @@ RG.RogueGame = function() { // {{{2
         _msg.clear();
     };
 
-    /** Move actor to level n. */
-    this.moveToLevel = function(actor, nlevel) {
-        if (nlevel === _levels.length) {
-            this.createNewLevel(_cols, _rows);
-        }
-        else if (nlevel > _levels.length) {
-            RG.err("Game", "moveToLevel", "Level " + nlevel + "doesn't exist.");
-        }
-        else {
-            var currLevel = actor.getLevel();
-
-        }
-    };
-
-    /** Creates a new level and adds it to the game. */
-    this.createNewLevel = function(cols, rows) {
-        var map = _mapgen.getMap();
-        var level = new RG.RogueLevel(cols, rows);
-        level.setMap(map);
-        _levels.push(level);
-    };
-
-    this.shownLevel = function() {
-        return _shownLevel;
-    };
+    this.shownLevel = function() {return _shownLevel;};
+    this.setShownLevel = function(level) {_shownLevel = level;};
 
     /** Returns next actor from the scheduling queue.*/
     this.nextActor = function() {
@@ -470,6 +441,10 @@ RG.RogueGame = function() { // {{{2
         if (actor.getLevel() === null) {
             RG.err("Game", "addActor", "actor has null level");
         }
+    };
+
+    this.addEvent = function(gameEvent) {
+        _scheduler.add(gameEvent, true, 0);
     };
 
     this.addActorToLevel = function(actor, level) {
@@ -521,14 +496,16 @@ RG.RogueGame = function() { // {{{2
                 if (_players.length === 1) {
                     _gameOver = true;
                     RG.gameMsg("GAME OVER!");
-                    console.log("Emitted game over!");
+                    console.log("Captured game over!");
                 }
             }
         }
         else if (evtName === RG.EVT_LEVEL_CHANGED) {
             var actor = args.actor;
-            _shownLevel = actor.getLevel();
-            console.log("Emitted level changed.");
+            if (actor.isPlayer()) {
+                _shownLevel = actor.getLevel();
+            }
+            console.log("Captured level changed.");
         }
     };
     RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);
@@ -577,18 +554,38 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     };
 
     //---------------------------------------------------------------------
-    // ITEM RELATED FUNCTIONS
+    // STAIRS RELATED FUNCTIONS
     //---------------------------------------------------------------------
 
     /** Adds stairs for this level.*/
     this.addStairs = function(stairs, x, y) {
         stairs.setX(x);
-        stairs.setY(x);
+        stairs.setY(y);
         if (stairs.getSrcLevel() !== this) stairs.setSrcLevel(this);
         _map.setProp(x, y, "elements", stairs);
         _p.elements.push(stairs);
         _p.stairs.push(stairs);
     };
+
+    /** Uses stairs for given actor if it's on top of the stairs.*/
+    this.useStairs = function(actor) {
+        var cell = _map.getCell(actor.getX(), actor.getY());
+        if (cell.hasPropType("stairs")) {
+            var stairs = cell.getPropType("stairs")[0];
+            if (stairs.useStairs(actor)) {
+                return true;
+            }
+            else {
+                RG.err("Level", "useStairs", "Failed to use the stairs.");
+            }
+        }
+        return false;
+    };
+
+    //---------------------------------------------------------------------
+    // ITEM RELATED FUNCTIONS
+    //---------------------------------------------------------------------
+
 
     this.addItem = function(item, x, y) {
         if (!RG.isNullOrUndef([x, y])) {
@@ -616,7 +613,7 @@ RG.RogueLevel = function(cols, rows) { // {{{2
             var item = cell.getProp("items")[0];
             actor.getInvEq().addItem(item);
             cell.removeProp("items", item);
-            RG.gameMsg("You picked up an item!");
+            RG.gameMsg(actor.getName() + " picked up an item!");
         }
         else {
             RG.gameMsg("Nothing to pickup!");
@@ -735,7 +732,6 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         }
         else {
             return false;
-
         }
     };
 
@@ -766,8 +762,11 @@ RG.Combatant = function(hp) { // {{{2
     var _hp = hp;
 
     var _attack   = 10;
-    var _range    = 1;
     var _defense  = 5;
+    var _accuracy = 10;
+    var _agility  = 5;
+
+    var _range    = 1;
     var _exp      = 0;
     var _expLevel = 1;
 
@@ -785,6 +784,12 @@ RG.Combatant = function(hp) { // {{{2
     this.setAttack = function(attack) { _attack = attack; };
     this.setAttackRange = function() {_range = range;};
     this.getAttackRange = function() {return _range; };
+
+    /** These determine the chance of hitting. */
+    this.setAccuracy = function(accu) {_accuracy = accu;};
+    this.getAccuracy = function() {return _accuracy;};
+    this.setAgility = function(agil) {_agility = agil;};
+    this.getAgility = function() {return _agility;};
 
     /** Defense related methods.*/
     this.getDefense = function() { return _defense; };
@@ -809,9 +814,20 @@ RG.RogueCombat = function(att, def) { // {{{2
         var attackPoints = _att.getAttack();
         var defPoints = _def.getDefense();
         var diff = attackPoints - defPoints;
+        var accuracy = _att.getAccuracy();
+        var agility = _def.getAgility();
+        var total = accuracy + agility;
+        var hitChange = accuracy / total;
+
         RG.gameMsg(_att.getName() + " attacks " + _def.getName() + ".");
         if (diff > 0) {
-            this.doDamage(_def, diff);
+            if (hitChange > Math.random())
+                this.doDamage(_def, diff);
+            else
+                RG.gameMsg(_att.getName() + " misses " + _def.getName() + ".");
+        }
+        else {
+            RG.gameMsg(_att.getName() + " failed to damage " + _def.getName() + ".");
         }
     };
 
@@ -1198,9 +1214,23 @@ RG.RogueStairsElement = function(down, srcLevel, targetLevel) {
     var _down = down;
     var _srcLevel = srcLevel;
     var _targetLevel = targetLevel;
+    var _targetStairs = null;
 
+    /** Target actor uses the stairs.*/
     this.useStairs = function(actor) {
-
+        if (!RG.isNullOrUndef([_targetStairs, _targetLevel])) {
+            var newLevel = _targetLevel;
+            var newX = _targetStairs.getX();
+            var newY = _targetStairs.getY();
+            if (_srcLevel.removeActor(actor)) {
+                if (_targetLevel.addActor(actor, newX, newY)) {
+                    RG.POOL.emitEvent(RG.EVT_LEVEL_CHANGED, 
+                        {target: _targetLevel, src: _srcLevel, actor: actor});
+                    return true;
+                }
+            }
+        }
+        return false;
     };
 
     this.isDown = function() {return _down;};
@@ -1210,6 +1240,10 @@ RG.RogueStairsElement = function(down, srcLevel, targetLevel) {
 
     this.getTargetLevel = function() {return _targetLevel; };
     this.setTargetLevel = function(target) {_targetLevel = target;};
+
+    this.setTargetStairs = function(stairs) {_targetStairs = stairs;};
+    this.getTargetStairs = function() {return _targetStairs;};
+
 };
 RG.extend2(RG.RogueStairsElement, RG.RogueElement);
 
@@ -1245,17 +1279,6 @@ RG.PlayerBrain = function(actor) { // {{{2
         _guiCallbacks[code] = callback;
     };
 
-    var _moveStairs = function(level, srcStairs) {
-        var targetLevel = srcStairs.getTargetLevel();
-        level.removeActor(_actor);
-        var stairs = targetLevel.getStairs(level);
-        var newX = stairs.getX();
-        var newY = stairs.getY();
-        targetLevel.addActor(_actor, newX, newY);
-        RG.POOL.emitEvent(RG.EVT_LEVEL_CHANGED, 
-            {target: targetLevel, src: level, actor: _actor});
-    };
-
     this.decideNextAction = function(obj) {
         var code = obj.code;
         var level = _actor.getLevel();
@@ -1272,8 +1295,6 @@ RG.PlayerBrain = function(actor) { // {{{2
         var xOld = x;
         var yOld = y;
         var currCell = level.getMap().getCell(x, y);
-
-        console.log("PlayerBrain Pressed key code was " + code);
 
         var type = "NULL";
         if (code === ROT.VK_D) { ++x; type = "MOVE";}
@@ -1296,37 +1317,15 @@ RG.PlayerBrain = function(actor) { // {{{2
             };
         }
 
-        var targetLevel = null;
         if (code === ROT.VK_SPACE) {
-            type = "STAIRS_DOWN";
+            type = "STAIRS";
             if (currCell.hasPropType("stairs")) {
-                var stairsDown = currCell.getPropType("stairs")[0];
-                if (stairsDown.isDown()) {
-                    _moveStairs(level, stairsDown);
-                    return function() {};
-                }
+                return function() {level.useStairs(_actor);};
             }
             else {
-                RG.gameMsg("There are no stairs here.");
                 return null;
             }
         }
-        if (code === ROT.VK_RETURN) {
-            type = "STAIRS_UP";
-            if (currCell.hasPropType("stairs")) {
-                var stairsUp = currCell.getPropType("stairs")[0];
-                if (!stairsUp.isDown()) {
-                    _moveStairs(level, stairsUp);
-                    return function() {};
-                }
-            }
-            else {
-                RG.gameMsg("There are no stairs here.");
-                return null;
-            }
-        }
-
-        if (code === ROT.VK_SHIFT) type = "SHIFT";
 
         if (type === "MOVE") {
             if (level.getMap().isPassable(x, y)) {
@@ -1485,6 +1484,39 @@ RG.extend2(RG.ZombieBrain, RG.RogueBrain);
 
 
 // }}} BRAINS
+//
+
+/** Event is something that is scheduled and takes place but it's not an actor.
+ * An example is regeneration or poison effect.*/
+RG.RogueEvent = function(dur, cb) {
+
+    var _cb = cb;
+
+    this.isEvent = true;
+    this.isPlayer = function(){return false;};
+
+    this.nextAction = function() {
+        return new RG.RogueAction(dur, cb, {});
+    };
+
+};
+
+/** Regeneration event.*/
+RG.RogueRegenEvent = function(actor, dur) {
+
+    var _regenerate = function() {
+        var maxHP = actor.getMaxHP();
+        var hp = actor.getHP();
+        hp += 1;
+        if (hp <= maxHP) {
+            actor.setHP(hp);
+            RG.gameMsg(actor.getName() + " regenerates 1 HP.");
+        }
+    };
+
+    RG.RogueEvent.call(this, 20 * RG.ACTION_DUR, _regenerate);
+};
+RG.extend2(RG.RogueEvent, RG.RogueRegenEvent);
 
 /** Scheduler for the game actions.  */
 RG.RogueScheduler = function() { // {{{2
@@ -1515,7 +1547,7 @@ RG.RogueScheduler = function() { // {{{2
     };
 
     /** Hooks to the event system. When actor is killed, removes it from the
-     * pool.*/
+     * scheduler.*/
     this.notify = function(evtName, args) {
         if (evtName === RG.EVT_ACTOR_KILLED) {
             if (args.hasOwnProperty("actor")) {
@@ -1931,21 +1963,27 @@ RG.Factory = function() {
 
     };
 
-    this.createGame = function() {
-        var cols = 100;
-        var rows = 50;
-        var nLevels = 3;
+    this.createGame = function(obj) {
+        var cols = obj.cols;
+        var rows = obj.rows;
+        var nLevels = obj.levels;
+        var monstersPerLevel = obj.monsters;
+
         var game = new RG.RogueGame();
 
         var player = this.createPlayer("Player");
         player.setType("player");
 
+        var regenPlayer = new RG.RogueRegenEvent(player);
+        game.addEvent(regenPlayer);
+
         //var levels = ["dungeon", "digger", "icey"];
         var levels = ["digger"];
         var maxLevelType = levels.length;
 
-        var allStairs = [];
-        var allLevels = [];
+        var allStairsUp   = [];
+        var allStairsDown = [];
+        var allLevels     = [];
 
         // This loop creates level per iteration
         for (var nl = 0; nl < nLevels; nl++) {
@@ -1960,10 +1998,13 @@ RG.Factory = function() {
             level.addItem(item);
             level.addItem(weapon);
 
-            for (var i = 0; i < 10; i++) {
+            for (var i = 0; i < monstersPerLevel; i++) {
                 var cell = this.getFreeRandCell(level);
-                var monster = this.createMonster("Bjorn" + i, 10);
+                var id = "CritterL" + nl + "," + i;
+                var hp = 10 + nl * 5;
+                var monster = this.createMonster(id, hp);
                 monster.setType("monster");
+                monster.setExpLevel(nl + 1);
                 level.addActor(monster, cell.getX(), cell.getY());
                 game.addActor(monster);
             }
@@ -1974,18 +2015,37 @@ RG.Factory = function() {
         // Connect levels with stairs
         for (nl = 0; nl < nLevels; nl++) {
             var src = allLevels[nl];
-            var targetDown = allLevels[nl+1];
 
-            var stairsDown = new RG.RogueStairsElement(true, src, targetDown);
-            var stairCell = this.getFreeRandCell(src);
-            stairCell.setProp("elements", stairsDown);
+            var stairCell = null;
+            if (nl < nLevels-1) {
+                var targetDown = allLevels[nl+1];
+                var stairsDown = new RG.RogueStairsElement(true, src, targetDown);
+                stairCell = this.getFreeRandCell(src);
+                src.addStairs(stairsDown, stairCell.getX(), stairCell.getY());
+                allStairsDown.push(stairsDown);
+            }
+            else {
+                allStairsDown.push(null);
+            }
 
             if (nl > 0) {
                 var targetUp = allLevels[nl-1];
                 var stairsUp = new RG.RogueStairsElement(false, src, targetUp);
                 stairCell = this.getFreeRandCell(src);
-                stairCell.setProp("elements", stairsUp);
+                src.addStairs(stairsUp, stairCell.getX(), stairCell.getY());
+                allStairsUp.push(stairsUp);
             }
+            else {
+                allStairsUp.push(null);
+            }
+        }
+
+        // Finally connect the stairs together
+        for (nl = 0; nl < nLevels; nl++) {
+            if (nl < nLevels-1)
+                allStairsDown[nl].setTargetStairs(allStairsUp[nl+1]);
+            if (nl > 0)
+                allStairsUp[nl].setTargetStairs(allStairsDown[nl-1]);
         }
 
         return game;
