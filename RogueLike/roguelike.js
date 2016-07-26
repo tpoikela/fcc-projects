@@ -45,9 +45,10 @@ var RG = { // {{{2
         return this.cellStyles.elements[baseType];
     },
 
+    /** Returns char which is rendered on the map cell.*/
     getCellChar: function(cell) {
         if (!cell.isExplored()) return " ";
-        //if (cell.hasProp("items")) return "(";
+        if (cell.hasProp("items")) return "(";
         if (cell.hasProp("actors")) return "@";
         if (cell.hasPropType("wall")) return "#";
         if (cell.hasPropType("stairs")) {
@@ -57,6 +58,7 @@ var RG = { // {{{2
         return " ";
     },
 
+    /** Returns shortest distance between two points.*/
     shortestDist: function(x0, y0, x1, y1) {
         var coords = [];
         var result = 0;
@@ -171,13 +173,13 @@ var RG = { // {{{2
     // Different game events
     EVT_ACTOR_KILLED: "EVT_ACTOR_KILLED",
     EVT_MSG: "EVT_MSG",
-    EVT_LEVEL_CHANGED: "LEVEL_CHANGED",
+    EVT_LEVEL_CHANGED: "EVT_LEVEL_CHANGED",
 
 }; /// }}} RG
 
-/** Each Dice has number of throws, type of dice (d6, d20, d200...) and modifier
+/** Each die has number of throws, type of dice (d6, d20, d200...) and modifier
  * which is +/- X. */
-RG.Dice = function(num, dice, mod) {
+RG.Die = function(num, dice, mod) {
     var _num = num;
     var _dice = dice;
     var _mod = mod;
@@ -189,7 +191,6 @@ RG.Dice = function(num, dice, mod) {
         }
         return res + mod;
     };
-
 };
 
 RG.TypedObject = function(type) {
@@ -214,30 +215,17 @@ RG.Locatable = function() { // {{{2
     var _y = null;
     var _level = null;
 
-    this.setX = function(x) {
-        _x = x;
-    };
-
-    this.setY = function(y) {
-        _y = y;
-    };
-
+    /** Simple getters/setters for coordinates.*/
+    this.setX = function(x) {_x = x; };
+    this.setY = function(y) {_y = y; };
+    this.getX = function() {return _x;};
+    this.getY = function() {return _y;};
+    this.getXY = function() { return [_x, _y];};
     this.setXY = function(x,y) {
         _x = x;
         _y = y;
     };
 
-    this.getX = function() {
-        return _x;
-    };
-
-    this.getY = function() {
-        return _y;
-    };
-
-    this.getXY = function() {
-        return [_x, _y];
-    };
 
     /** Returns true if object is located at a position on a level.*/
     this.isLocated = function() {
@@ -1635,14 +1623,9 @@ RG.MapCell = function(x, y, elem) { // {{{2
     this.getX = function() {return _x;};
     this.getY = function() {return _y;};
 
-    /** Sets the base element for this cell. There can be only one element.*/
-    this.setBaseElem = function(elem) {
-        _baseElem = elem;
-    };
-
-    this.getBaseElem = function() {
-        return _baseElem;
-    };
+    /** Sets/gets the base element for this cell. There can be only one element.*/
+    this.setBaseElem = function(elem) { _baseElem = elem; };
+    this.getBaseElem = function() { return _baseElem; };
 
     /** Returns true if it's possible to move to this cell.*/
     this.isFree = function() {
@@ -1650,6 +1633,7 @@ RG.MapCell = function(x, y, elem) { // {{{2
             !this.hasProp("actors");
     };
 
+    /** Add given obj has specified property.*/
     this.setProp = function(prop, obj) {
         if (_p.hasOwnProperty(prop)) {
             _p[prop].push(obj);
@@ -1678,6 +1662,7 @@ RG.MapCell = function(x, y, elem) { // {{{2
         if (_p.hasOwnProperty(prop)) {
             return _p[prop].length > 0;
         }
+        return false;
     };
 
     /** Returns true if any cell property has the given type. Ie.
@@ -1736,10 +1721,19 @@ RG.MapCell = function(x, y, elem) { // {{{2
         return _explored;
     };
 
+    /** Returns string representation of the cell.*/
     this.toString = function() {
         var str = "MapCell " + _x + ", " + _y;
         str += " explored: " + _explored;
         str += " passes light: " + this.lightPasses();
+        for (var prop in _p) {
+            var arrProps = _p[prop];
+            for (var i = 0; i < arrProps.length; i++) {
+                if (arrProps[i].hasOwnProperty("toString")) {
+                    str += arrProps[i].toString();
+                }
+            }
+        }
         return str;
     };
 
