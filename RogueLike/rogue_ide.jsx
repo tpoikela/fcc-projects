@@ -21,14 +21,15 @@ var RoguelikeTop = React.createClass({
     visibleCells: [],
     game: null,
 
+    gameConf: {
+        cols: 20,
+        rows: 20,
+        levels : 10,
+        monsters: 2
+    },
+
     getInitialState: function() {
-        var conf = {
-            cols: 20,
-            rows: 20,
-            levels : 10,
-            monsters: 2
-        };
-        this.game = RG.FACT.createGame(conf);
+        this.game = RG.FACT.createGame(this.gameConf);
         var player = this.game.getPlayer();
         this.nextActor = player;
         this.visibleCells = player.getLevel().exploreCells(player);
@@ -42,8 +43,11 @@ var RoguelikeTop = React.createClass({
         debug("<Top> onCellClick with x: " + x + " y: " + y + " cell: " + cell);
     },
 
-    newGame: function() {
-        this.game = RG.FACT.createGame();
+    newGame: function(evt) {
+        this.game = RG.FACT.createGame(this.gameConf);
+        var player = this.game.getPlayer();
+        this.nextActor = player;
+        this.visibleCells = player.getLevel().exploreCells(player);
         this.setState({render: true});
     },
 
@@ -136,6 +140,7 @@ var GamePanel = React.createClass({
 
 });
 
+/** Component for displaying in-game messages.*/
 var GameMessages = React.createClass({
 
     render: function() {
@@ -149,6 +154,7 @@ var GameMessages = React.createClass({
 
 });
 
+/** Component for displaying character stats.*/
 var GameStats = React.createClass({
 
     render: function() {
@@ -179,46 +185,6 @@ var GameStats = React.createClass({
 
 });
 
-
-/** Control panel for starting, stopping, clearing and randomizing. */
-var GameCtrlTop = React.createClass({
-
-    onClickNext: function(evt) {
-        this.props.nextState();
-    },
-
-    onClickClear: function(evt) {
-        this.props.clearGame();
-    },
-
-    onClickStart: function(evt) {
-        this.props.startGame();
-    },
-
-    onClickStop: function(evt) {
-        this.props.stopGame();
-    },
-
-    onClickRandom: function(evt) {
-        this.props.genRandom();
-    },
-
-
-    render: function() {
-        var numTurns = this.props.numTurns;
-        return (
-            <div className="ctrl-top">
-                <button className="btn btn-default" onClick={this.onClickStart}>Start</button>
-                <button title={titles.Pause} className="btn btn-default" onClick={this.onClickStop}>Pause</button>
-                <button title={titles.Next} className="btn btn-default" onClick={this.onClickNext}>Next</button>
-                <button title={titles.Clear} className="btn btn-default" onClick={this.onClickClear}>Clear</button>
-                <button title={titles.Random} className="btn btn-default" onClick={this.onClickRandom}>Random</button>
-                <span className="num-generations">Turns: {numTurns}</span>
-            </div>
-        );
-    }
-
-});
 
 /** Component which renders the game rows. {{{2 */
 var GameBoard = React.createClass({
@@ -256,7 +222,6 @@ var GameRow = React.createClass({
 
     // Render only changed rows
     shouldComponentUpdate: function(nextProps, nextState) {
-        //return this.props.rowData !== nextProps.rowData;
         return true;
     },
 
@@ -307,47 +272,6 @@ var GameCell = React.createClass({
 
 }); // }}} GameCell
 
-/** Bottom control panel which contains buttons for selecting size of the board
- * and the speed of the game.*/
-var GameCtrlBottom = React.createClass({
-
-    setSize: function(evt) {
-        debug("<GameCtrlBottom> setSize called with " + evt.target);
-        var text = evt.target.name;
-        debug("<GameCtrlBottom> name is " + text);
-        var colsRows = text.split("x");
-        this.props.setSize(colsRows[0], colsRows[1]);
-    },
-
-    /** Calls setSpeed callback with arg value based on which button was
-     * pushed.*/
-    setSpeed: function(evt) {
-        var text = evt.target.name;
-        switch(text) {
-            case "Fast": this.props.setSpeed(100); break;
-            case "Medium": this.props.setSpeed(300); break;
-            case "Slow": this.props.setSpeed(500); break;
-        }
-    },
-
-    render: function() {
-        return (
-            <div className="ctrl-bottom">
-                <ul className="button-list">
-                    <li><span>Size:</span></li>
-                    <li><button name="50x30" className="btn btn-default" onClick={this.setSize}>50x30</button></li>
-                    <li><button name="70x50" className="btn btn-default" onClick={this.setSize}>70x50</button></li>
-                    <li><button name="100x70" className="btn btn-default" onClick={this.setSize}>100x70</button></li>
-                    <span>Speed:</span>
-                    <li><button name="Slow" className="btn btn-default" onClick={this.setSpeed}>Slow</button></li>
-                    <li><button name="Medium" className="btn btn-default" onClick={this.setSpeed}>Medium</button></li>
-                    <li><button name="Fast" className="btn btn-default" onClick={this.setSpeed}>Fast</button></li>
-                </ul>
-            </div>
-        );
-    }
-
-});
 
 ReactDOM.render(
     <RoguelikeTop />,
