@@ -69,13 +69,28 @@ var RGObjects = {
     ],
 
     items: [
+        //------------------------------------------------------------
         // MELEE WEAPONS
+        //------------------------------------------------------------
         {
             name: "melee weapon",
             material: ["iron", "wood"],
             type: "weapon",
             range: 1, attack: 0, defense: 0,
             dontCreate: true, // Base class only
+        },
+        {
+            name: "Dagger", base: "melee weapon",
+            material: "iron",
+            damage: "1d5",
+            weight: 0.2, value: 5,
+        },
+        {
+            name: "Bayonette", base: "melee weapon",
+            material: "iron",
+            damage: "1d5",
+            weight: 0.1, value: 10,
+            // TODO combine with rifle
         },
         {
             name: "Whip", base: "melee weapon",
@@ -140,4 +155,16 @@ var RGObjects = {
     ],
 
 };
+
+
+// To make this work in browser/node
+if ( typeof exports !== 'undefined' ) {
+    if( typeof RGObjects !== 'undefined' && module.exports ) {
+        exports = module.exports = RGObjects;
+    }
+    exports.RGObjects = RGObjects;
+}
+else {
+    window.RGObjects = RGObjects;
+}
 
