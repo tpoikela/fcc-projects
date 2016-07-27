@@ -20,7 +20,9 @@ var RoguelikeTop = React.createClass({
     nextActor : null,
     visibleCells: [],
     game: null,
+    isTargeting: false,
 
+    // Simple configuration for the game
     gameConf: {
         cols: 20,
         rows: 20,
@@ -29,6 +31,7 @@ var RoguelikeTop = React.createClass({
     },
 
     getInitialState: function() {
+        this.initGUICommandTable();
         this.game = RG.FACT.createGame(this.gameConf);
         var player = this.game.getPlayer();
         this.nextActor = player;
@@ -69,15 +72,20 @@ var RoguelikeTop = React.createClass({
 
             if (this.nextActor !== null) {
                 var code = evt.keyCode;
-                this.playerCommand(code);
-                this.nextActor = game.nextActor();
-
-                // Next/act until player found, then go back waiting for key...
-                while (!this.nextActor.isPlayer() && !game.isGameOver()) {
-                    var action = this.nextActor.nextAction();
-                    game.doAction(action);
+                if (this.isGUICommand(code)) {
+                    this.doGUICommand(code);
+                }
+                else {
+                    this.playerCommand(code);
                     this.nextActor = game.nextActor();
-                    if (RG.isNullOrUndef([this.nextActor])) break;
+
+                    // Next/act until player found, then go back waiting for key...
+                    while (!this.nextActor.isPlayer() && !game.isGameOver()) {
+                        var action = this.nextActor.nextAction();
+                        game.doAction(action);
+                        this.nextActor = game.nextActor();
+                        if (RG.isNullOrUndef([this.nextActor])) break;
+                    }
                 }
                 this.setState({render: true});
             }
@@ -89,6 +97,7 @@ var RoguelikeTop = React.createClass({
             this.setState({render: true});
         }
     },
+
 
     playerCommand: function(code) {
         var game = this.game;
@@ -104,7 +113,10 @@ var RoguelikeTop = React.createClass({
         var message = this.game.getMessages();
         //var numTurns = this.state.numTurns;
         return (
-            <div className="main-div">
+            <div id="main-div" className="container main-div">
+
+                <GameInventory player={player}/>
+
                 <div className="row">
                     <div className="col-md-2">
                         <GamePanel newGame={this.newGame}/>
@@ -121,9 +133,57 @@ var RoguelikeTop = React.createClass({
                         <GameBoard player={player} map={map} visibleCells={this.visibleCells} onCellClick={this.onCellClick}/>
                     </div>
                 </div>
+
             </div>
         );
-    }
+    },
+
+    //-------------------------------------------------------------
+    // GUI-RELATED COMMANDS
+    //-------------------------------------------------------------
+
+    /** GUI command keybindings are specified here. */
+    initGUICommandTable: function() {
+        this.guiCommands = {};
+        this.guiCommands[ROT.VK_I] = this.GUIInventory;
+        this.guiCommands[ROT.VK_T] = this.GUITarget;
+    },
+
+    isGUICommand: function(code) {
+        if (this.isTargeting) {
+
+        }
+        else {
+            return this.guiCommands.hasOwnProperty(code);
+        }
+        return false;
+    },
+
+    /** Calls a GUI command corresponding to the code.*/
+    doGUICommand: function(code) {
+        if (this.guiCommands.hasOwnProperty(code)) {
+            this.guiCommands[code]();
+        }
+        else {
+            console.error("Unknown keycode for GUI command.");
+        }
+    },
+
+    /** Brings up the inventory.*/
+    GUIInventory: function() {
+        $("#inventory-button").trigger("click");
+    },
+
+    GUITarget: function() {
+        if (this.isTargeting) {
+            this.isTargeting = false;
+            // TODO perform attack
+
+        }
+        else {
+            this.isTargeting = true;
+        }
+    },
 
 });
 
@@ -148,6 +208,89 @@ var GameMessages = React.createClass({
         return (
             <div className="game-messages">
                 <p>{message}</p>
+            </div>
+        );
+    }
+
+});
+
+/** Component renders the player inventory.*/
+var GameInventory = React.createClass({
+
+    render: function() {
+        var player = this.props.player;
+        var inv = player.getInvEq().getInventory();
+        var eq = player.getInvEq().getEquipment();
+        return (
+            <div className="modal fade" role="dialog" id="inventoryModal" tabIndex="-1" role="dialog" aria-labelledby="inventory-modal-label" aria-hidden="true">
+                <div className="modal-dialog">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <button type="button" className="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                            <h4 className="modal-title" id="inventory-modal-label">Inventory</h4>
+                        </div>
+                        <div className="modal-body row">
+                            <div id="items-box" className="col-md-6">
+                                <GameItems inv={inv} />
+                            </div>
+                            <div id="equipment-box" className="col-md-6">
+                                <GameEquipment eq={eq} />
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+});
+
+/** Component which shows the inventory items.*/
+var GameItems = React.createClass({
+
+    render: function() {
+        var inv = this.props.inv;
+        var item = inv.first();
+        var items = [];
+        while (item !== null && typeof item !== "undefined") {
+            var type = item.getItemType();
+            var we = item.getWeight();
+            items.push(<p>Type: {type} Weight: {we}</p>);
+            item = inv.next();
+        }
+        return (
+            <div>
+                <p>Items</p>
+                {items}
+            </div>
+        );
+    }
+
+});
+
+/** Component which shows the equipment of the player.*/
+var GameEquipment = React.createClass({
+
+    render: function() {
+        var eq = this.props.eq;
+        var slots = eq.getSlotTypes();
+        var equipped = [];
+        for (var i = 0; i < slots.length; i++) {
+            var items = eq.getItems(slots[i]);
+            equipped.push(
+                <p>{slots[i]} {items[0]}</p>
+            );
+        }
+
+        return (
+            <div>
+                <p>Equipment</p>
+                {equipped}
             </div>
         );
     }
@@ -179,6 +322,7 @@ var GameStats = React.createClass({
         return (
             <div className="game-stats">
                 <ul>{statsHTML}</ul>
+                <button id="inventory-button" className="btn btn-info" data-toggle="modal" data-target="#inventoryModal">Inventory</button>
             </div>
         );
     }
