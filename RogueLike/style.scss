@@ -41,15 +41,17 @@ $ctrl-top-color: darken($main-color, 10%);
 
 body {
     @include fonts;
-    //@include gray-gradient;
 };
 
-td {
-    width: $cell-width;
-    height: $cell-height;
-    border: 1px solid black;
-    padding: 0;
-}
+
+#game-table {
+    td {
+        width: $cell-width;
+        height: $cell-height;
+        border: 1px solid black;
+        padding: 0;
+    }
+};
 
 //------------------------------------------------------------------
 // CELL StyleS
@@ -118,24 +120,6 @@ td {
     margin-right: 10px;
     @include cell-font;
 }
-
-/*
-ul {
-    .button-list {
-        display: inline;
-        text-decoration: none;
-        list-style: none;
-    }
-    li {
-        display: inline;
-        margin-right: 5px;
-    }
-
-    span {
-        margin-left: 10px;
-    }
-}
-*/
 
 .num-generations {
     margin-left: 20px;
