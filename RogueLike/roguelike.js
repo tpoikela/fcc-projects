@@ -48,8 +48,8 @@ var RG = { // {{{2
     /** Returns char which is rendered on the map cell.*/
     getCellChar: function(cell) {
         if (!cell.isExplored()) return " ";
-        if (cell.hasProp("items")) return "(";
         if (cell.hasProp("actors")) return "@";
+        if (cell.hasProp(RG.TYPE_ITEM)) return "(";
         if (cell.hasPropType("wall")) return "#";
         if (cell.hasPropType("stairs")) {
             if (cell.getPropType("stairs")[0].isDown()) return ">";
@@ -175,6 +175,9 @@ var RG = { // {{{2
     EVT_MSG: "EVT_MSG",
     EVT_LEVEL_CHANGED: "EVT_LEVEL_CHANGED",
 
+    // Different types
+    TYPE_ITEM: "items",
+
 }; /// }}} RG
 
 /** Each die has number of throws, type of dice (d6, d20, d200...) and modifier
@@ -187,7 +190,7 @@ RG.Die = function(num, dice, mod) {
     this.roll = function() {
         var res = 0;
         for (var i = 0; i < _num; i++) {
-            res += Math.floor(Math.random() * (_dice+1));
+            res += Math.floor(Math.random() * (_dice)) + 1;
         }
         return res + mod;
     };
@@ -577,14 +580,14 @@ RG.RogueLevel = function(cols, rows) { // {{{2
 
     this.addItem = function(item, x, y) {
         if (!RG.isNullOrUndef([x, y])) {
-            return this._addPropToLevelXY("items", item, x, y);
+            return this._addPropToLevelXY(RG.TYPE_ITEM, item, x, y);
         }
         else {
             var freeCells = _map.getFree();
             if (freeCells.length > 0) {
                 var xCell = freeCells[0].getX();
                 var yCell = freeCells[0].getY();
-                return this._addPropToLevelXY("items", item, xCell, yCell);
+                return this._addPropToLevelXY(RG.TYPE_ITEM, item, xCell, yCell);
             }
 
         }
@@ -592,15 +595,15 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     };
 
     this.removeItem = function(item, x, y) {
-        return _map.removeProp(x, y, "items", item);
+        return _map.removeProp(x, y, RG.TYPE_ITEM, item);
     };
 
     this.pickupItem = function(actor, x, y) {
         var cell = _map.getCell(x, y);
-        if (cell.hasProp("items")) {
-            var item = cell.getProp("items")[0];
+        if (cell.hasProp(RG.TYPE_ITEM)) {
+            var item = cell.getProp(RG.TYPE_ITEM)[0];
             actor.getInvEq().addItem(item);
-            cell.removeProp("items", item);
+            cell.removeProp(RG.TYPE_ITEM, item);
             RG.gameMsg(actor.getName() + " picked up an item!");
         }
         else {
@@ -751,6 +754,7 @@ RG.Combatant = function(hp) { // {{{2
 
     var _attack   = 10;
     var _defense  = 5;
+    var _damage   = new RG.Die(1, 4, 0);
     var _accuracy = 10;
     var _agility  = 5;
 
@@ -772,6 +776,33 @@ RG.Combatant = function(hp) { // {{{2
     this.setAttack = function(attack) { _attack = attack; };
     this.setAttackRange = function() {_range = range;};
     this.getAttackRange = function() {return _range; };
+
+    var _dmgRe = /\s*(\d+)d(\d+)\s*(\+|-)?\s*(\d+)?/;
+    this.setDamage = function(dStr) {
+        console.log("Damage str: " + dStr);
+        var match = _dmgRe.exec(dStr);
+        if (match !== null) {
+            var num = match[0];
+            var dType = match[1];
+            var mod;
+            if (!RG.isNullOrUndef([match[2], match[3]])) {
+                if (match[2] === "+") mod = match[3];
+                else mod = -match[3];
+            }
+            else {
+                mod = 0;
+            }
+            _damage = new RG.Die(num, dType, mod);
+        }
+        else {
+            RG.err("Combatant", "setDamage", "Cannot parse: " + dStr);
+
+        }
+    };
+
+    this.getDamage = function() {
+        return _damage.roll();
+    };
 
     /** These determine the chance of hitting. */
     this.setAccuracy = function(accu) {_accuracy = accu;};
@@ -804,13 +835,13 @@ RG.RogueCombat = function(att, def) { // {{{2
         var diff = attackPoints - defPoints;
         var accuracy = _att.getAccuracy();
         var agility = _def.getAgility();
-        var total = accuracy + agility;
-        var hitChange = accuracy / total;
+        var total = attackPoints + accuracy/2 + defPoints + agility/2;
+        var hitChange = (attackPoints + accuracy/2) / total;
 
         RG.gameMsg(_att.getName() + " attacks " + _def.getName() + ".");
         if (diff > 0) {
             if (hitChange > Math.random())
-                this.doDamage(_def, diff);
+                this.doDamage(_def, att.getDamage());
             else
                 RG.gameMsg(_att.getName() + " misses " + _def.getName() + ".");
         }
@@ -851,17 +882,21 @@ RG.RogueCombat = function(att, def) { // {{{2
 
 /** Models an item. Each item is ownable by someone. During game, there are no
  * items with null owners. Ownership shouldn't be ever set to null. */
-RG.RogueItem = function(type) {
+RG.RogueItem = function(name) {
     RG.Ownable.call(this, null);
-    this.setType("items");
+    this.setType(RG.TYPE_ITEM);
 
-    var _itemType = type;
+    var _name = name;
+    var _itemType = "item";
     var _weight = 1;
+    var _value = 1;
     var _p = {}; // Stores all extra properties
 
-    this.getItemType = function() {
-        return _itemType;
-    };
+    this.setName = function(name) {_name = name;};
+    this.getName = function() {return _name;};
+
+    this.setItemType = function(type) {_itemType = type;};
+    this.getItemType = function() {return _itemType; };
 
     this.hasProp = function(propName) {
         return _p.hasOwnProperty(propName);
@@ -877,12 +912,24 @@ RG.RogueItem = function(type) {
     };
 
     this.setWeight = function(weight) {_weight = weight;};
-    this.getWeight = function() {return weight;};
-
-
+    this.getWeight = function() {return _weight;};
+    this.setValue = function(value) {_value = value;};
+    this.getValue = function() {return _value;};
 
 };
 RG.extend2(RG.RogueItem, RG.Ownable);
+
+RG.RogueItemFood = function(name) {
+    RG.RogueItem.call(this, name);
+    var _energy = 0;
+
+    this.setItemType("food");
+
+    this.setEnergy = function(energy) {_energy = energy;};
+    this.getEnergy = function() {return _energy;};
+
+};
+RG.extend2(RG.RogueItemFood, RG.RogueItem);
 
 /** Models an item container. Can hold a number of items.*/
 RG.RogueItemContainer = function(owner) {
@@ -1002,6 +1049,8 @@ RG.RogueEquipment = function(actor) {
         neck: new RG.RogueEquipSlot(this, "neck", 1),
         feet: new RG.RogueEquipSlot(this, "feet", 1),
     };
+
+    this.getSlotTypes = function() {return Object.keys(_slots);};
 
     this.getItems = function(slot) {
         if (_slots.hasOwnProperty(slot)) {
@@ -1159,9 +1208,6 @@ RG.RogueActor = function(name) { // {{{2
     this.getFOVRange = function() {
         return RG.FOV_RANGE;
     };
-
-    this.getName = function() {return _name;};
-    this.setName = function(name) {_name = name;};
 
     this.getInvEq = function() {
         return _invEq;
@@ -1476,11 +1522,13 @@ RG.extend2(RG.ZombieBrain, RG.RogueBrain);
 
 /** Event is something that is scheduled and takes place but it's not an actor.
  * An example is regeneration or poison effect.*/
-RG.RogueEvent = function(dur, cb) {
+RG.RogueGameEvent = function(dur, cb) {
 
     var _cb = cb;
 
     this.isEvent = true;
+
+    /** Clunky, but must implement for the scheduler.*/
     this.isPlayer = function(){return false;};
 
     this.nextAction = function() {
@@ -1489,7 +1537,7 @@ RG.RogueEvent = function(dur, cb) {
 
 };
 
-/** Regeneration event.*/
+/** Regeneration event. Initialized with an actor. */
 RG.RogueRegenEvent = function(actor, dur) {
 
     var _regenerate = function() {
@@ -1502,9 +1550,9 @@ RG.RogueRegenEvent = function(actor, dur) {
         }
     };
 
-    RG.RogueEvent.call(this, 20 * RG.ACTION_DUR, _regenerate);
+    RG.RogueGameEvent.call(this, 20 * RG.ACTION_DUR, _regenerate);
 };
-RG.extend2(RG.RogueEvent, RG.RogueRegenEvent);
+RG.extend2(RG.RogueGameEvent, RG.RogueRegenEvent);
 
 /** Scheduler for the game actions.  */
 RG.RogueScheduler = function() { // {{{2
@@ -1667,7 +1715,7 @@ RG.MapCell = function(x, y, elem) { // {{{2
 
     /** Returns true if any cell property has the given type. Ie.
      * myCell.hasPropType("wall"). Doesn't check for basic props like "actors",
-     * "items" etc.
+     * RG.TYPE_ITEM etc.
      */
     this.hasPropType = function(propType) {
         if (_baseElem.getType() === propType) return true;
@@ -1886,7 +1934,7 @@ RG.Map = function(cols, rows) { //{{{2
 // }}} MAP GENERATION
 
 /** Factory object for creating some commonly used objects.*/
-RG.Factory = function() {
+RG.Factory = function() { // {{{2
 
     var _initCombatant = function(comb, hp, att, def) {
         if (!RG.isNullOrUndef([hp])) comb.setHP(hp);
@@ -2061,7 +2109,142 @@ RG.Factory = function() {
 };
 
 RG.FACT = new RG.Factory();
+// }}}
 
+/** Object parser for reading game date.*/
+RG.RogueObjectParser = function() {
+
+    // Stores the base objects
+    var _base = {
+        monsters: {},
+        items: {},
+        levels: {},
+        dungeons: {}
+    };
+
+    /** Maps obj props to function calls. Essentially this maps bunch of setters
+     * to different names. */
+    var _propToCall = {
+        monsters: {
+            attack: "setAttack",
+            defense: "setDefense",
+            damage: "setDamage",
+            hp: "setMaxHP",
+        },
+        items: {
+            // Generic item functions
+            value: "setValue",
+            weight: "setWeight",
+            type: "setItemType",
+
+            weapon: {
+                damage: "setDamage",
+                attack: "setAttack",
+            },
+            food: {
+                energy: "setEnergy",
+            },
+        },
+        levels: {},
+        dungeons: {}
+    };
+
+    this.parseData = function(obj) {
+
+    };
+
+    this.getBase = function(categ, name) {
+        return _base[categ][name];
+    };
+
+    this.setBase = function(categ, obj) {
+        _base[categ][obj.name] = obj;
+
+    };
+
+    /** Parses a monster description. Returns null for base objects, and
+     * corresponding object for actual monsters.*/
+    this.parseObj = function(categ, obj) {
+        if (obj.hasOwnProperty("dontCreate")) {
+            _base[categ][obj.name] = obj;
+        }
+        else {
+            if (obj.hasOwnProperty("base")) {
+                var baseName = obj.base;
+                if (this.baseExists(categ, baseName)) {
+                    obj = this.extendObj(obj, this.getBase(categ, baseName));
+                }
+            }
+
+            this.setBase(categ, obj);
+            var propCalls = _propToCall[categ];
+            var newObj = this.createNewObject(categ, obj);
+
+            // If propToCall table has the same key as obj, call corresponding
+            // function using the newly created object.
+            for (var p in obj) {
+                if (propCalls.hasOwnProperty(p)) {
+                    var funcName = propCalls[p];
+                    newObj[funcName](obj[p]);
+                }
+                else { // Check for subtypes
+                    if (obj.hasOwnProperty("type")) {
+                        var propTypeCalls = propCalls[obj.type];
+                        if (propTypeCalls.hasOwnProperty(p)) {
+                            var funcName2 = propTypeCalls[p];
+                            newObj[funcName2](obj[p]);
+                        }
+                    }
+                }
+            }
+
+            // TODO map different props to function calls
+            return newObj;
+        }
+    };
+
+    /** Factory-method for creating the actual object.*/
+    this.createNewObject = function(type, obj) {
+        switch(type) {
+            case "monsters": return new RG.RogueActor(obj.name);
+            case RG.TYPE_ITEM: 
+                var subtype = obj.type;
+                switch(subtype) {
+                    case "weapon": return new RG.RogueItemWeapon(obj.name);
+                    case "food": return new RG.RogueItemFood(obj.name);
+                    case "tool": break;
+                }
+                break;
+            case "levels": 
+                return RG.FACT.createLevel(obj.type, obj.cols, obj.rows);
+            case "dungeons": break;
+            default: break;
+        }
+
+    };
+
+    /** Returns true if base exists.*/
+    this.baseExists = function(type, baseName) {
+        if (_base.hasOwnProperty(type)) {
+            return _base[type].hasOwnProperty(baseName);
+        }
+        return false;
+
+    };
+
+    this.extendObj = function(obj, baseObj) {
+        for (var prop in baseObj) {
+            if (!obj.hasOwnProperty(prop)) obj[prop] = baseObj[prop];
+        }
+        return obj;
+    };
+
+};
+
+/** Object database with commands to retrieve random variables.*/
+RG.RogueObjectDatabase = function(obj) {
+
+};
 
 if ( typeof exports !== 'undefined' ) {
     if( typeof RG !== 'undefined' && module.exports ) {
