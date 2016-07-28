@@ -1,5 +1,6 @@
 roguelike=/home/tpoikela/git/freecodecamp/RogueLike/ /home/tpoikela/git/freecodecamp/RogueLike/ filter="*.js *.jsx *.html *.scss *.txt *.md" {
  roguelike.js
+ rogueobjects.js
  rot.js
  rot.min.js
  rogue_ide.jsx
@@ -9,6 +10,7 @@ roguelike=/home/tpoikela/git/freecodecamp/RogueLike/ /home/tpoikela/git/freecode
  tests=tests {
   events.js
   game.js
+  gameobjects.js
   map.js
   roguetest.js
   scheduler.js
