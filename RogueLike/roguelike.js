@@ -916,6 +916,11 @@ RG.RogueItem = function(name) {
     this.setValue = function(value) {_value = value;};
     this.getValue = function() {return _value;};
 
+    this.toString = function() {
+        var txt = this.getName() + "|" + this.getItemType() + "|" + this.getWeight() + "kg";
+        return txt;
+    };
+
 };
 RG.extend2(RG.RogueItem, RG.Ownable);
 
@@ -1124,6 +1129,20 @@ RG.RogueInvAndEquip = function(actor) {
     // Wrappers for container methods
     this.addItem = function(item) {
         _inv.addItem(item);
+    };
+
+    /** Drops selected item to the actor's current location.*/
+    this.dropItem = function(item) {
+        if (_inv.removeItem(item)) {
+            var level = _actor.getLevel();
+            if (level.addItem(item, _actor.getX(), _actor.getY())) {
+                return true;
+            }
+            else {
+                _inv.addItem(item);
+            }
+        }
+        return false;
     };
 
     this.getInventory = function() {return _inv;};
