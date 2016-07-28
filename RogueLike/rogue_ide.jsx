@@ -43,9 +43,15 @@ var RoguelikeTop = React.createClass({
 
     /** When a cell is clicked, shows some debug info. */
     onCellClick: function(evt, x, y, cell) {
-        debug("<Top> onCellClick with x: " + x + " y: " + y + " cell: " + cell);
+        if (this.isTargeting) {
+            debug("<Top> Ranged attack to x: " + x + ", y:" + y);
+        }
+        else {
+            debug("<Top> onCellClick with x: " + x + " y: " + y + " cell: " + cell);
+        }
     },
 
+    /** Called when "Start" button is clicked to create a new game.*/
     newGame: function(evt) {
         this.game = RG.FACT.createGame(this.gameConf);
         var player = this.game.getPlayer();
@@ -53,7 +59,6 @@ var RoguelikeTop = React.createClass({
         this.visibleCells = player.getLevel().exploreCells(player);
         this.setState({render: true});
     },
-
 
     componentDidMount: function() {
       $(document.body).on('keydown', this.handleKeyDown);
@@ -99,12 +104,12 @@ var RoguelikeTop = React.createClass({
     },
 
 
+    /** Performs time consuming player command.*/
     playerCommand: function(code) {
         var game = this.game;
         var action = this.nextActor.nextAction({code: code});
         game.doAction(action);
         this.visibleCells = game.shownLevel().exploreCells(this.nextActor);
-        //this.setState({render: true});
     },
 
     render: function() {
@@ -207,7 +212,7 @@ var GameMessages = React.createClass({
         var message = this.props.message;
         return (
             <div className="game-messages">
-                <p>{message}</p>
+                {message}
             </div>
         );
     }
@@ -242,6 +247,7 @@ var GameInventory = React.createClass({
         }
     },
 
+    /** When "Equip" is clicked, equips the selected item, if any.*/
     equipItem: function(evt) {
         // Get item somehow
         if (this.selectedItem !== null) {
@@ -257,6 +263,7 @@ var GameInventory = React.createClass({
         }
     },
 
+    /** Called when "Remve" button is clicked to remove an equipped item.*/
     unequipItem: function(evt) {
         if (this.equipSelected !== null) {
             var invEq = this.props.player.getInvEq();
@@ -422,14 +429,15 @@ var GameEquipment = React.createClass({
 
 });
 
+/** Component for one equipment slot.*/
 var GameEquipSlot = React.createClass({
 
     setEquipSelected: function(evt) {
         if (this.props.item !== null) {
             var selection = {
                 slotName: this.props.slotName,
-                slotNumber: this.props.slotNumber, item: 
-                this.props.item
+                slotNumber: this.props.slotNumber, 
+                item: this.props.item
             };
             this.props.setEquipSelected(selection);
         }

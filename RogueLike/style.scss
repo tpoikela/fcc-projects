@@ -137,10 +137,14 @@ body {
 .inv-item-slot {
     border: 1px solid black;
     border-radius: 5px;
-
-    :hover {
-        background-color: #DDD;
-    }
-
-
+    margin-bottom: 2px;
+    padding: 2px;
 };
+
+.inv-equip-slot {
+    border: 1px solid black;
+    border-radius: 5px;
+    margin-bottom: 2px;
+    padding: 2px;
+};
+

@@ -745,31 +745,12 @@ RG.RogueLevel = function(cols, rows) { // {{{2
 
 }; // }}} Level
 
-/** Combatant object can be used for all actors and objects involved in
- * combat. */
-RG.Combatant = function(hp) { // {{{2
-
-    var _maxHP = hp;
-    var _hp = hp;
+RG.DamageObject = function() {
 
     var _attack   = 10;
     var _defense  = 5;
     var _damage   = new RG.Die(1, 4, 0);
-    var _accuracy = 10;
-    var _agility  = 5;
-
     var _range    = 1;
-    var _exp      = 0;
-    var _expLevel = 1;
-
-    /** Hit points getters and setters.*/
-    this.getHP = function() {return _hp;};
-    this.setHP = function(hp) {_hp = hp;};
-    this.getMaxHP = function() {return _maxHP;};
-    this.setMaxHP = function(hp) {_maxHP = hp;};
-
-    this.isAlive = function() {return _hp > 0;};
-    this.isDead = function() {return _hp <= 0;};
 
     /** Attack methods. */
     this.getAttack = function() {return _attack;};
@@ -800,19 +781,44 @@ RG.Combatant = function(hp) { // {{{2
         }
     };
 
+    /** Defense related methods.*/
+    this.getDefense = function() { return _defense; };
+    this.setDefense = function(defense) { _defense = defense; };
+
     this.getDamage = function() {
         return _damage.roll();
     };
+
+};
+
+/** Combatant object can be used for all actors and objects involved in
+ * combat. */
+RG.Combatant = function(hp) { // {{{2
+    RG.DamageObject.call(this);
+
+    var _maxHP = hp;
+    var _hp = hp;
+
+    var _accuracy = 10;
+    var _agility  = 5;
+
+    var _exp      = 0;
+    var _expLevel = 1;
+
+    /** Hit points getters and setters.*/
+    this.getHP = function() {return _hp;};
+    this.setHP = function(hp) {_hp = hp;};
+    this.getMaxHP = function() {return _maxHP;};
+    this.setMaxHP = function(hp) {_maxHP = hp;};
+
+    this.isAlive = function() {return _hp > 0;};
+    this.isDead = function() {return _hp <= 0;};
 
     /** These determine the chance of hitting. */
     this.setAccuracy = function(accu) {_accuracy = accu;};
     this.getAccuracy = function() {return _accuracy;};
     this.setAgility = function(agil) {_agility = agil;};
     this.getAgility = function() {return _agility;};
-
-    /** Defense related methods.*/
-    this.getDefense = function() { return _defense; };
-    this.setDefense = function(defense) { _defense = defense; };
 
     /** Experience-level methods.*/
     this.setExp = function(exp) {_exp = exp;};
@@ -822,6 +828,7 @@ RG.Combatant = function(hp) { // {{{2
     this.getExpLevel = function() {return _expLevel;};
 
 }; // }}} Combatant
+RG.extend2(RG.Combatant, RG.DamageObject);
 
 /** Object representing a combat betweent two actors.  */
 RG.RogueCombat = function(att, def) { // {{{2
@@ -830,8 +837,23 @@ RG.RogueCombat = function(att, def) { // {{{2
     var _def = def;
 
     this.fight = function() {
+        var attWeapon = _att.getWeapon();
+        var defWeapon = _def.getWeapon();
+
         var attackPoints = _att.getAttack();
         var defPoints = _def.getDefense();
+        var damage = _att.getDamage();
+
+        if (defWeapon !== null) {
+            if (defWeapon.hasOWnProperty("getDefense")) defPoints += defWeapon.getDefense();
+        }
+
+        if (attWeapon !== null) {
+            if (attWeapon.hasOWnProperty("getAttack")) attackPoints += attWeapon.getAttact();
+            if (attWeapon.hasOWnProperty("getDamage")) damage += attWeapon.getDamage();
+        }
+
+
         var diff = attackPoints - defPoints;
         var accuracy = _att.getAccuracy();
         var agility = _def.getAgility();
@@ -841,7 +863,7 @@ RG.RogueCombat = function(att, def) { // {{{2
         RG.gameMsg(_att.getName() + " attacks " + _def.getName() + ".");
         if (diff > 0) {
             if (hitChange > Math.random())
-                this.doDamage(_def, att.getDamage());
+                this.doDamage(_def, damage);
             else
                 RG.gameMsg(_att.getName() + " misses " + _def.getName() + ".");
         }
@@ -935,6 +957,14 @@ RG.RogueItemFood = function(name) {
 
 };
 RG.extend2(RG.RogueItemFood, RG.RogueItem);
+
+RG.RogueItemWeapon = function(name) {
+    RG.RogueItem.call(this, name);
+    RG.DamageObject.call(this);
+    this.setItemType("weapon");
+};
+RG.extend2(RG.RogueItemWeapon, RG.RogueItem);
+RG.extend2(RG.RogueItemWeapon, RG.DamageObject);
 
 /** Models an item container. Can hold a number of items.*/
 RG.RogueItemContainer = function(owner) {
@@ -1172,6 +1202,14 @@ RG.RogueInvAndEquip = function(actor) {
             }
         }
         return false;
+    };
+
+    this.getWeapon = function() {
+        var items = _eq.getItems("hand");
+        if (items.length > 0) {
+            return items[0];
+        }
+        return null;
     };
 
 
@@ -2072,6 +2110,12 @@ RG.Factory = function() { // {{{2
 
             allLevels.push(level);
         }
+
+        var magicSword = new RG.RogueItemWeapon("Magic Sword");
+        magicSword.setDamage("10d10 + 10");
+        magicSword.setAttack(20);
+        magicSword.setDefense(20);
+        allLevels[0].addItem(magicSword);
 
         // Connect levels with stairs
         for (nl = 0; nl < nLevels; nl++) {
