@@ -105,6 +105,10 @@ body {
     background-color: brown;
 }
 
+//---------------------------------------------------------------------
+// MENUS
+//---------------------------------------------------------------------
+
 .game-messages {
     margin-bottom: 10px;
     height: 30px;
@@ -129,3 +133,14 @@ body {
     margin-top: 10px;
     @include ctrl-panel;
 }
+
+.inv-item-slot {
+    border: 1px solid black;
+    border-radius: 5px;
+
+    :hover {
+        background-color: #DDD;
+    }
+
+
+};
