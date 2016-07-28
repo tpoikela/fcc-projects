@@ -217,13 +217,96 @@ var GameMessages = React.createClass({
 /** Component renders the player inventory.*/
 var GameInventory = React.createClass({
 
+    selectedItem: null,
+    equipSelected: null,
+
+    getInitialState: function() {
+        return {
+            invMsg: "",
+            msgStyle: ""
+        };
+    },
+
+    dropItem: function(evt) {
+        if (this.selectedItem !== null) {
+            var invEq = this.props.player.getInvEq();
+            if (invEq.dropItem(this.selectedItem)) {
+                this.setState({invMsg:  "Item dropped!",
+                    msgStyle: "text-success"});
+            }
+
+        }
+        else {
+            this.setState({invMsg:  "No item selected!",
+                msgStyle: "text-danger"});
+        }
+    },
+
+    equipItem: function(evt) {
+        // Get item somehow
+        if (this.selectedItem !== null) {
+            var invEq = this.props.player.getInvEq();
+            if (invEq.equipItem(this.selectedItem)) {
+                this.setState({invMsg:  "Equipping succeeded!",
+                    msgStyle: "text-success"});
+            }
+        }
+        else {
+            this.setState({invMsg:  "No item selected!",
+                msgStyle: "text-danger"});
+        }
+    },
+
+    unequipItem: function(evt) {
+        if (this.equipSelected !== null) {
+            var invEq = this.props.player.getInvEq();
+            var num = this.equipSelected.slotNumber;
+            var name = this.equipSelected.slotName;
+            if (invEq.unequipItem(name, num)) {
+                this.setState({invMsg:  "Removing succeeded!",
+                    msgStyle: "text-success"});
+            }
+            else {
+                this.setState({invMsg:  "Failed to remove the item!",
+                    msgStyle: "text-danger"});
+            }
+        }
+        else {
+            this.setState({invMsg:  "No equipment selected!",
+                msgStyle: "text-danger"});
+        }
+    },
+
+    useItem: function(evt) {
+        if (this.selectedItem !== null) {
+
+        }
+        else {
+            this.setState({invMsg:  "You must choose item to use!",
+                msgStyle: "text-danger"});
+        }
+
+    },
+
+    setSelectedItem: function(item) {
+        this.selectedItem = item;
+        var msg = "Inventory Selected: " + item.toString();
+        this.setState({invMsg: msg, msgStyle: "text-info"});
+    },
+
+    setEquipSelected: function(selection) {
+        this.equipSelected = selection;
+        var msg = "Equipment Selected: " + selection.item.toString();
+        this.setState({invMsg: msg, msgStyle: "text-info"});
+    },
+
     render: function() {
         var player = this.props.player;
         var inv = player.getInvEq().getInventory();
         var eq = player.getInvEq().getEquipment();
         return (
             <div className="modal fade" role="dialog" id="inventoryModal" tabIndex="-1" role="dialog" aria-labelledby="inventory-modal-label" aria-hidden="true">
-                <div className="modal-dialog">
+                <div className="modal-dialog modal-lg">
                     <div className="modal-content">
                         <div className="modal-header">
                             <button type="button" className="close" data-dismiss="modal" aria-label="Close">
@@ -233,14 +316,23 @@ var GameInventory = React.createClass({
                         </div>
                         <div className="modal-body row">
                             <div id="items-box" className="col-md-6">
-                                <GameItems inv={inv} />
+                                <GameItems setSelectedItem={this.setSelectedItem} inv={inv} />
                             </div>
                             <div id="equipment-box" className="col-md-6">
-                                <GameEquipment eq={eq} />
+                                <GameEquipment setEquipSelected={this.setEquipSelected} eq={eq} />
                             </div>
                         </div>
-                        <div className="modal-footer">
-                            <button type="button" className="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <div className="modal-footer row">
+                            <div className="col-md-6">
+                                <p className={this.state.msgStyle}>{this.state.invMsg}</p>
+                            </div>
+                            <div className="col-md-6">
+                                <button type="button" className="btn btn-secondary" onClick={this.dropItem}>Drop</button>
+                                <button type="button" className="btn btn-secondary" onClick={this.equipItem}>Equip</button>
+                                <button type="button" className="btn btn-secondary" onClick={this.unequipItem}>Remove</button>
+                                <button type="button" className="btn btn-secondary" onClick={this.useItem}>Use</button>
+                                <button type="button" className="btn btn-secondary" data-dismiss="modal">Close</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -257,10 +349,12 @@ var GameItems = React.createClass({
         var inv = this.props.inv;
         var item = inv.first();
         var items = [];
+        var setSelectedItem = this.props.setSelectedItem;
+
         while (item !== null && typeof item !== "undefined") {
             var type = item.getItemType();
             var we = item.getWeight();
-            items.push(<p>Type: {type} Weight: {we}</p>);
+            items.push(<GameItemSlot setSelectedItem={setSelectedItem} item={item} />);
             item = inv.next();
         }
         return (
@@ -273,6 +367,24 @@ var GameItems = React.createClass({
 
 });
 
+/** Component stores one item, renders its description and selects it if
+ * clicked.*/
+var GameItemSlot = React.createClass({
+
+    setSelectedItem: function() {
+        this.props.setSelectedItem(this.props.item);
+    },
+
+    render: function() {
+        var item = this.props.item;
+        var itemString = item.toString();
+        return (
+            <div className="inv-item-slot" onClick={this.setSelectedItem}>{itemString}</div>
+        );
+    }
+
+});
+
 /** Component which shows the equipment of the player.*/
 var GameEquipment = React.createClass({
 
@@ -280,11 +392,24 @@ var GameEquipment = React.createClass({
         var eq = this.props.eq;
         var slots = eq.getSlotTypes();
         var equipped = [];
+        var setEquip = this.props.setEquipSelected;
+
+        // Creates the equipment slots based on whether they have items or not.
         for (var i = 0; i < slots.length; i++) {
-            var items = eq.getItems(slots[i]);
-            equipped.push(
-                <p>{slots[i]} {items[0]}</p>
-            );
+            var items = eq.getEquipped(slots[i]);
+            if (items.length > 0) {
+                for (var j = 0; j < items.length; j++) {
+                    var key = i + "," + j;
+                    equipped.push(
+                        <GameEquipSlot setEquipSelected={setEquip} key={key} slotName={slots[i]} slotNumber={j} item={items[j]} />
+                    );
+                }
+            }
+            else {
+                equipped.push(
+                    <GameEquipSlot setEquipSelected={setEquip} slotName={slots[i]} slotNumber={j} item={null} />
+                );
+            }
         }
 
         return (
@@ -292,6 +417,31 @@ var GameEquipment = React.createClass({
                 <p>Equipment</p>
                 {equipped}
             </div>
+        );
+    }
+
+});
+
+var GameEquipSlot = React.createClass({
+
+    setEquipSelected: function(evt) {
+        if (this.props.item !== null) {
+            var selection = {
+                slotName: this.props.slotName,
+                slotNumber: this.props.slotNumber, item: 
+                this.props.item
+            };
+            this.props.setEquipSelected(selection);
+        }
+    },
+
+    render: function() {
+        var slotName = this.props.slotName;
+        var item = this.props.item;
+        var msg = "Empty";
+        if (item !== null) msg = item.toString();
+        return (
+            <div onClick={this.setEquipSelected} className="inv-equip-slot">{slotName} {msg}</div>
         );
     }
 
