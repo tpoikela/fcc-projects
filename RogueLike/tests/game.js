@@ -7,7 +7,7 @@ var chai = require("chai");
 var expect = chai.expect;
 var RG = require("../roguelike.js");
 
-var RGTest = require("../roguetest.js");
+var RGTest = require("./roguetest.js");
 
 var checkXY = RGTest.checkActorXY;
 
@@ -60,7 +60,9 @@ describe('How game should proceed', function() {
 
         //checkMap(map, cols, rows);
 
-        var actor = new Actor(true); // player
+        var actor = new Actor("Player"); // player
+        actor.setIsPlayer(true);
+        actor.setFOVRange(5);
         game.addLevel(level);
         expect(game.addPlayer(actor)).to.equal(true);
 
@@ -80,19 +82,37 @@ describe('How game should proceed', function() {
     });
 });
 
+/** For listening actor killed events.*/
+var KillListener = function(actor) {
+
+    var _actor = actor;
+
+    this.isAlive = actor.isAlive();
+
+    this.notify = function(evtName, obj) {
+        if (evtName === RG.EVT_ACTOR_KILLED) {
+            if (obj.actor === _actor) {
+                this.isAlive = false;
+            }
+        }
+    };
+    RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);
+};
+
 describe('How combat should evolve', function() {
     it('Deals damage from attacker to defender', function() {
         var cols = 50;
         var rows = 30;
         var level = getNewLevel(cols, rows);
 
-        var attacker = new Actor(false);
+        var attacker = new Actor("Attacker");
         expect(attacker.isAlive()).to.equal(true);
-        var defender = new Actor(false);
+        var defender = new Actor("Defender");
         expect(defender.isAlive()).to.equal(true);
         attacker.setAttack(10);
-        defender.setHP(5);
-        defender.setDefense(5);
+        defender.setHP(1);
+        defender.setDefense(0);
+        defender.setAgility(0);
 
         level.addActor(attacker, 1, 1);
         level.addActor(defender, 2, 2);
@@ -105,14 +125,22 @@ describe('How combat should evolve', function() {
         level.addActor(def2, 2, 2);
         combat = new RG.RogueCombat(attacker, def2);
         def2.setHP(20);
-        def2.setDefense(2);
+        def2.setDefense(0);
+        def2.setAgility(0);
         expect(def2.isAlive()).to.equal(true);
         combat.fight();
-        expect(def2.getHP()).to.equal(20 - (10-2));
+
+        expect(def2.getHP() < 20).to.equal(true);
+
+        //expect(def2.getHP()).to.equal(20 - (10-2));
         expect(def2.isAlive()).to.equal(true);
         combat.fight();
         expect(def2.isAlive()).to.equal(true);
-        combat.fight();
+
+        var killListen = new KillListener(def2);
+        while (killListen.isAlive) {
+            combat.fight();
+        }
         expect(def2.isAlive()).to.equal(false);
 
     });
@@ -122,8 +150,9 @@ describe('How AI brain works', function() {
     var cols = 30;
     var rows = 20;
     var level = getNewLevel(cols, rows);
-    var mons1 = new Actor(false);
-    var player = new Actor(true);
+    var mons1 = new Actor("Monster");
+    var player = new Actor("Player");
+    player.setIsPlayer(true);
 
     it('Brain should find player cell', function() {
         expect(level.addActor(player, 2, 2)).to.equal(true);
@@ -152,4 +181,38 @@ describe('How AI brain works', function() {
 
     });
 
+});
+
+var ItemDestroyer = function() {
+
+    this.notify = function(evtName, obj) {
+        if (evtName === RG.EVT_DESTROY_ITEM) {
+            var item = obj.item;
+            var owner = item.getOwner().getOwner();
+            owner.getInvEq().removeItem(item);
+            console.log("Removed the item " + item.getName());
+        }
+    };
+    RG.POOL.listenEvent(RG.EVT_DESTROY_ITEM, this);
+};
+
+describe('How one-shot items are removed after their use', function() {
+    it('Player uses a potion and it is destroyed after this.', function() {
+        var potion = new RG.RogueItemPotion("potion");
+        var player = new Actor("Player");
+        var invEq = player.getInvEq();
+        var itemDestroy = new ItemDestroyer();
+        invEq.addItem(potion);
+
+        // Do some damage
+        var hp = player.getHP();
+        player.setHP(hp - 5);
+        var currHP = player.getHP();
+
+        expect(invEq.hasItem(potion)).to.equal(true);
+        expect(player.getInvEq().useItem(potion, {target: player})).to.equal(true);
+        expect(player.getHP() != currHP).to.equal(true);
+        expect(invEq.hasItem(potion)).to.equal(false);
+
+    });
 });
