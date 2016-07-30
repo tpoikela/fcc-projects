@@ -30,11 +30,13 @@ describe('How monsters are created from file', function() {
         expect(superWolf.getAttack()).to.equal(15);
         expect(superWolf.getDefense()).to.equal(20);
 
+        console.log(superWolf.toString());
+
     });
 });
 
 describe('How items are created from objects', function() {
-    var parser = new Parser();
+   var parser = new Parser();
     it('description', function() {
         var food = parser.parseObj("items", {type: "food", name: "Dried meat",
             energy: 100, value: 5

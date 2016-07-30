@@ -45,7 +45,7 @@ var RoguelikeTop = React.createClass({
     gameConf: {
         cols: 70,
         rows: 30,
-        levels : 10,
+        levels : 3,
         monsters: 10
     },
 
@@ -60,7 +60,8 @@ var RoguelikeTop = React.createClass({
 
     getInitialState: function() {
         this.initGUICommandTable();
-        this.game = RG.FACT.createGame(this.gameConf);
+        this.game = RG.FACT.createFCCGame(this.gameConf);
+        RG.game = this.game;
         var player = this.game.getPlayer();
         this.nextActor = player;
         this.visibleCells = player.getLevel().exploreCells(player);
@@ -83,7 +84,8 @@ var RoguelikeTop = React.createClass({
 
     /** Called when "Start" button is clicked to create a new game.*/
     newGame: function(evt) {
-        this.game = RG.FACT.createGame(this.gameConf);
+        this.game = RG.FACT.createFCCGame(this.gameConf);
+        RG.game = this.game;
         var player = this.game.getPlayer();
         this.nextActor = player;
         this.visibleCells = player.getLevel().exploreCells(player);
