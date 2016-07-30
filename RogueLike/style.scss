@@ -2,8 +2,8 @@
  * Style sheet (.scss) for Game of Life.
  */
 
-$cell-width: 11px;
-$cell-height: 11px;
+$cell-width: 17px;
+$cell-height: 17px;
 
 $main-color: darken(white, 10%);
 $main-color-2: darken($main-color, 15%);
@@ -17,7 +17,7 @@ $ctrl-top-color: darken($main-color, 10%);
 
 @mixin cell-font {
     font-family: 'VT323', monospace;
-    font-size: 16px;
+    font-size: 20px;
 }
 
 // Control panel theme
@@ -66,6 +66,11 @@ body {
     background-color: blue;
 }
 
+.cell-animal {
+    background-color: brown;
+
+}
+
 .cell-player {
     background-color: green;
     color: white;
@@ -99,15 +104,25 @@ body {
 
 .cell-not-explored {
     background-color: black;
+    color: black;
 };
 
 .cell-items {
     background-color: brown;
 }
 
+.cell-row-div {
+    margin-bottom: -9px;
+}
+
 //---------------------------------------------------------------------
 // MENUS
 //---------------------------------------------------------------------
+//
+
+#mount-point {
+    margin-top: 10px;
+}
 
 .game-messages {
     margin-bottom: 10px;
