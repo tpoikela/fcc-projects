@@ -19,7 +19,7 @@ var RGObjects = {
         // ANIMALS
         {
             name: "animal", dontCreate: true,
-            type: "animal",
+            type: "animal", className: "cell-animal",
             range: 1,
         },
         {
