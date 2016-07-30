@@ -47,7 +47,7 @@ var RG = { // {{{2
 
     /** Returns char which is rendered on the map cell.*/
     getCellChar: function(cell) {
-        if (!cell.isExplored()) return " ";
+        if (!cell.isExplored()) return "#";
         if (cell.hasProp("actors")) return "@";
         if (cell.hasProp(RG.TYPE_ITEM)) return "(";
         if (cell.hasPropType("wall")) return "#";
@@ -55,7 +55,7 @@ var RG = { // {{{2
             if (cell.getPropType("stairs")[0].isDown()) return ">";
             return "<";
         }
-        return " ";
+        return ".";
     },
 
     /** Returns shortest distance between two points.*/
@@ -69,6 +69,13 @@ var RG = { // {{{2
         });
         return result - 1; // Subtract one because starting cell included
     },
+
+
+    addCellStyle: function(prop, type, className) {
+        this.cellStyles[prop][type] = className;
+    },
+
+    // TODO add a dict for characters
 
     cellStyles: {
         elements: {
@@ -98,16 +105,12 @@ var RG = { // {{{2
         console.error("[ERROR]: " + obj + ": " + fun + " -> " + msg);
     },
 
-
     extend2: function(Child, Parent) {
         var p = Parent.prototype;
         var c = Child.prototype;
         for (var i in p) {
             if (!c.hasOwnProperty(i)) {
                 c[i] = p[i];
-            }
-            else {
-                console.log(i + " overridden in the child class.");
             }
         }
         if (c.hasOwnProperty("uber")) {
@@ -116,7 +119,8 @@ var RG = { // {{{2
             c.uber = ubers;
         }
         else {
-            c.uber = p;
+            c.uber = [];
+            c.uber.push(p);
         }
     },
 
@@ -172,6 +176,7 @@ var RG = { // {{{2
 
     // Different game events
     EVT_ACTOR_KILLED: "EVT_ACTOR_KILLED",
+    EVT_DESTROY_ITEM: "EVT_DESTROY_ITEM",
     EVT_MSG: "EVT_MSG",
     EVT_LEVEL_CHANGED: "EVT_LEVEL_CHANGED",
 
@@ -192,10 +197,18 @@ RG.Die = function(num, dice, mod) {
         for (var i = 0; i < _num; i++) {
             res += Math.floor(Math.random() * (_dice)) + 1;
         }
-        return res + mod;
+        return res + _mod;
+    };
+
+    this.toString = function() {
+        var sign = "+";
+        if (mod < 0) sign = "-";
+        console.log("Returning " + _num + "d" + _dice + " " + _mod);
+        return _num + "d" + _dice + " " + sign + " " + _mod;
     };
 };
 
+/** Typed objectsshould inherit from this. */
 RG.TypedObject = function(type) {
     var _type = type;
 
@@ -209,6 +222,8 @@ RG.TypedObject = function(type) {
     };
 
 };
+
+
 
 
 /** This object is used by all locatable objects in the game.  */
@@ -228,7 +243,6 @@ RG.Locatable = function() { // {{{2
         _x = x;
         _y = y;
     };
-
 
     /** Returns true if object is located at a position on a level.*/
     this.isLocated = function() {
@@ -305,30 +319,40 @@ RG.EventPool = function() { // {{{2
     /** Emits an event with given name. args must be in object-notation ie.
      * {data: "abcd"} */
     this.emitEvent = function (evtName, args) {
-        if (_listeners.hasOwnProperty(evtName)) {
-            var called = _listeners[evtName];
-            for (var i = 0; i < called.length; i++) {
-                called[i].notify(evtName, args);
+        if (!RG.isNullOrUndef([evtName])) {
+            if (_listeners.hasOwnProperty(evtName)) {
+                var called = _listeners[evtName];
+                for (var i = 0; i < called.length; i++) {
+                    called[i].notify(evtName, args);
+                }
+            }
+            else {
+                ++_eventsNoListener;
             }
         }
         else {
-            ++_eventsNoListener;
+            RG.nullOrUndefError(this, "Event name must be given.", evtName);
         }
     };
 
     /** Register an event listener. */
     this.listenEvent = function(evtName, obj) {
-        if (obj.hasOwnProperty("notify")) {
-            if (_listeners.hasOwnProperty(evtName)) {
-                _listeners[evtName].push(obj);
+        if (!RG.isNullOrUndef([evtName])) {
+            if (obj.hasOwnProperty("notify")) {
+                if (_listeners.hasOwnProperty(evtName)) {
+                    _listeners[evtName].push(obj);
+                }
+                else {
+                    _listeners[evtName] = [];
+                    _listeners[evtName].push(obj);
+                }
             }
             else {
-                _listeners[evtName] = [];
-                _listeners[evtName].push(obj);
+                console.error("Cannot add object. Listener must implement notify()!");
             }
         }
         else {
-            console.error("Cannot add object. Listener must implement notify()!");
+            RG.err("EventPool", "listenEvent", "Event name not well defined.");
         }
     };
 };
@@ -498,11 +522,21 @@ RG.RogueGame = function() { // {{{2
             }
             console.log("Captured level changed.");
         }
+        else if (evtName === RG.EVT_DESTROY_ITEM) {
+            var item = args.item;
+            var owner = item.getOwner().getOwner(); // chaining due to inventory container
+            if (!owner.getInvEq().removeItem(item)) {
+                RG.err("Game", "notify - DESTROY_ITEM",
+                    "Failed to remove item from inventory.");
+            }
+        }
     };
     RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);
     RG.POOL.listenEvent(RG.EVT_LEVEL_CHANGED, this);
+    RG.POOL.listenEvent(RG.EVT_DESTROY_ITEM, this);
 
 }; // }}} Game
+
 
 /** Object for the game levels. Contains map, actors and items.  */
 RG.RogueLevel = function(cols, rows) { // {{{2
@@ -763,12 +797,14 @@ RG.DamageObject = function() {
         console.log("Damage str: " + dStr);
         var match = _dmgRe.exec(dStr);
         if (match !== null) {
-            var num = match[0];
-            var dType = match[1];
+            var num = match[1];
+            var dType = match[2];
             var mod;
-            if (!RG.isNullOrUndef([match[2], match[3]])) {
-                if (match[2] === "+") mod = match[3];
-                else mod = -match[3];
+            console.log("m1: " + match[1] + " m2:" + match[2]);
+            if (!RG.isNullOrUndef([match[3], match[4]])) {
+                console.log("m3: " + match[3] + " m4:" + match[4]);
+                if (match[3] === "+") mod = match[4];
+                else mod = -match[4];
             }
             else {
                 mod = 0;
@@ -777,7 +813,6 @@ RG.DamageObject = function() {
         }
         else {
             RG.err("Combatant", "setDamage", "Cannot parse: " + dStr);
-
         }
     };
 
@@ -789,7 +824,19 @@ RG.DamageObject = function() {
         return _damage.roll();
     };
 
+    this.getDamageRoll = function() {
+        return _damage;
+    };
+
 };
+
+RG.DamageObject.prototype.toString = function() {
+    var msg = "a: " + this.getAttack() + ", d: " + this.getDefense() + ", ";
+    msg += "dmg: " + this.getDamageRoll().toString();
+    msg += ",r:" + this.getAttackRange();
+    return msg;
+};
+
 
 /** Combatant object can be used for all actors and objects involved in
  * combat. */
@@ -810,6 +857,11 @@ RG.Combatant = function(hp) { // {{{2
     this.setHP = function(hp) {_hp = hp;};
     this.getMaxHP = function() {return _maxHP;};
     this.setMaxHP = function(hp) {_maxHP = hp;};
+
+    this.addHP = function(hp) {
+        _hp += hp;
+        if (_hp > _maxHP) _hp = _maxHP;
+    };
 
     this.isAlive = function() {return _hp > 0;};
     this.isDead = function() {return _hp <= 0;};
@@ -845,30 +897,28 @@ RG.RogueCombat = function(att, def) { // {{{2
         var damage = _att.getDamage();
 
         if (defWeapon !== null) {
-            if (defWeapon.hasOWnProperty("getDefense")) defPoints += defWeapon.getDefense();
+            if (defWeapon.hasOwnProperty("getDefense")) defPoints += defWeapon.getDefense();
         }
 
         if (attWeapon !== null) {
-            if (attWeapon.hasOWnProperty("getAttack")) attackPoints += attWeapon.getAttact();
-            if (attWeapon.hasOWnProperty("getDamage")) damage += attWeapon.getDamage();
+            if (attWeapon.hasOwnProperty("getAttack")) attackPoints += attWeapon.getAttack();
+            if (attWeapon.hasOwnProperty("getDamage")) damage += attWeapon.getDamage();
         }
 
-
-        var diff = attackPoints - defPoints;
         var accuracy = _att.getAccuracy();
         var agility = _def.getAgility();
-        var total = attackPoints + accuracy/2 + defPoints + agility/2;
-        var hitChange = (attackPoints + accuracy/2) / total;
+
+        // Actual hit change calculation
+        var totalAttack = attackPoints + accuracy/2;
+        var totalDefense = defPoints + agility/2;
+        var hitChange = totalAttack / (totalAttack + totalDefense);
 
         RG.gameMsg(_att.getName() + " attacks " + _def.getName() + ".");
-        if (diff > 0) {
-            if (hitChange > Math.random())
-                this.doDamage(_def, damage);
-            else
-                RG.gameMsg(_att.getName() + " misses " + _def.getName() + ".");
+        if (hitChange > Math.random()) {
+            this.doDamage(_def, damage);
         }
         else {
-            RG.gameMsg(_att.getName() + " failed to damage " + _def.getName() + ".");
+            RG.gameMsg(_att.getName() + " misses " + _def.getName() + ".");
         }
     };
 
@@ -938,11 +988,12 @@ RG.RogueItem = function(name) {
     this.setValue = function(value) {_value = value;};
     this.getValue = function() {return _value;};
 
-    this.toString = function() {
-        var txt = this.getName() + "|" + this.getItemType() + "|" + this.getWeight() + "kg";
-        return txt;
-    };
 
+};
+RG.RogueItem.prototype.toString = function() {
+    var txt = this.getName() + ", " + this.getItemType() + ", ";
+    txt += this.getWeight() + "kg";
+    return txt;
 };
 RG.extend2(RG.RogueItem, RG.Ownable);
 
@@ -958,13 +1009,46 @@ RG.RogueItemFood = function(name) {
 };
 RG.extend2(RG.RogueItemFood, RG.RogueItem);
 
+/** Base object for all weapons.*/
 RG.RogueItemWeapon = function(name) {
     RG.RogueItem.call(this, name);
     RG.DamageObject.call(this);
     this.setItemType("weapon");
+
+};
+
+RG.RogueItemWeapon.prototype.toString = function() {
+    var msg = RG.RogueItem.prototype.toString.call(this);
+    msg += RG.DamageObject.prototype.toString.call(this);
+    return msg;
+
 };
 RG.extend2(RG.RogueItemWeapon, RG.RogueItem);
 RG.extend2(RG.RogueItemWeapon, RG.DamageObject);
+
+/** Potion object which restores hit points .*/
+RG.RogueItemPotion = function(name) {
+    RG.RogueItem.call(this, name);
+    this.setItemType("potion");
+
+    this.useItem = function(obj) {
+        if (obj.hasOwnProperty("target")) {
+            var target = obj.target;
+            var die = new RG.Die(1, 10, 2);
+            var pt = die.roll();
+            if (target.hasOwnProperty("addHP")) {
+                target.addHP(pt);
+                var msg = {item: this};
+                RG.POOL.emitEvent(RG.EVT_DESTROY_ITEM, msg);
+            }
+        }
+        else {
+            RG.err("ItemPotion", "useItem", "No target given in obj.");
+        }
+    };
+
+};
+RG.extend2(RG.RogueItemPotion, RG.RogueItem);
 
 /** Models an item container. Can hold a number of items.*/
 RG.RogueItemContainer = function(owner) {
@@ -1157,8 +1241,21 @@ RG.RogueInvAndEquip = function(actor) {
     var _eq  = new RG.RogueEquipment(actor);
 
     // Wrappers for container methods
-    this.addItem = function(item) {
-        _inv.addItem(item);
+    this.addItem = function(item) {_inv.addItem(item);};
+    this.hasItem = function(item) {return _inv.hasItem(item);};
+    this.removeItem = function(item) {return _inv.removeItem(item);};
+
+    this.useItem = function(item, obj) {
+        if (_inv.hasItem(item)) {
+            if (item.hasOwnProperty("useItem")) {
+                item.useItem(obj);
+                return true;
+            }
+        }
+        else {
+            RG.err("InvAndEquip", "useItem", "Not in inventory, cannot use!");
+        }
+        return false;
     };
 
     /** Drops selected item to the actor's current location.*/
@@ -1224,6 +1321,7 @@ RG.RogueActor = function(name) { // {{{2
 
     var _brain = new RG.RogueBrain(this);
     var _isPlayer = false;
+    var _fovRange = RG.FOV_RANGE;
 
     var _name = name;
     var _invEq = new RG.RogueInvAndEquip(this);
@@ -1250,6 +1348,10 @@ RG.RogueActor = function(name) { // {{{2
         return _isPlayer;
     };
 
+    this.getWeapon = function() {
+        return _invEq.getWeapon();
+    };
+
     /** Returns the next action for this actor.*/
     this.nextAction = function(obj) {
         // Use actor brain to determine the action
@@ -1262,9 +1364,8 @@ RG.RogueActor = function(name) { // {{{2
         }
     };
 
-    this.getFOVRange = function() {
-        return RG.FOV_RANGE;
-    };
+    this.getFOVRange = function() { return _fovRange;};
+    this.setFOVRange = function(range) {_fovRange = range;};
 
     this.getInvEq = function() {
         return _invEq;
@@ -2093,9 +2194,9 @@ RG.Factory = function() { // {{{2
             if (nl === 0) game.addPlayer(player);
 
             var item = new RG.RogueItem("food");
-            var weapon = new RG.RogueItem("weapon");
+            var potion = new RG.RogueItemPotion("Healing potion");
             level.addItem(item);
-            level.addItem(weapon);
+            level.addItem(potion);
 
             for (var i = 0; i < monstersPerLevel; i++) {
                 var cell = this.getFreeRandCell(level);
@@ -2232,6 +2333,8 @@ RG.RogueObjectParser = function() {
             _base[categ][obj.name] = obj;
         }
         else {
+
+            // Get properties from base class
             if (obj.hasOwnProperty("base")) {
                 var baseName = obj.base;
                 if (this.baseExists(categ, baseName)) {
