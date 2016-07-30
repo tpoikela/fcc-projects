@@ -17,6 +17,25 @@ var Actor = RG.RogueActor;
  */
 var RoguelikeTop = React.createClass({
 
+    /** Styles to change the cell size.*/
+    cellSize: {
+        small: {
+            "font-size": "16px",
+            "margin-bottom": "-7px",
+        },
+
+        medium: {
+            "font-size": "20px",
+            "margin-bottom": "-9px",
+        },
+
+        large: {
+            "font-size": "24px",
+            "margin-bottom": "-11px",
+        },
+
+    },
+
     nextActor : null,
     visibleCells: [],
     game: null,
@@ -24,10 +43,19 @@ var RoguelikeTop = React.createClass({
 
     // Simple configuration for the game
     gameConf: {
-        cols: 20,
-        rows: 20,
+        cols: 70,
+        rows: 30,
         levels : 10,
-        monsters: 2
+        monsters: 10
+    },
+
+    forceRender: function() {
+        this.setState({render: true, renderFullScreen: true});
+    },
+
+    /** Sets the size of the shown map.*/
+    setViewSize: function(evt) {
+
     },
 
     getInitialState: function() {
@@ -36,8 +64,10 @@ var RoguelikeTop = React.createClass({
         var player = this.game.getPlayer();
         this.nextActor = player;
         this.visibleCells = player.getLevel().exploreCells(player);
+        RG.POOL.listenEvent(RG.EVT_LEVEL_CHANGED, this);
         return {
-            render: true
+            render: true,
+            renderFullScreen: false,
         };
     },
 
@@ -57,7 +87,14 @@ var RoguelikeTop = React.createClass({
         var player = this.game.getPlayer();
         this.nextActor = player;
         this.visibleCells = player.getLevel().exploreCells(player);
-        this.setState({render: true});
+        this.setState({render: true, renderFullScreen: true});
+    },
+
+    notify: function(evtName, obj) {
+        var actor = obj.actor;
+        if (actor.isPlayer()) {
+            this.setState({render: true, renderFullScreen: true});
+        }
     },
 
     componentDidMount: function() {
@@ -92,14 +129,14 @@ var RoguelikeTop = React.createClass({
                         if (RG.isNullOrUndef([this.nextActor])) break;
                     }
                 }
-                this.setState({render: true});
+                this.setState({render: true, renderFullScreen: false});
             }
 
         }
         else {
             game.clearMessages();
             RG.POOL.emitEvent(RG.EVT_MSG, {msg: "GAME OVER!"});
-            this.setState({render: true});
+            this.setState({render: true, renderFullScreen: false});
         }
     },
 
@@ -116,11 +153,12 @@ var RoguelikeTop = React.createClass({
         var map = this.game.getVisibleMap();
         var player = this.game.getPlayer();
         var message = this.game.getMessages();
+        var fullScreen = this.state.renderFullScreen;
         //var numTurns = this.state.numTurns;
         return (
             <div id="main-div" className="container main-div">
 
-                <GameInventory player={player}/>
+                <GameInventory forceRender={this.forceRender} player={player}/>
 
                 <div className="row">
                     <div className="col-md-2">
@@ -135,7 +173,11 @@ var RoguelikeTop = React.createClass({
                         <GameStats player={player} />
                     </div>
                     <div className="col-md-10">
-                        <GameBoard player={player} map={map} visibleCells={this.visibleCells} onCellClick={this.onCellClick}/>
+                        <GameBoard player={player} map={map} 
+                            visibleCells={this.visibleCells} 
+                            onCellClick={this.onCellClick}
+                            renderFullScreen={fullScreen}
+                        />
                     </div>
                 </div>
 
@@ -286,7 +328,24 @@ var GameInventory = React.createClass({
 
     useItem: function(evt) {
         if (this.selectedItem !== null) {
-
+            if (this.selectedItem.hasOwnProperty("useItem")) {
+                var invEq = this.props.player.getInvEq();
+                var target = this.props.player;
+                if (invEq.useItem(this.selectedItem, {target: target})) {
+                    var itemName = this.selectedItem.getName();
+                    this.setState({invMsg: "You used the " + itemName + ".",
+                        msgStyle: "text-success"});
+                    this.props.forceRender();
+                }
+                else {
+                    this.setState({invMsg: "You failed to use the " + itemName + ".",
+                        msgStyle: "text-danger"});
+                }
+            }
+            else {
+                this.setState({invMsg:  "Cannot use the chosen item!",
+                    msgStyle: "text-danger"});
+            }
         }
         else {
             this.setState({invMsg:  "You must choose item to use!",
@@ -497,14 +556,18 @@ var GameBoard = React.createClass({
         var map = this.props.map;
         var onCellClick = this.props.onCellClick;
         var visibleCells = this.props.visibleCells;
+        var renderFullScreen = this.props.renderFullScreen;
 
         var rows = [];
         for (var i = 0; i < map.rows; ++i) {
             var rowCellData = map.getCellRow(i);
             rows.push(<GameRow 
-                y={i} onCellClick={onCellClick} visibleCells={visibleCells} rowCellData={rowCellData} key={i} />);
+                y={i} onCellClick={onCellClick} renderFullScreen={renderFullScreen}
+                visibleCells={visibleCells} rowCellData={rowCellData} key={i} 
+                    />);
         }
 
+        /*
         return (
             <div id="game-board">
                 <table id="game-table" border className={this.tableClasses}>
@@ -513,6 +576,15 @@ var GameBoard = React.createClass({
                         {rows}
                     </tbody>
                 </table>
+            </div>
+        );
+        */
+
+        return (
+            <div id="game-board">
+                <div id="game-table" className={this.tableClasses}>
+                    {rows}
+                </div>
             </div>
         );
     }
@@ -529,6 +601,7 @@ var GameRow = React.createClass({
 
 
     render: function() {
+        var renderFullScreen = this.props.renderFullScreen;
         var onCellClick = this.props.onCellClick;
         var y = this.props.y;
         var visibleCells = this.props.visibleCells;
@@ -536,16 +609,16 @@ var GameRow = React.createClass({
             var cellClass = RG.getStyleClassForCell(cell);
             var cellChar  = RG.getCellChar(cell);
             var cellIndex = visibleCells.indexOf(cell);
-            //var render = cellIndex === -1 ? false : true;
-            var render = true;
+            var render = cellIndex === -1 ? false : true;
+            if (renderFullScreen) render = true;
 
             return (<GameCell cell={cell} cellChar={cellChar} className={cellClass} x={index} 
                     y={y} render={render} onCellClick={onCellClick} key={index}/>);
         });
         return (
-            <tr>
+            <div className="cell-row-div">
                 {rowCells}
-            </tr>
+            </div>
         );
     }
 
@@ -567,8 +640,11 @@ var GameCell = React.createClass({
 
     render: function() {
         var className = this.props.className;
+        /*return (
+        <td className={className} onClick={this.onCellClick}>{this.props.cellChar}</td>
+        );*/
         return (
-            <td className={className} onClick={this.onCellClick}>{this.props.cellChar}</td>
+            <span className={className} onClick={this.onCellClick}>{this.props.cellChar}</span>
         );
     }
 
