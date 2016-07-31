@@ -43,7 +43,7 @@ var RoguelikeTop = React.createClass({
 
     // Simple configuration for the game
     gameConf: {
-        cols: 70,
+        cols: 30,
         rows: 30,
         levels : 3,
         monsters: 10
