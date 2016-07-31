@@ -1,4 +1,6 @@
 
+/** Note: This file doesn't contain any unit tests. It has some architecture for
+ * performing common test function.*/
 
 var chai = require("chai");
 var expect = chai.expect;
