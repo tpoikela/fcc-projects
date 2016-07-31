@@ -26,6 +26,7 @@ var RG = { // {{{2
      * only.*/
     getStyleClassForCell: function(cell) {
         if (!cell.isExplored()) return "cell-not-explored";
+
         for (var i = 0; i < this.cellPropRenderOrder.length; i++) {
             var type = this.cellPropRenderOrder[i];
             if (cell.hasProp(type)) {
@@ -45,17 +46,32 @@ var RG = { // {{{2
         return this.cellStyles.elements[baseType];
     },
 
-    /** Returns char which is rendered on the map cell.*/
+    /** Returns char which is rendered on the map cell based on cell contents.*/
     getCellChar: function(cell) {
-        if (!cell.isExplored()) return "#";
-        if (cell.hasProp("actors")) return "@";
-        if (cell.hasProp(RG.TYPE_ITEM)) return "(";
-        if (cell.hasPropType("wall")) return "#";
+        if (!cell.isExplored()) return "X";
+
+        if (cell.hasProp("actors")) {
+            var actor = cell.getProp("actors")[0];
+            var name = actor.getName();
+            if (this.charStyles.actors.hasOwnProperty(name)) {
+                return this.charStyles.actors[name];
+            }
+            else {
+                return this.charStyles.actors["default"];
+            }
+        }
+
+        if (cell.hasProp(RG.TYPE_ITEM)) {
+            return "(";
+        }
+        if (cell.hasPropType("wall")) {
+            return "#";
+        }
         if (cell.hasPropType("stairs")) {
             if (cell.getPropType("stairs")[0].isDown()) return ">";
             return "<";
         }
-        return ".";
+        return "."; // Returned for floor
     },
 
     /** Returns shortest distance between two points.*/
@@ -70,12 +86,30 @@ var RG = { // {{{2
         return result - 1; // Subtract one because starting cell included
     },
 
-
     addCellStyle: function(prop, type, className) {
-        this.cellStyles[prop][type] = className;
+        if (this.cellStyles.hasOwnProperty(prop)) {
+            this.cellStyles[prop][type] = className;
+        }
     },
 
-    // TODO add a dict for characters
+    addCharStyle: function(prop, type, charName) {
+        if (this.charStyles.hasOwnProperty(prop)) {
+            this.charStyles[prop][type] = charName;
+        }
+    },
+
+    charStyles: {
+        elements: {
+        },
+        actors: {
+            "default": "X",
+            "monster": "@",
+            "player" : "@",
+            "wolf"   : "w",
+        },
+        items: {},
+        traps: {},
+    },
 
     cellStyles: {
         elements: {
@@ -88,6 +122,7 @@ var RG = { // {{{2
             "monster": "cell-monster",
             "boss": "cell-boss",
             "default": "cell-actors",
+            "wolf": "cell-animal",
         },
         items: {
             "default": "cell-items",
@@ -210,7 +245,7 @@ RG.Die = function(num, dice, mod) {
     };
 };
 
-/** Typed objectsshould inherit from this. */
+/** Typed objects should inherit from this. */
 RG.TypedObject = function(type) {
     var _type = type;
 
@@ -225,7 +260,7 @@ RG.TypedObject = function(type) {
 
 };
 
-
+RG.TypedObject.prototype.types = ["actors", "items", "traps", "elements"];
 
 
 /** This object is used by all locatable objects in the game.  */
@@ -1332,8 +1367,6 @@ RG.RogueActor = function(name) { // {{{2
     var _name = name;
     var _invEq = new RG.RogueInvAndEquip(this);
 
-    this.id = RG.IdCount++;
-
     this.setName = function(name) {_name = name;};
     this.getName = function() {return _name;};
 
@@ -1390,6 +1423,7 @@ RG.RogueElement = function(elemType) { // {{{2
 
     var _elemType = elemType.toLowerCase();
     var _allowMove;
+
     switch(elemType) {
         case "wall": _allowMove = false; break;
         case "floor": _allowMove = true; break;
@@ -1690,6 +1724,9 @@ RG.extend2(RG.ZombieBrain, RG.RogueBrain);
 RG.BossBrain = function() {
     RG.RogueBrain.call(this, actor);
 
+    this.numSummoned = 0;
+    this.maxSummons = 20;
+
     this.decideNextAction = function(obj) {
         var level = _actor.getLevel();
         var seenCells = this.getSeenCells();
@@ -1699,36 +1736,49 @@ RG.BossBrain = function() {
         if (!RG.isNullOrUndef([playerCell])) { // Move or attack
             var playX = playerCell.getX();
             var playY = playerCell.getY();
-            if (this.canAttack(playX, playY)) {
+
+            if (this.summonedMonster()) {
+                return function() {};
+            }
+            else if (this.canAttack(playX, playY)) {
                 return function() {
                     level.attackWith(_actor, playX, playY);
                 };
             }
             else { // Move closer
-                var summon = Math.random();
-                if (summon > 0.8) {
-                    var cellsAround = this.getFreeCellsAround();
-                    var freeX = cellsAround[0].getX();
-                    var freeY = cellsAround[0].getY();
-                    level.addActor(monster, freeX, freeY);
-                    RG.emitEvent(RG.EVT_ACTOR_CREATED, {actor: monster});
-                    RG.gameMsg("Boss summons a monster!");
+                var pathCells = this.getShortestPathTo(playerCell);
+                if (pathCells.length > 1) {
+                    var pathX = pathCells[1].getX();
+                    var pathY = pathCells[1].getY();
+                    return function() {
+                        level.moveActorTo(_actor, pathX, pathY);
+                    };
                 }
-                else {
-                    var pathCells = this.getShortestPathTo(playerCell);
-                    if (pathCells.length > 1) {
-                        var pathX = pathCells[1].getX();
-                        var pathY = pathCells[1].getY();
-                        return function() {
-                            level.moveActorTo(_actor, pathX, pathY);
-                        };
-                    }
-                    else { // Cannot move anywhere, no action
-                        return function() {};
-                    }
+                else { // Cannot move anywhere, no action
+                    return function() {};
                 }
             }
         }
+
+    };
+
+    this.summonedMonster = function() {
+        if (this.numSummoned === this.maxSummons) return false;
+
+        var summon = Math.random();
+        if (summon > 0.8) {
+            var cellsAround = this.getFreeCellsAround();
+            var freeX = cellsAround[0].getX();
+            var freeY = cellsAround[0].getY();
+            var summoned = RG.FACT.createMonster("Summoned", {hp: 15, att: 7, def: 7});
+            summoned.setExpLevel(5);
+            level.addActor(summoned, freeX, freeY);
+            RG.emitEvent(RG.EVT_ACTOR_CREATED, {actor: monster});
+            RG.gameMsg("Boss summons a monster!");
+            this.numSummoned += 1;
+            return true;
+        }
+        return false;
 
     };
 
@@ -2281,6 +2331,13 @@ RG.Factory = function() { // {{{2
                 monster.setExpLevel(nl + 1);
                 level.addActor(monster, cell.getX(), cell.getY());
                 game.addActor(monster);
+
+                cell = this.getFreeRandCell(level);
+                var wolf = this.createMonster("wolf", {});
+                wolf.setType("wolf");
+                wolf.setExpLevel(nl + 1);
+                level.addActor(wolf, cell.getX(), cell.getY());
+                game.addActor(wolf);
             }
 
             allLevels.push(level);
@@ -2334,9 +2391,12 @@ RG.Factory = function() { // {{{2
             }
         }
 
+        var lastStairsDown = allStairsDown.slice(-1)[0];
         var extraStairsUp = new RG.RogueStairsElement(false, extraLevel, lastLevel);
         var rStairCell = this.getFreeRandCell(extraLevel);
         extraLevel.addStairs(extraStairsUp, rStairCell.getX(), rStairCell.getY());
+        extraStairsUp.setTargetStairs(lastStairsDown);
+        lastStairsDown.setTargetStairs(extraStairsUp);
 
         // Finally connect the stairs together
         for (nl = 0; nl < nLevels; nl++) {
@@ -2370,18 +2430,30 @@ RG.FACT = new RG.Factory();
 /** Object parser for reading game date.*/
 RG.RogueObjectParser = function() {
 
+    var categ = ['actors', 'items', 'levels', 'dungeons'];
+
     // Stores the base objects
     var _base = {
-        monsters: {},
+        actors: {},
         items: {},
         levels: {},
         dungeons: {}
     };
 
+    var _db = {
+        actors: {},
+        items: {},
+        levels: {},
+        dungeons: {}
+    };
+
+    var _db_danger = {}; // All entries indexed by danger
+    var _db_by_name = {}; // All entries indexed by name
+
     /** Maps obj props to function calls. Essentially this maps bunch of setters
      * to different names. */
     var _propToCall = {
-        monsters: {
+        actors: {
             attack: "setAttack",
             defense: "setDefense",
             damage: "setDamage",
@@ -2405,6 +2477,10 @@ RG.RogueObjectParser = function() {
         dungeons: {}
     };
 
+    this.get = function(categ, name) {
+        return _db[categ][name];
+    };
+
     this.parseData = function(obj) {
 
     };
@@ -2413,58 +2489,111 @@ RG.RogueObjectParser = function() {
         return _base[categ][name];
     };
 
-    this.setBase = function(categ, obj) {
+    this.setAsBase = function(categ, obj) {
         _base[categ][obj.name] = obj;
+    };
 
+    /** Stores the object into given category.*/
+    this.storeIntoDb = function(categ, obj) {
+        if (_db.hasOwnProperty(categ)) {
+            this.setAsBase(categ, obj);
+            _db[categ][obj.name] = obj;
+            if (_db_by_name.hasOwnProperty(obj.name)) {
+                _db_by_name[obj.name].push(obj);
+            }
+            else {
+                var newArr = [];
+                newArr.push(obj);
+                _db_by_name[obj.name] = newArr;
+            }
+            if (obj.hasOwnProperty("danger")) {
+                var danger = obj.danger;
+                if (!_db_danger.hasOwnProperty(danger)) {
+                    _db_danger[danger] = {};
+                }
+                if (!_db_danger[danger].hasOwnProperty(categ)) {
+                    _db_danger[danger][categ] = {};
+                }
+                _db_danger[danger][categ][obj.name] = obj;
+            }
+        }
+        else {
+            RG.err("ObjectParser", "storeIntoDb",
+                "Unknown category: " + categ);
+        }
+        this.storeRenderingInfo(categ, obj);
+    };
+
+    this.storeRenderingInfo = function(categ, obj) {
+        if (obj.hasOwnProperty("char")) {
+            RG.addCharStyle(categ, obj.name, obj["char"]);
+        }
+        if (obj.hasOwnProperty("className")) {
+            RG.addCellStyle(categ, obj.name, obj.className);
+        }
     };
 
     /** Parses a monster description. Returns null for base objects, and
-     * corresponding object for actual monsters.*/
+     * corresponding object for actual actors.*/
     this.parseObj = function(categ, obj) {
-        if (obj.hasOwnProperty("dontCreate")) {
-            _base[categ][obj.name] = obj;
-        }
-        else {
-
-            // Get properties from base class
-            if (obj.hasOwnProperty("base")) {
-                var baseName = obj.base;
-                if (this.baseExists(categ, baseName)) {
-                    obj = this.extendObj(obj, this.getBase(categ, baseName));
-                }
+        // Get properties from base class
+        if (obj.hasOwnProperty("base")) {
+            var baseName = obj.base;
+            if (this.baseExists(categ, baseName)) {
+                obj = this.extendObj(obj, this.getBase(categ, baseName));
             }
+        }
 
-            this.setBase(categ, obj);
-            var propCalls = _propToCall[categ];
-            var newObj = this.createNewObject(categ, obj);
+        this.storeIntoDb(categ, obj);
+        return obj;
 
-            // If propToCall table has the same key as obj, call corresponding
-            // function using the newly created object.
-            for (var p in obj) {
-                if (propCalls.hasOwnProperty(p)) {
-                    var funcName = propCalls[p];
-                    newObj[funcName](obj[p]);
-                }
-                else { // Check for subtypes
-                    if (obj.hasOwnProperty("type")) {
-                        var propTypeCalls = propCalls[obj.type];
-                        if (propTypeCalls.hasOwnProperty(p)) {
-                            var funcName2 = propTypeCalls[p];
-                            newObj[funcName2](obj[p]);
-                        }
+    };
+
+    /** Returns an actual game object when given category and name. Note that
+     * the blueprint must exist already in the database (blueprints must have
+     * been parser before). */
+    this.createObj = function(categ, name) {
+        if (!this.dbExists(categ, name)) {
+            RG.err("ObjectParser", "createObj", 
+                "Categ: " + categ + " Name: " + name + " doesn't exist.");
+            return null;
+        }
+
+        var obj = this.get(categ, name);
+        var propCalls = _propToCall[categ];
+        var newObj = this.createNewObject(categ, obj);
+
+        // If propToCall table has the same key as obj, call corresponding
+        // function using the newly created object.
+        for (var p in obj) {
+            if (propCalls.hasOwnProperty(p)) {
+                var funcName = propCalls[p];
+                newObj[funcName](obj[p]);
+            }
+            else { // Check for subtypes
+                if (obj.hasOwnProperty("type")) {
+                    var propTypeCalls = propCalls[obj.type];
+                    if (propTypeCalls.hasOwnProperty(p)) {
+                        var funcName2 = propTypeCalls[p];
+                        newObj[funcName2](obj[p]);
                     }
                 }
             }
-
-            // TODO map different props to function calls
-            return newObj;
         }
+
+        // TODO map different props to function calls
+        return newObj;
+    };
+
+    this.createFromObj = function(categ, obj) {
+        return this.createObj(categ, obj.name);
+
     };
 
     /** Factory-method for creating the actual object.*/
-    this.createNewObject = function(type, obj) {
-        switch(type) {
-            case "monsters": return new RG.RogueActor(obj.name);
+    this.createNewObject = function(categ, obj) {
+        switch(categ) {
+            case "actors": return new RG.RogueActor(obj.name);
             case RG.TYPE_ITEM: 
                 var subtype = obj.type;
                 switch(subtype) {
@@ -2478,6 +2607,7 @@ RG.RogueObjectParser = function() {
             case "dungeons": break;
             default: break;
         }
+        return null;
 
     };
 
@@ -2495,6 +2625,94 @@ RG.RogueObjectParser = function() {
             if (!obj.hasOwnProperty(prop)) obj[prop] = baseObj[prop];
         }
         return obj;
+    };
+
+    //---------------------------------------------------------------------------
+    // Database get-methods
+    //---------------------------------------------------------------------------
+
+    this.dbExists = function(categ, name) {
+        if (_db.hasOwnProperty(categ)) {
+            if (_db[categ].hasOwnProperty(name)) return true;
+        }
+        return false;
+    };
+
+    /** Returns entries from db based on the query. Returns null if nothing
+     * matches.*/
+    this.dbGet = function(query) {
+
+        var name   = query.name;
+        var categ  = query.categ;
+        var danger = query.danger;
+        var type   = query.type;
+
+        // Specifying name returns an array
+        if (typeof name !== "undefined") {
+            if (_db_by_name.hasOwnProperty(name))
+                return _db_by_name[name];
+            else
+                return [];
+        }
+
+        if (typeof danger !== "undefined") {
+            if (_db_danger.hasOwnProperty(danger)) {
+                var entries = _db_danger[danger];
+                if (typeof categ !== "undefined") {
+                    if (entries.hasOwnProperty(categ)) {
+                        return entries[categ];
+                    }
+                    else return {};
+                }
+                else {
+                    return _db_danger[danger];
+                }
+            }
+            else {
+                return {};
+            }
+        }
+        else { // Fetch all entries of given category
+            if (typeof categ !== "undefined") {
+                if (_db.hasOwnProperty(categ)) {
+                    return _db[categ];
+                }
+            }
+        }
+        return {};
+
+    };
+
+    //---------------------------------------------------------------------------
+    // RANDOMIZED METHODS for procedural generation
+    //---------------------------------------------------------------------------
+
+    /** Returns stuff randomly from db. For example, {categ: "actors", num: 2}
+     * returns two random actors (can be the same). Ex2: {danger: 3, num:1}
+     * returns randomly one entry which has danger 3.*/
+    this.dbGetRand = function(query) {
+        var danger = query.danger;
+        var categ  = query.categ;
+        if (typeof danger !== "undefined") {
+            if (typeof categ !== "undefined") {
+                var entries = _db_danger[danger][categ];
+                return this.getRandFromObj(entries);
+            }
+        }
+    };
+
+    /** Returns a property from object selected randomly.*/
+    this.getRandFromObj = function(obj) {
+        var keys = Object.keys(obj);
+        var len = keys.length;
+        var randIndex = Math.floor( Math.random() * len);
+        return obj[keys[randIndex]];
+    };
+
+    /** Creates a random actor based on danger value.*/
+    this.createRandomActor = function(danger) {
+        var obj = this.dbGetRand({danger: danger, categ: "actors"});
+        return this.createFromObj("actors", obj);
     };
 
 };
