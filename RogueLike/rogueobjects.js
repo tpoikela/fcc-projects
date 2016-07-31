@@ -19,7 +19,7 @@ var RGObjects = {
         // ANIMALS
         {
             name: "animal", dontCreate: true,
-            type: "animal", className: "cell-animal",
+            type: "animal", className: "cell-actor-animal",
             range: 1, danger: 1
         },
         {
@@ -110,33 +110,46 @@ var RGObjects = {
             weight: 0.7, value: 20,
         },
         {
+            name: "Saber", base: "melee weapon",
+            material: "iron",
+            damage: "2d4 + 1", attack: 2, attack: 1,
+            weight: 0.6, value: 20,
+        },
+        {
             name: "Spear", base: "melee weapon",
             damage: "1d8", attack: 1, defense: 3,
             weight: 1.2, value: 30,
         },
+
+        // ARMOUR
+
+        // POTIONS
+        // Note: Each potion should define useItem method. See examples below.
 
         // FOOD
         // Note: Food has energy X kcal/100g. Food items can have weight, but if
         // they don't, weight is then generated randomly. Value is also per
         // 100g.
         {
-            name: "Dried meat",
-            energy: "130",
-            value: 2,
+            name: "Dried meat", energy: 130, value: 2,
         },
         {
-            name: "Corn",
-            energy: "160",
-            value: 3,
+            name: "Corn", energy: 160, value: 3,
+        },
+        {
+            name: "Habanero", energy: 10, value: 50,
         },
 
         // TOOLS
+        // Note: Each tool should have useItem method.
         {
             name: "tool", type: "tool", uses: 10
         },
         {
             name: "Trapmaking kit", base: "tool",
         },
+
+        // SPIRIT GEMS
 
     ],
 
