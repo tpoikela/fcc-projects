@@ -14,23 +14,55 @@ var Actor = RG.RogueActor;
 // PARSER TESTS
 //---------------------------------------------------------------------------
 
-describe('How monsters are created from file', function() {
+describe('How actors are created from file', function() {
     var parser = new Parser();
     it('Returns base objects and supports also base', function() {
-        var wolfNew = parser.parseObj("monsters", {
-            name: "wolf", attack: 15, defense: 10, damage: "1d6",
+        var wolfNew = parser.parseObj("actors", {
+            name: "wolf", attack: 15, defense: 10, damage: "1d6 + 2",
         });
-        expect(wolfNew.getAttack()).to.equal(15);
-        expect(wolfNew.getDefense()).to.equal(10);
+        expect(wolfNew.attack).to.equal(15);
+        expect(wolfNew.defense).to.equal(10);
 
-        var superWolf = parser.parseObj("monsters", {
+        var wolves = parser.dbGet({categ: "actors", danger: 3});
+        expect(wolves.hasOwnProperty("superwolf")).to.equal(false);
+
+        var superWolf = parser.parseObj("actors", {
             name: "superwolf", base: "wolf", defense: 20, 
-            damage: "2d6 + 3",
+            damage: "2d6 + 3", danger: 3
         });
-        expect(superWolf.getAttack()).to.equal(15);
-        expect(superWolf.getDefense()).to.equal(20);
+        expect(superWolf.attack).to.equal(15);
+        expect(superWolf.defense).to.equal(20);
 
-        console.log(superWolf.toString());
+        var objWolf = parser.dbGet({name: "wolf"})[0];
+        expect(objWolf).to.equal(wolfNew);
+
+        var wolves = parser.dbGet({categ: "actors", danger: 3});
+        expect(wolves.hasOwnProperty("superwolf")).to.equal(true);
+        var wolf1 = wolves["superwolf"];
+        expect(wolf1).to.equal(superWolf);
+
+        var wolfObj = new Actor("wolf");
+        wolfObj.setAttack(15);
+        wolfObj.setDefense(10);
+        wolfObj.setDamage("1d6 + 2");
+        var createdWolf = parser.createObj("actors", "wolf");
+        expect(createdWolf.getAttack()).to.equal(wolfObj.getAttack());
+        expect(createdWolf.getDefense()).to.equal(wolfObj.getDefense());
+        expect(createdWolf.getType()).to.equal(wolfObj.getType());
+        expect(createdWolf.getHP()).to.equal(wolfObj.getHP());
+
+        var player = RG.FACT.createPlayer("player", {});
+        player.setType("actors");
+        player.setIsPlayer(true);
+        var cell = new RG.FACT.createFloorCell();
+        cell.setProp("actors", player);
+        cell.setExplored(true);
+
+        var actorChar = RG.charStyles.actors.player;
+        expect(RG.getCellChar(cell)).to.equal(actorChar);
+
+        var randWolf = parser.createRandomActor(3);
+        expect(randWolf.getAttack()).to.equal(superWolf.attack);
 
     });
 });
@@ -38,16 +70,18 @@ describe('How monsters are created from file', function() {
 describe('How items are created from objects', function() {
    var parser = new Parser();
     it('description', function() {
-        var food = parser.parseObj("items", {type: "food", name: "Dried meat",
+        var foodBase = parser.parseObj("items", {type: "food", name: "foodBase",
+        weight: 0.1});
+
+        var food = parser.parseObj("items", {base: "foodBase", name: "Dried meat",
             energy: 100, value: 5
         });
-        expect(food.getName()).to.equal("Dried meat");
-        expect(food.getEnergy()).to.equal(100);
-        expect(food.getValue()).to.equal(5);
-        expect(food.getItemType()).to.equal("food");
-        expect(food.getType()).to.equal("items");
+        expect(food.name).to.equal("Dried meat");
+        expect(food.energy).to.equal(100);
+        expect(food.value).to.equal(5);
+        expect(food.type).to.equal("food");
+        expect(food.weight).to.equal(0.1);
 
-        var baseFood = {name: "foodBase", dontCreate: true, energy: 100};
     });
 });
 
