@@ -63,11 +63,18 @@ describe('Retrieving styling classes for cells', function() {
         cell.setExplored();
         expect(RG.getStyleClassForCell(cell)).to.equal("cell-element-wall");
 
+        var wallCell = new Cell(0, 0, new Element("wall"));
+        wallCell.setExplored();
+        expect(wallCell.hasProp("elements")).to.equal(false);
+        expect(RG.getStyleClassForCell(wallCell)).to.equal("cell-element-wall");
+        expect(RG.getCellChar(wallCell)).to.equal(RG.charStyles.elements.wall);
+
         var floorCell = new Cell(0, 0, new Element("floor"));
         var actor = Factory.createPlayer("Player", 50);
-        floorCell.setProp("actors", actor);
         floorCell.setExplored();
-        expect(RG.getStyleClassForCell(floorCell)).to.equal("cell-actors");
+        expect(RG.getStyleClassForCell(floorCell)).to.equal("cell-element-floor");
+        floorCell.setProp("actors", actor);
+        expect(RG.getStyleClassForCell(floorCell)).to.equal("cell-actor-default");
     });
 });
 
@@ -86,7 +93,7 @@ describe('Items in map cells', function() {
         var items = cell.getProp("items");
         expect(items.length).to.equal(1);
 
-        expect(RG.getStyleClassForCell(cell)).to.equal("cell-items");
+        expect(RG.getStyleClassForCell(cell)).to.equal("cell-item-default");
 
         // Item must have its owners x,y
         item.setOwner(cell);
@@ -154,7 +161,7 @@ describe('Items in map cells', function() {
 
     it('Picking up items from floor by actor', function() {
         var level = Factory.createLevel("arena", 20, 20);
-        var actor = Factory.createPlayer("Player");
+        var actor = Factory.createPlayer("Player", {});
         var inv   = actor.getInvEq().getInventory();
         var weapon = new Item("weapon");
         expect(level.addItem(weapon, 2, 4)).to.equal(true);
@@ -258,7 +265,7 @@ describe('Moving actors around in the game', function() {
     it('Moves actors between levels using stairs', function() {
         var level1 = Factory.createLevel("arena", 20, 20);
         var level2 = Factory.createLevel("arena", 20, 20);
-        var player = Factory.createPlayer("Player");
+        var player = Factory.createPlayer("Player", {});
 
         var stairs1 = new Stairs(true, level1, level2);
         var stairs2 = new Stairs(false, level2, level1);
@@ -310,7 +317,6 @@ describe('Moving actors around in the game', function() {
         expect(player.getLevel()).to.equal(level3);
         expect(player.getX()).to.equal(6);
         expect(player.getY()).to.equal(7);
-
 
     });
 });
