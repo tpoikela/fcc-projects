@@ -14,13 +14,13 @@
 
 var RGObjects = {
 
-    monsters: [
+    actors: [
 
         // ANIMALS
         {
             name: "animal", dontCreate: true,
             type: "animal", className: "cell-animal",
-            range: 1,
+            range: 1, danger: 1
         },
         {
             name: "rattlesnake", "char": "s",
