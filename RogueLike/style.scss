@@ -62,26 +62,27 @@ body {
 // ACTORS
 //--------
 
-.cell-actors {
+.cell-actor-default {
     background-color: blue;
+    color: yellow;
 }
 
-.cell-animal {
+.cell-actor-animal {
     background-color: brown;
-
+    color: white;
 }
 
-.cell-player {
+.cell-actor-player {
     background-color: green;
     color: white;
 }
 
-.cell-monster {
+.cell-actor-monster {
     background-color: purple;
     color: white;
 };
 
-.cell-boss {
+.cell-actor-boss {
     background-color: yellow;
     color: black;
 };
@@ -112,7 +113,15 @@ body {
     color: black;
 };
 
-.cell-items {
+.cell-element-water {
+    background-color: white;
+    color: blue;
+};
+
+//----------
+// ITEMS
+//----------
+.cell-item-default {
     background-color: brown;
 }
 
@@ -123,7 +132,7 @@ body {
 //---------------------------------------------------------------------
 // MENUS
 //---------------------------------------------------------------------
-//
+
 
 #mount-point {
     margin-top: 10px;
