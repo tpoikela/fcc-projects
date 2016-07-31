@@ -25,12 +25,12 @@ describe('Basic functions for actors', function() {
 describe('Scheduling one action', function() {
     it('Repeats the same actor indefinetely', function() {
         var sch = new RG.RogueScheduler();
-        var actor = new Actor();
+        var actor = new Actor("actor");
         var actorID = actor.id;
 
-        var player = new Actor(true);
+        var player = new Actor("player");
         var playerID = player.id;
-        var falseActor = new Actor();
+        var falseActor = new Actor("falseActor");
 
         var playerAction = new Action(15, function() {});
         var action = new Action(20, function() {});
