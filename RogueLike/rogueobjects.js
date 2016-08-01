@@ -79,7 +79,8 @@ var RGObjects = {
         // MELEE WEAPONS
         //------------------------------------------------------------
         {
-            name: "melee weapon",
+            name: "melee weapon", className: "cell-item-melee-weapon",
+            "char": "(",
             material: ["iron", "wood"],
             type: "weapon",
             range: 1, attack: 0, defense: 0,
@@ -88,7 +89,7 @@ var RGObjects = {
         {
             name: "Dagger", base: "melee weapon",
             material: "iron",
-            damage: "1d5",
+            damage: "1d4",
             weight: 0.2, value: 5,
         },
         {
@@ -96,6 +97,13 @@ var RGObjects = {
             material: "iron",
             damage: "1d5",
             weight: 0.1, value: 10,
+            // TODO combine with rifle
+        },
+        {
+            name: "Short sword", base: "melee weapon",
+            material: "iron",
+            damage: "1d6",
+            weight: 0.5, value: 20,
             // TODO combine with rifle
         },
         {
@@ -128,22 +136,44 @@ var RGObjects = {
         },
 
         // ARMOUR
+        {
+            name: "ArmourBase", type: "armour", className: "cell-item-armour",
+            "char": "[", dontCreate: true
+        },
+        {
+            name: "Leather armour", base: "ArmourBase",
+            weight: 2.0, attack: 0, defense: 2, material: "leather",
+            armourType: "chest", value: 20,
+        },
+        {
+            name: "Leather helmet", base: "ArmourBase",
+            weight: 0.3, attack: 0, defense: 1, material: "leather",
+            armourType: "head", value: 15,
+        },
 
         // POTIONS
         // Note: Each potion should define useItem method. See examples below.
+        {
+            name: "PotionBase", className: "cell-item-potion", "char": "!",
+            type: "potion", dontCreate: true,
+        },
 
         // FOOD
         // Note: Food has energy X kcal/100g. Food items can have weight, but if
         // they don't, weight is then generated randomly. Value is also per
         // 100g.
         {
-            name: "Dried meat", energy: 130, value: 2,
+            name: "FoodBase", className: "cell-item-food", "char": "%",
+            weight: 0.1, type: "food", dontCreate: true,
         },
         {
-            name: "Corn", energy: 160, value: 3,
+            name: "Dried meat", base: "FoodBase", energy: 130, value: 2,
         },
         {
-            name: "Habanero", energy: 10, value: 50,
+            name: "Corn", base: "FoodBase", energy: 160, value: 3,
+        },
+        {
+            name: "Habanero", base: "FoodBase", energy: 10, value: 50,
         },
 
         // TOOLS
