@@ -11,6 +11,8 @@ var Parser = RG.RogueObjectStubParser;
 var Db = RG.RogueObjectDatabase;
 var Actor = RG.RogueActor;
 
+RG.cellRenderArray = RG.cellRenderVisible;
+
 //---------------------------------------------------------------------------
 // PARSER TESTS
 //---------------------------------------------------------------------------
@@ -158,6 +160,18 @@ describe('It contains all game content info', function() {
 
 
     it('Should parse all items properly', function() {
+    });
+
+
+    it('Should parse all armour properly', function() {
+        var larmour = parser.get("items", "Leather armour");
+        expect(larmour.defense).to.equal(2);
+
+        var armObj = parser.createActualObj("items", "Leather armour");
+        expect(armObj.getArmourType()).to.equal("body");
+        expect(armObj.getAttack()).to.equal(0);
+        expect(armObj.getDefense()).to.equal(2);
+
     });
 });
 

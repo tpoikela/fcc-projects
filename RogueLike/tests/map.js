@@ -18,6 +18,8 @@ var InvAndEquip = RG.RogueInvAndEquip;
 var Factory = RG.FACT;
 var Stairs = RG.RogueStairsElement;
 
+RG.cellRenderArray = RG.cellRenderVisible;
+
 //---------------------------------------------------------------------------
 // MAP CELL
 //---------------------------------------------------------------------------
@@ -177,8 +179,22 @@ describe('Items in map cells', function() {
         expect(invItems[0]).to.equal(weapon);
         expect(actor.getInvEq().equipItem(weapon)).to.equal(true);
         expect(inv.isEmpty()).to.equal(true);
+    });
 
+    it('Equips armour into correct slots', function() {
+        var helmet = new RG.RogueItemArmour("Helmet");
+        helmet.setArmourType("head");
 
+        var actor = Factory.createPlayer("Player", 50);
+
+        var invEq = new InvAndEquip(actor);
+
+        invEq.addItem(helmet);
+        expect(invEq.equipItem(helmet)).to.equal(true);
+
+        var headEquipped = invEq.getEquipment().getEquipped("head");
+        expect(headEquipped[0]).to.equal(helmet);
+        expect(invEq.unequipItem("head", 0)).to.equal(true);
 
     });
 
@@ -274,19 +290,19 @@ describe('Moving actors around in the game', function() {
 
         level1.addActor(player, 2, 2);
         expect(player.getLevel()).to.equal(level1);
-        expect(level1.getMap().getCell(2,2).hasPropType("stairs")).to.equal(false);
-        expect(level2.getMap().getCell(10,10).hasPropType("stairs")).to.equal(false);
+        expect(level1.getMap().getCell(2,2).hasPropType("stairsDown")).to.equal(false);
+        expect(level2.getMap().getCell(10,10).hasPropType("stairsUp")).to.equal(false);
 
         // Now add stairs and check they exist in the cells
         level1.addStairs(stairs1, 2, 2);
         level2.addStairs(stairs2, 10, 10);
-        expect(level1.getMap().getCell(2,2).hasPropType("stairs")).to.equal(true);
-        expect(level2.getMap().getCell(10,10).hasPropType("stairs")).to.equal(true);
+        expect(level1.getMap().getCell(2,2).hasPropType("stairsDown")).to.equal(true);
+        expect(level2.getMap().getCell(10,10).hasPropType("stairsUp")).to.equal(true);
 
-        var refStairs1 = level1.getMap().getCell(2,2).getPropType("stairs")[0];
+        var refStairs1 = level1.getMap().getCell(2,2).getStairs();
         expect(refStairs1).to.equal(stairs1);
 
-        var refStairs2 = level2.getMap().getCell(10,10).getPropType("stairs")[0];
+        var refStairs2 = level2.getMap().getCell(10,10).getStairs();
         expect(refStairs2).to.equal(stairs2);
 
         expect(player.getX()).to.equal(2);
