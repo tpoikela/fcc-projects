@@ -1956,7 +1956,6 @@ ROT.Map = function(width, height) {
 ROT.Map.prototype.create = function(callback) {}
 
 ROT.Map.prototype._fillMap = function(value) {
-    console.log("calling _fillMap");
 	var map = [];
 	for (var i=0;i<this._width;i++) {
 		map.push([]);
