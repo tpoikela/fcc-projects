@@ -20,6 +20,11 @@ $ctrl-top-color: darken($main-color, 10%);
     font-size: 20px;
 }
 
+@mixin cell-font-map {
+    font-family: 'VT323', monospace;
+    font-size: 10px;
+}
+
 // Control panel theme
 @mixin ctrl-panel {
     border: 1px solid black;
@@ -125,6 +130,21 @@ body {
     background-color: brown;
 }
 
+.cell-item-armour {
+    background-color: green;
+    color: blue;
+};
+
+.cell-item-food {
+    background-color: yellow;
+    color: black;
+};
+
+.cell-item-melee-weapon {
+    background-color: blue;
+    color: white;
+};
+
 .cell-row-div {
     margin-bottom: -9px;
 }
@@ -148,10 +168,17 @@ body {
     @include ctrl-panel;
 }
 
+.game-board-char-view {
+    @include cell-font;
+};
+
+.game-board-map-view {
+    @include cell-font-map;
+};
+
 #game-board {
     margin-left: 10px;
     margin-right: 10px;
-    @include cell-font;
 }
 
 .num-generations {
