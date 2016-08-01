@@ -2,11 +2,12 @@
 
 var RG = require("../roguelike.js");
 var Obs = require("../rogueobjects");
+var RGTest = require("./roguetest.js");
 
 var chai = require("chai");
 var expect = chai.expect;
 
-var Parser = RG.RogueObjectParser;
+var Parser = RG.RogueObjectStubParser;
 var Db = RG.RogueObjectDatabase;
 var Actor = RG.RogueActor;
 
@@ -17,8 +18,9 @@ var Actor = RG.RogueActor;
 describe('How actors are created from file', function() {
     var parser = new Parser();
     it('Returns base objects and supports also base', function() {
-        var wolfNew = parser.parseObj("actors", {
+        var wolfNew = parser.parseObjStub("actors", {
             name: "wolf", attack: 15, defense: 10, damage: "1d6 + 2",
+            hp: 9
         });
         expect(wolfNew.attack).to.equal(15);
         expect(wolfNew.defense).to.equal(10);
@@ -26,7 +28,7 @@ describe('How actors are created from file', function() {
         var wolves = parser.dbGet({categ: "actors", danger: 3});
         expect(wolves.hasOwnProperty("superwolf")).to.equal(false);
 
-        var superWolf = parser.parseObj("actors", {
+        var superWolf = parser.parseObjStub("actors", {
             name: "superwolf", base: "wolf", defense: 20, 
             damage: "2d6 + 3", danger: 3
         });
@@ -41,11 +43,16 @@ describe('How actors are created from file', function() {
         var wolf1 = wolves["superwolf"];
         expect(wolf1).to.equal(superWolf);
 
+        // Create a reference actor 
         var wolfObj = new Actor("wolf");
+        wolfObj.setType("wolf");
         wolfObj.setAttack(15);
         wolfObj.setDefense(10);
         wolfObj.setDamage("1d6 + 2");
-        var createdWolf = parser.createObj("actors", "wolf");
+        wolfObj.setHP(9);
+
+        // Create actor using parsed stub data
+        var createdWolf = parser.createActualObj("actors", "wolf");
         expect(createdWolf.getAttack()).to.equal(wolfObj.getAttack());
         expect(createdWolf.getDefense()).to.equal(wolfObj.getDefense());
         expect(createdWolf.getType()).to.equal(wolfObj.getType());
@@ -64,7 +71,7 @@ describe('How actors are created from file', function() {
         var randWolf = parser.createRandomActor({danger: 3});
         expect(randWolf.getAttack()).to.equal(superWolf.attack);
 
-        var punyWolf = parser.parseObj("actors", {name: "Puny wolf",
+        var punyWolf = parser.parseObjStub("actors", {name: "Puny wolf",
             base: "wolf", attack: 1, defense: 50}
         );
 
@@ -80,10 +87,10 @@ describe('How actors are created from file', function() {
 describe('How items are created from objects', function() {
    var parser = new Parser();
     it('description', function() {
-        var foodBase = parser.parseObj("items", {type: "food", name: "foodBase",
+        var foodBase = parser.parseObjStub("items", {type: "food", name: "foodBase",
         weight: 0.1, misc: "XXX", dontCreate: true, "char": "%"});
 
-        var food = parser.parseObj("items", {base: "foodBase", name: "Dried meat",
+        var food = parser.parseObjStub("items", {base: "foodBase", name: "Dried meat",
             energy: 100, value: 5
         });
         expect(food.name).to.equal("Dried meat");
@@ -92,7 +99,7 @@ describe('How items are created from objects', function() {
         expect(food.type).to.equal("food");
         expect(food.weight).to.equal(0.1);
 
-        var expFood = parser.parseObj("items", {name: "Gelee", energy: 500, 
+        var expFood = parser.parseObjStub("items", {name: "Gelee", energy: 500, 
             weight: 0.2, value: 100, base: "foodBase"});
 
         var geleeObj = parser.dbGet({name: "Gelee"})[0];
@@ -118,6 +125,7 @@ describe('How items are created from objects', function() {
         testCell.setExplored(true);
         testCell.setProp("items", geleeFood);
         expect(RG.getCellChar(testCell)).to.equal("%");
+
     });
 });
 
@@ -127,7 +135,7 @@ describe('How items are created from objects', function() {
 
 describe('It contains all game content info', function() {
     var parser = new Parser();
-    parser.parseData(Obs);
+    parser.parseStubData(Obs);
 
     it('Should parse all actors properly', function() {
         var rsnake = parser.get("actors", "rattlesnake");
@@ -135,6 +143,17 @@ describe('It contains all game content info', function() {
         var coyote = parser.get("actors", "coyote");
         expect(coyote.attack).to.equal(3);
         expect(coyote.danger).to.equal(2);
+
+        var rat = parser.get("actors", "rat");
+        expect(rat.hp).to.equal(10);
+        var ratObj = parser.createActualObj("actors", "rat");
+        expect(ratObj.getType()).to.equal("rat");
+        expect(ratObj.getHP()).to.equal(10);
+        expect(ratObj.getMaxHP()).to.equal(10);
+        expect(ratObj.getAttack()).to.equal(1);
+        expect(ratObj.getDefense()).to.equal(1);
+        RGTest.checkChar(ratObj, "r");
+        RGTest.checkCSSClassName(ratObj, "cell-actor-animal");
     });
 
 
