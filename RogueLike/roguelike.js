@@ -20,15 +20,33 @@ var RG = { // {{{2
 
     IdCount: 0,
 
-    cellPropRenderOrder: ['actors', 'items', 'traps', 'elements'],
+    cellRenderVisible: ['actors', 'items', 'traps', 'elements'],
+    cellRenderAlways: ['items', 'traps', 'elements'],
+    cellRenderArray: this.cellRenderVisible,
+
+    getClassName: function(cell, isVisible) {
+        if (isVisible) this.cellRenderArray = this.cellRenderVisible;
+        else this.cellRenderArray = this.cellRenderAlways;
+        var className = this.getStyleClassForCell(cell);
+        this.cellRenderArray = this.cellRenderVisible;
+        return className;
+    },
+
+    getChar: function(cell, isVisible) {
+        if (isVisible) this.cellRenderArray = this.cellRenderVisible;
+        else this.cellRenderArray = this.cellRenderAlways;
+        var cellChar = this.getCellChar(cell);
+        this.cellRenderArray = this.cellRenderVisible;
+        return cellChar;
+    },
 
     /** Maps a cell to specific object in stylesheet. For rendering purposes
      * only.*/
     getStyleClassForCell: function(cell) {
         if (!cell.isExplored()) return "cell-not-explored";
 
-        for (var i = 0; i < this.cellPropRenderOrder.length; i++) {
-            var propType = this.cellPropRenderOrder[i];
+        for (var i = 0; i < this.cellRenderArray.length; i++) {
+            var propType = this.cellRenderArray[i];
             if (cell.hasProp(propType)) {
                 var props = cell.getProp(propType);
                 var styles = this.cellStyles[propType];
@@ -49,6 +67,24 @@ var RG = { // {{{2
     /** Returns char which is rendered on the map cell based on cell contents.*/
     getCellChar: function(cell) {
         if (!cell.isExplored()) return "N";
+
+        for (var i = 0; i < this.cellRenderArray.length; i++) {
+            var propType = this.cellRenderArray[i];
+            if (cell.hasProp(propType)) {
+                var props = cell.getProp(propType);
+                var styles = this.charStyles[propType];
+                var objType = props[0].getType();
+                if (styles.hasOwnProperty(objType)) {
+                    return styles[objType];
+                }
+                else {
+                    return styles["default"];
+                }
+            }
+        }
+
+        var baseType = cell.getBaseElem().getType();
+        return this.charStyles.elements[baseType];
 
         if (cell.hasProp("actors")) {
             var actor = cell.getProp("actors")[0];
@@ -111,7 +147,7 @@ var RG = { // {{{2
 
     addCharStyle: function(prop, type, charName) {
         if (this.charStyles.hasOwnProperty(prop)) {
-            console.log("Adding charStyle: " + prop + ", " + type + " is " + charName);
+            //console.log("Adding charStyle: " + prop + ", |" + type + "| is " + charName);
             this.charStyles[prop][type] = charName;
         }
     },
@@ -268,7 +304,7 @@ RG.Die = function(num, dice, mod) {
     this.toString = function() {
         var sign = "+";
         if (mod < 0) sign = "-";
-        console.log("Returning " + _num + "d" + _dice + " " + _mod);
+        //console.log("Returning " + _num + "d" + _dice + " " + _mod);
         return _num + "d" + _dice + " " + sign + " " + _mod;
     };
 };
@@ -875,15 +911,12 @@ RG.DamageObject = function() {
 
     var _dmgRe = /\s*(\d+)d(\d+)\s*(\+|-)?\s*(\d+)?/;
     this.setDamage = function(dStr) {
-        console.log("Damage str: " + dStr);
         var match = _dmgRe.exec(dStr);
         if (match !== null) {
             var num = match[1];
             var dType = match[2];
             var mod;
-            console.log("m1: " + match[1] + " m2:" + match[2]);
             if (!RG.isNullOrUndef([match[3], match[4]])) {
-                console.log("m3: " + match[3] + " m4:" + match[4]);
                 if (match[3] === "+") mod = match[4];
                 else mod = -match[4];
             }
@@ -2326,6 +2359,8 @@ RG.Factory = function() { // {{{2
     };
 
     this.createFCCGame = function(obj) {
+        var parser = new RG.RogueObjectStubParser();
+        parser.parseStubData(RGObjects);
         var cols = obj.cols;
         var rows = obj.rows;
         var nLevels = obj.levels;
@@ -2364,18 +2399,23 @@ RG.Factory = function() { // {{{2
                 var cell = this.getFreeRandCell(level);
                 var id = "CritterL" + nl + "," + i;
                 var hp = 10 + nl * 5;
-                var monster = this.createMonster(id, {hp: hp});
-                monster.setType("monster");
+                //var monster = this.createMonster(id, {hp: hp});
+                var monster = parser.createRandomActor({
+                    func: function(actor){return actor.danger <= nl +1;}
+                });
+                //monster.setType("monster");
                 monster.setExpLevel(nl + 1);
                 level.addActor(monster, cell.getX(), cell.getY());
                 game.addActor(monster);
 
+                /*
                 cell = this.getFreeRandCell(level);
                 var wolf = this.createMonster("wolf", {});
                 wolf.setType("wolf");
                 wolf.setExpLevel(nl + 1);
                 level.addActor(wolf, cell.getX(), cell.getY());
                 game.addActor(wolf);
+               */
             }
 
             allLevels.push(level);
@@ -2465,8 +2505,9 @@ RG.Factory = function() { // {{{2
 RG.FACT = new RG.Factory();
 // }}}
 
-/** Object parser for reading game date.*/
-RG.RogueObjectParser = function() {
+/** Object parser for reading game data. Game data is contained within stubs
+ * which are simply object literals without functions etc. */
+RG.RogueObjectStubParser = function() {
 
     var categ = ['actors', 'items', 'levels', 'dungeons'];
 
@@ -2492,10 +2533,11 @@ RG.RogueObjectParser = function() {
      * to different names. */
     var _propToCall = {
         actors: {
+            type: "setType",
             attack: "setAttack",
             defense: "setDefense",
             damage: "setDamage",
-            hp: "setMaxHP",
+            hp: ["setHP", "setMaxHP"],
         },
         items: {
             // Generic item functions
@@ -2518,34 +2560,60 @@ RG.RogueObjectParser = function() {
     // "PARSING" METHODS
     //---------------------------------------------------------------------------
 
-    this.parseData = function(obj) {
+    /** Parses all stub data, items, monsters, level etc.*/
+    this.parseStubData = function(obj) {
         var keys = Object.keys(obj);
         for (var i = 0; i < keys.length; i++) {
-            this.parseObjCateg(keys[i], obj[keys[i]]);
+            this.parseStubCateg(keys[i], obj[keys[i]]);
         }
     };
 
-    this.parseObjCateg = function(categ, objsArray) {
+    /** Parses one specific stub category, ie items or monsters.*/
+    this.parseStubCateg = function(categ, objsArray) {
         for (var i = 0; i < objsArray.length; i++) {
-            this.parseObj(categ, objsArray[i]);
+            this.parseObjStub(categ, objsArray[i]);
         }
     };
 
-    /** Parses a monster description. Returns null for base objects, and
+    /** Parses an object stub. Returns null for base objects, and
      * corresponding object for actual actors.*/
-    this.parseObj = function(categ, obj) {
-        // Get properties from base class
-        if (obj.hasOwnProperty("base")) {
-            var baseName = obj.base;
-            if (this.baseExists(categ, baseName)) {
-                obj = this.extendObj(obj, this.getBase(categ, baseName));
+    this.parseObjStub = function(categ, obj) {
+        if (this.validStubGiven(obj)) {
+            // Get properties from base class
+            if (obj.hasOwnProperty("base")) {
+                var baseName = obj.base;
+                if (this.baseExists(categ, baseName)) {
+                    obj = this.extendObj(obj, this.getBase(categ, baseName));
+                }
             }
-        }
 
-        this.storeIntoDb(categ, obj);
-        return obj;
+            if (categ === "actors") this.addTypeIfUntyped(obj);
+
+            this.storeIntoDb(categ, obj);
+            return obj;
+        }
+        else {
+            return null;
+        }
     };
 
+    /** Checks that the object stub given is correctly formed.*/
+    this.validStubGiven = function(obj) {
+        if (!obj.hasOwnProperty("name")) {
+            RG.err("ObjectStubParser", "validStubGiven",
+                "Stub doesn't have a name.");
+            return false;
+        }
+        return true;
+    };
+
+    this.addTypeIfUntyped = function(obj) {
+        if (!obj.hasOwnProperty("type")) {
+            obj.type = obj.name;
+        }
+    };
+
+    /** Returns an object stub given category and name.*/
     this.get = function(categ, name) {
         return _db[categ][name];
     };
@@ -2614,9 +2682,9 @@ RG.RogueObjectParser = function() {
     /** Returns an actual game object when given category and name. Note that
      * the blueprint must exist already in the database (blueprints must have
      * been parser before). */
-    this.createObj = function(categ, name) {
+    this.createActualObj = function(categ, name) {
         if (!this.dbExists(categ, name)) {
-            RG.err("ObjectParser", "createObj", 
+            RG.err("ObjectParser", "createActualObj", 
                 "Categ: " + categ + " Name: " + name + " doesn't exist.");
             return null;
         }
@@ -2628,16 +2696,39 @@ RG.RogueObjectParser = function() {
         // If propToCall table has the same key as obj, call corresponding
         // function using the newly created object.
         for (var p in obj) {
+            //console.log("obj property is now: |" + p + "| value: " + obj[p]);
             if (propCalls.hasOwnProperty(p)) {
                 var funcName = propCalls[p];
-                newObj[funcName](obj[p]);
+                if (typeof funcName === "object") {
+                    for (var f in funcName) {
+                        var fName = funcName[f];
+                        if (newObj.hasOwnProperty(fName)) {
+                            newObj[fName](obj[p]);
+                        }
+                    }
+                }
+                else {
+                    newObj[funcName](obj[p]);
+                }
             }
             else { // Check for subtypes
                 if (obj.hasOwnProperty("type")) {
-                    var propTypeCalls = propCalls[obj.type];
-                    if (propTypeCalls.hasOwnProperty(p)) {
-                        var funcName2 = propTypeCalls[p];
-                        newObj[funcName2](obj[p]);
+                    if (propCalls.hasOwnProperty(obj.type)) {
+                        var propTypeCalls = propCalls[obj.type];
+                        if (propTypeCalls.hasOwnProperty(p)) {
+                            var funcName2 = propTypeCalls[p];
+                            if (typeof funcName2 === "object") {
+                                for (var f2 in funcName2) {
+                                    var fName2 = funcName2[f2];
+                                    if (newObj.hasOwnProperty(fName)) {
+                                        newObj[funcName2[f2]](obj[p]);
+                                    }
+                                }
+                            }
+                            else {
+                                newObj[funcName2](obj[p]);
+                            }
+                        }
                     }
                 }
             }
@@ -2647,9 +2738,8 @@ RG.RogueObjectParser = function() {
         return newObj;
     };
 
-    this.createFromObj = function(categ, obj) {
-        return this.createObj(categ, obj.name);
-
+    this.createFromStub = function(categ, obj) {
+        return this.createActualObj(categ, obj.name);
     };
 
     /** Factory-method for creating the actual object.*/
@@ -2671,7 +2761,6 @@ RG.RogueObjectParser = function() {
             default: break;
         }
         return null;
-
     };
 
     /** Returns true if base exists.*/
@@ -2798,12 +2887,12 @@ RG.RogueObjectParser = function() {
         if (obj.hasOwnProperty("danger")) {
             var danger = obj.danger;
             var randObj = this.dbGetRand({danger: danger, categ: "actors"});
-            return this.createFromObj("actors", randObj);
+            return this.createFromStub("actors", randObj);
         }
         else if (obj.hasOwnProperty("func")) {
             var res = this.filterCategWithFunc("actors", obj.func);
             var randObj = this.arrayGetRand(res);
-            return this.createFromObj("actors", randObj);
+            return this.createFromStub("actors", randObj);
         }
     };
 
@@ -2811,7 +2900,7 @@ RG.RogueObjectParser = function() {
     this.createRandomItem = function(obj) {
         var res = this.filterCategWithFunc("items", obj.func);
         var randObj = this.arrayGetRand(res);
-        return this.createFromObj("items", randObj);
+        return this.createFromStub("items", randObj);
 
     };
 
@@ -2819,7 +2908,6 @@ RG.RogueObjectParser = function() {
     this.arrayGetRand = function(arr) {
         var len = arr.length;
         var randIndex = Math.floor(Math.random() * len);
-        console.log("Returning index:" + randIndex);
         return arr[randIndex];
     };
 
