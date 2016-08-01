@@ -41,12 +41,18 @@ var RoguelikeTop = React.createClass({
     game: null,
     isTargeting: false,
 
+    viewportCharX: 35, // * 2
+    viewportCharY: 12, // * 2
+    viewportX: 35, // * 2
+    viewportY: 12, // * 2
+
     // Simple configuration for the game
     gameConf: {
-        cols: 200,
+        cols: 30,
         rows: 30,
         levels : 3,
-        monsters: 10
+        sqrPerMonster: 10,
+        sqrPerItem: 30,
     },
 
     forceRender: function() {
@@ -54,8 +60,35 @@ var RoguelikeTop = React.createClass({
     },
 
     /** Sets the size of the shown map.*/
-    setViewSize: function(evt) {
+    setViewSize: function(evt, obj) {
+        if (obj === "+") {
+            this.viewportX += 5;
+            this.viewportY += 5;
+        };
+        if (obj === "-") {
+            this.viewportX -= 5;
+            this.viewportY -= 5;
+        };
+        this.setState({render: true, renderFullScreen: true});
+    },
 
+    setViewType: function(type) {
+        if (type === "map") {
+           this.viewportX = this.game.getPlayer().getLevel().getMap().cols;
+           this.viewportY = this.game.getPlayer().getLevel().getMap().rows;
+           this.setState({
+               boardClassName: "game-board-map-view",
+                mapShown: true,
+           });
+        }
+        else if (type === "char") {
+            this.viewportX = this.viewportCharX;
+            this.viewportY = this.viewportCharY;
+            this.setState({
+                boardClassName: "game-board-char-view",
+                mapShown: false,
+            });
+        }
     },
 
     getInitialState: function() {
@@ -69,6 +102,8 @@ var RoguelikeTop = React.createClass({
         return {
             render: true,
             renderFullScreen: false,
+            boardClassName: "game-board-char-view",
+            mapShown: false,
         };
     },
 
@@ -164,7 +199,7 @@ var RoguelikeTop = React.createClass({
 
                 <div className="row">
                     <div className="col-md-2">
-                        <GamePanel newGame={this.newGame}/>
+                        <GamePanel newGame={this.newGame} setViewSize={this.setViewSize}/>
                     </div>
                     <div className="col-md-10">
                         <GameMessages message={message}/>
@@ -172,13 +207,18 @@ var RoguelikeTop = React.createClass({
                 </div>
                 <div className="row">
                     <div className="text-left col-md-2">
-                        <GameStats player={player} />
+                        <GameStats player={player} setViewType={this.setViewType}/>
+                        <ViewZoom player={player} map={map}/>
                     </div>
                     <div className="col-md-10">
                         <GameBoard player={player} map={map} 
                             visibleCells={this.visibleCells} 
                             onCellClick={this.onCellClick}
                             renderFullScreen={fullScreen}
+                            viewportX={this.viewportX}
+                            viewportY={this.viewportY}
+                            boardClassName={this.state.boardClassName}
+                            mapShown={this.mapShown}
                         />
                     </div>
                 </div>
@@ -195,6 +235,7 @@ var RoguelikeTop = React.createClass({
     initGUICommandTable: function() {
         this.guiCommands = {};
         this.guiCommands[ROT.VK_I] = this.GUIInventory;
+        this.guiCommands[ROT.VK_M] = this.GUIMap;
         this.guiCommands[ROT.VK_T] = this.GUITarget;
     },
 
@@ -223,6 +264,10 @@ var RoguelikeTop = React.createClass({
         $("#inventory-button").trigger("click");
     },
 
+    GUIMap: function() {
+        $("#map-char-button").trigger("click");
+    },
+
     GUITarget: function() {
         if (this.isTargeting) {
             this.isTargeting = false;
@@ -236,13 +281,25 @@ var RoguelikeTop = React.createClass({
 
 });
 
+/** This component contains non-game instance specific controls like starting
+ * new game and changing screen size.*/
 var GamePanel = React.createClass({
+
+    setViewSizePlus: function(evt) {
+        this.props.setViewSize(evt, "+");
+    },
+
+    setViewSizeNeg: function(evt) {
+        this.props.setViewSize(evt, "-");
+    },
 
     render: function() {
         var newGame = this.props.newGame;
         return (
             <div>
                 <button onClick={newGame}>Start</button>
+                <button onClick={this.setViewSizePlus}>+</button>
+                <button onClick={this.setViewSizeNeg}>-</button>
             </div>
         );
     }
@@ -519,6 +576,25 @@ var GameEquipSlot = React.createClass({
 /** Component for displaying character stats.*/
 var GameStats = React.createClass({
 
+    getInitialState: function() {
+        return {
+            mapShown: false,
+        };
+    },
+
+    changeMapView: function(evt) {
+        if (this.state.mapShown) {
+            $("#map-char-button").text("Map View");
+            this.setState({mapShown: false});
+            this.props.setViewType("char");
+        }
+        else {
+            $("#map-char-button").text("Char View");
+            this.setState({mapShown: true});
+            this.props.setViewType("map");
+        }
+    },
+
     render: function() {
         var player = this.props.player;
 
@@ -542,31 +618,44 @@ var GameStats = React.createClass({
             <div className="game-stats">
                 <ul>{statsHTML}</ul>
                 <button id="inventory-button" className="btn btn-info" data-toggle="modal" data-target="#inventoryModal">Inventory</button>
+                <button id="map-char-button" className="btn btn-info" onClick={this.changeMapView}>Map View</button>
             </div>
         );
     }
 
 });
 
+/** Shows a zoom of the character surroundings in map mode.*/
+var ViewZoom = React.createClass({
 
-/** Component which renders the game rows. {{{2 */
-var GameBoard = React.createClass({
+    render: function() {
+        return (
+            <div>
 
-    tableClasses: "",
+            </div>
+        );
+    }
 
-    viewportX: 35, // * 2
-    viewportY: 12, // * 2
+});
 
-    getCellsInViewPort: function(x, y, map) {
+var Viewport = function(viewportX, viewportY, map) {
+
+    this.viewportX = viewportX;
+    this.viewportY = viewportY;
+
+    /** Returns an object containing all cells in viewport, and viewport
+     * coordinates.
+     */
+    this.getCellsInViewPort = function(x, y, map) {
         var startX = x - this.viewportX;
         var endX = x + this.viewportX;
         var startY = y - this.viewportY;
         var endY = y + this.viewportY;
-        var res = {};
-
         var maxX = map.cols - 1;
         var maxY = map.rows - 1;
 
+        // If player is too close to level edge, viewport must be expanded from
+        // the other side.
         var leftStartX = this.viewportX - x;
         if (leftStartX > 0) {
             endX += leftStartX;
@@ -591,52 +680,67 @@ var GameBoard = React.createClass({
         if (endX > map.cols-1) endX = map.cols - 1;
         if (endY > map.rows-1) endY = map.rows - 1;
 
-        // Compute leftovers if player is close enough to the edges
-        //var leftStartX = viewPortX - x;
-        //var endStartX = viewPortX - x;
-
         for (var yy = startY; yy <= endY; yy++) {
-            res[yy] = [];
+            this[yy] = [];
             for (var xx = startX; xx <= endX; xx++) {
-                res[yy].push(map.getCell(xx, yy));
+                this[yy].push(map.getCell(xx, yy));
             }
         }
 
-        res.startX = startX;
-        res.endX = endX;
-        res.startY = startY;
-        res.endY = endY;
-        res.rows = map.rows;
-        res.getCellRow = function(y) {return res[y];};
-        //console.log(res);
-        return res;
+        this.startX = startX;
+        this.endX = endX;
+        this.startY = startY;
+        this.endY = endY;
+        this.rows = map.rows;
     },
 
+    this.getCellRow = function(y) {return this[y];};
+
+};
+
+/** Component which renders the game rows. {{{2 */
+var GameBoard = React.createClass({
+
+    tableClasses: "",
+
+    viewportX: 35, // * 2
+    viewportY: 12, // * 2
+
+
     render: function() {
+
+        var mapShown = this.props.mapShown;
+        this.viewportX = this.props.viewportX;
+        this.viewportY = this.props.viewportY;
+
         var player = this.props.player;
         var playX = player.getX();
         var playY = player.getY();
         var map = this.props.map;
 
-        var shownCells = this.getCellsInViewPort(playX, playY, map);
+        var shownCells = map;
+
+        if (!mapShown) {
+            var shownCells = new Viewport(this.viewportX, this.viewportY, map);
+            shownCells.getCellsInViewPort(playX, playY, map);
+        }
 
         var onCellClick = this.props.onCellClick;
         var visibleCells = this.props.visibleCells;
         var renderFullScreen = this.props.renderFullScreen;
 
         var rows = [];
-        //for (var i = 0; i < map.rows; ++i) {
 
         for (var i = shownCells.startY; i <= shownCells.endY; ++i) {
             var rowCellData = shownCells.getCellRow(i);
             rows.push(<GameRow 
                 y={i} onCellClick={onCellClick} renderFullScreen={renderFullScreen}
                 visibleCells={visibleCells} rowCellData={rowCellData} key={i} 
-                    />);
+                    mapShown={mapShown}/>);
         }
 
         return (
-            <div id="game-board">
+            <div id="game-board" className={this.props.boardClassName}>
                 <div id="game-table" className={this.tableClasses}>
                     {rows}
                 </div>
@@ -649,30 +753,29 @@ var GameBoard = React.createClass({
 /** A row component which holds a number of cells. {{{2 */
 var GameRow = React.createClass({
 
-    // Render only changed rows
-    shouldComponentUpdate: function(nextProps, nextState) {
-        return true;
-    },
-
-
     render: function() {
         var renderFullScreen = this.props.renderFullScreen;
         var onCellClick = this.props.onCellClick;
         var y = this.props.y;
         var visibleCells = this.props.visibleCells;
+        var mapShown = this.props.mapShown;
+
         var rowCells = this.props.rowCellData.map( function(cell, index) {
             var cellIndex = visibleCells.indexOf(cell);
             var visibleToPlayer = cellIndex < 0 ? false: true;
             var cellClass = RG.getClassName(cell, visibleToPlayer);
             var cellChar  = RG.getChar(cell, visibleToPlayer);
             var cellX = cell.getX();
-            //var render = cellIndex === -1 ? false : true;
             var render = true;
+
             if (renderFullScreen) render = true;
+            if (mapShown) render = visibleToPlayer;
 
             return (<GameCell cell={cell} cellChar={cellChar} className={cellClass} x={cellX}
                     y={y} render={render} onCellClick={onCellClick} key={index}/>);
         });
+
+
         return (
             <div className="cell-row-div">
                 {rowCells}
