@@ -19,12 +19,18 @@ var RGObjects = {
         // ANIMALS
         {
             name: "animal", dontCreate: true,
-            type: "animal", className: "cell-actor-animal",
-            range: 1, danger: 1
+            className: "cell-actor-animal",
+            attack: 1, defense: 1, hp: 10,
+            range: 1, danger: 1, 
         },
         {
-            name: "rattlesnake", "char": "s",
-            base: "animal",
+            name: "bat", type: "bat", "char": "b", base: "animal",
+        },
+        {
+            name: "rat", type: "rat", "char": "r", base: "animal",
+        },
+        {
+            name: "rattlesnake", "char": "s", base: "animal",
             poison: true,
             attack: 2,
             defense: 3,
@@ -154,18 +160,22 @@ var RGObjects = {
     ],
 
     // 
+    /*
     levels: [
         {
 
         },
 
     ],
+   */
 
     // Dungeons contains multiple levels. Any levels specified above can be used
     // in the dungeon.
+    /*
     dungeons: [
 
     ],
+   */
 
 };
 
