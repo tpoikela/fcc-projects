@@ -112,8 +112,8 @@ var RG = { // {{{2
             //var objType = cell.getProp("elements")[0].getType();
             if (cell.hasPropType("wall")) {return this.charStyles.elements.wall;}
             if (cell.hasPropType("floor")) {return this.charStyles.elements.floor;}
-            if (cell.hasPropType("stairs")) {
-                if (cell.getPropType("stairs")[0].isDown()) {
+            if (cell.hasStairs()) {
+                if (cell.getStairs().isDown()) {
                     return this.charStyles.elements.stairsDown;
                 }
                 return this.charStyles.elements.stairsUp;
@@ -285,6 +285,7 @@ var RG = { // {{{2
     TYPE_ITEM: "items",
 
 }; /// }}} RG
+RG.cellRenderArray = RG.cellRenderVisible;
 
 /** Each die has number of throws, type of dice (d6, d20, d200...) and modifier
  * which is +/- X. */
@@ -712,8 +713,8 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     /** Uses stairs for given actor if it's on top of the stairs.*/
     this.useStairs = function(actor) {
         var cell = _map.getCell(actor.getX(), actor.getY());
-        if (cell.hasPropType("stairs")) {
-            var stairs = cell.getPropType("stairs")[0];
+        if (cell.hasStairs()) {
+            var stairs = cell.getStairs();
             if (stairs.useStairs(actor)) {
                 return true;
             }
@@ -755,7 +756,7 @@ RG.RogueLevel = function(cols, rows) { // {{{2
             var item = cell.getProp(RG.TYPE_ITEM)[0];
             actor.getInvEq().addItem(item);
             cell.removeProp(RG.TYPE_ITEM, item);
-            RG.gameMsg(actor.getName() + " picked up an item!");
+            RG.gameMsg(actor.getName() + " picked up " + item.getName() + "!");
         }
         else {
             RG.gameMsg("Nothing to pickup!");
@@ -896,16 +897,26 @@ RG.RogueLevel = function(cols, rows) { // {{{2
 
 }; // }}} Level
 
-RG.DamageObject = function() {
+RG.DefenseObject = function() {
 
     var _attack   = 10;
     var _defense  = 5;
+    this.getAttack = function() {return _attack;};
+    this.setAttack = function(attack) { _attack = attack; };
+
+    /** Defense related methods.*/
+    this.getDefense = function() { return _defense; };
+    this.setDefense = function(defense) { _defense = defense; };
+
+};
+
+RG.DamageObject = function() {
+    RG.DefenseObject.call(this);
+
     var _damage   = new RG.Die(1, 4, 0);
     var _range    = 1;
 
     /** Attack methods. */
-    this.getAttack = function() {return _attack;};
-    this.setAttack = function(attack) { _attack = attack; };
     this.setAttackRange = function() {_range = range;};
     this.getAttackRange = function() {return _range; };
 
@@ -930,9 +941,6 @@ RG.DamageObject = function() {
         }
     };
 
-    /** Defense related methods.*/
-    this.getDefense = function() { return _defense; };
-    this.setDefense = function(defense) { _defense = defense; };
 
     this.getDamage = function() {
         return _damage.roll();
@@ -950,6 +958,7 @@ RG.DamageObject.prototype.toString = function() {
     msg += ",r:" + this.getAttackRange();
     return msg;
 };
+RG.extend2(RG.DamageObject, RG.DefenseObject);
 
 
 /** Combatant object can be used for all actors and objects involved in
@@ -1107,11 +1116,12 @@ RG.RogueItem.prototype.toString = function() {
 };
 RG.extend2(RG.RogueItem, RG.Ownable);
 
+/** Object representing food items in the game.*/
 RG.RogueItemFood = function(name) {
     RG.RogueItem.call(this, name);
-    var _energy = 0;
-
     this.setType("food");
+
+    var _energy = 0;
 
     this.setEnergy = function(energy) {_energy = energy;};
     this.getEnergy = function() {return _energy;};
@@ -1124,7 +1134,6 @@ RG.RogueItemWeapon = function(name) {
     RG.RogueItem.call(this, name);
     RG.DamageObject.call(this);
     this.setType("weapon");
-
 };
 
 RG.RogueItemWeapon.prototype.toString = function() {
@@ -1135,6 +1144,21 @@ RG.RogueItemWeapon.prototype.toString = function() {
 };
 RG.extend2(RG.RogueItemWeapon, RG.RogueItem);
 RG.extend2(RG.RogueItemWeapon, RG.DamageObject);
+
+/** Base object for armour.*/
+RG.RogueItemArmour = function(name) {
+    RG.RogueItem.call(this, name);
+    RG.DefenseObject.call(this);
+    this.setType("armour");
+
+    var _armourType = null;
+
+    this.setArmourType = function(type) {_armourType = type;};
+    this.getArmourType = function() {return _armourType;};
+
+};
+RG.extend2(RG.RogueItemArmour, RG.RogueItem);
+RG.extend2(RG.RogueItemArmour, RG.DefenseObject);
 
 /** Potion object which restores hit points .*/
 RG.RogueItemPotion = function(name) {
@@ -1290,8 +1314,8 @@ RG.RogueEquipment = function(actor) {
 
     this.equipItem = function(item) {
         // TODO add proper checks for equipping
-        if (item.hasOwnProperty("equip")) {
-            if (_slots[item.equip].equipItem(item)) {
+        if (item.hasOwnProperty("getArmourType")) {
+            if (_slots[item.getArmourType()].equipItem(item)) {
                 _equipped.push(item);
                 return true;
             }
@@ -1511,7 +1535,10 @@ RG.extend2(RG.RogueElement, RG.Locatable);
 /** Object models stairs connecting two levels. Stairs are one-way, thus
  * connecting 2 levels requires two stair objects. */
 RG.RogueStairsElement = function(down, srcLevel, targetLevel) {
-    RG.RogueElement.call(this, "stairs");
+    if (down)
+        RG.RogueElement.call(this, "stairsDown");
+    else
+        RG.RogueElement.call(this, "stairsUp");
 
     var _down = down;
     var _srcLevel = srcLevel;
@@ -1621,7 +1648,7 @@ RG.PlayerBrain = function(actor) { // {{{2
 
         if (code === ROT.VK_COMMA) {
             type = "STAIRS";
-            if (currCell.hasPropType("stairs")) {
+            if (currCell.hasStairs()) {
                 return function() {level.useStairs(_actor);};
             }
             else {
@@ -2073,6 +2100,15 @@ RG.MapCell = function(x, y, elem) { // {{{2
         return false;
     };
 
+    this.hasStairs = function() {
+        return this.hasPropType("stairsUp") || this.hasPropType("stairsDown");
+    };
+
+    this.getStairs = function() {
+        if (this.hasPropType("stairsUp")) return this.getPropType("stairsUp")[0];
+        if (this.hasPropType("stairsDown")) return this.getPropType("stairsDown")[0];
+    };
+
     /** Returns true if any cell property has the given type. Ie.
      * myCell.hasPropType("wall"). Doesn't check for basic props like "actors",
      * RG.TYPE_ITEM etc.
@@ -2364,12 +2400,16 @@ RG.Factory = function() { // {{{2
         var cols = obj.cols;
         var rows = obj.rows;
         var nLevels = obj.levels;
-        var monstersPerLevel = obj.monsters;
+        var sqrPerMonster = obj.sqrPerMonster;
+        var sqrPerItem = obj.sqrPerItem;
 
         var game = new RG.RogueGame();
 
         var player = this.createPlayer("Player", {});
         player.setType("player");
+        var sword = parser.createActualObj("items", "Short sword");
+        player.getInvEq().addItem(sword);
+        player.getInvEq().equipItem(sword);
 
         var regenPlayer = new RG.RogueRegenEvent(player);
         game.addEvent(regenPlayer);
@@ -2378,11 +2418,12 @@ RG.Factory = function() { // {{{2
         var levels = ["digger"];
         var maxLevelType = levels.length;
 
+        // For storing stairs and levels
         var allStairsUp   = [];
         var allStairsDown = [];
         var allLevels     = [];
 
-        // This loop creates level per iteration
+        // This loop creates one level per iteration
         for (var nl = 0; nl < nLevels; nl++) {
 
             var nLevelType = Math.floor(Math.random() * maxLevelType);
@@ -2390,32 +2431,32 @@ RG.Factory = function() { // {{{2
             game.addLevel(level);
             if (nl === 0) game.addPlayer(player);
 
-            var item = new RG.RogueItem("food");
+            var numFree = level.getMap().getFree().length;
+            var monstersPerLevel = Math.round(numFree / sqrPerMonster);
+            var itemsPerLevel = Math.round(numFree / sqrPerItem);
+
             var potion = new RG.RogueItemPotion("Healing potion");
-            level.addItem(item);
             level.addItem(potion);
 
+            // Generate the items randomly for this level
+            for (var j = 0; j < itemsPerLevel; j++) {
+                var maxVal = 20 * (nl + 1);
+                var item = parser.createRandomItem({
+                    func: function(item) {return item.value <= maxVal;}
+                });
+                var itemCell = this.getFreeRandCell(level);
+                level.addItem(item, itemCell.getX(), itemCell.getY());
+            }
+
+            // Generate the monsters randomly for this level
             for (var i = 0; i < monstersPerLevel; i++) {
                 var cell = this.getFreeRandCell(level);
-                var id = "CritterL" + nl + "," + i;
-                var hp = 10 + nl * 5;
-                //var monster = this.createMonster(id, {hp: hp});
                 var monster = parser.createRandomActor({
-                    func: function(actor){return actor.danger <= nl +1;}
+                    func: function(actor){return actor.danger <= nl + 1;}
                 });
-                //monster.setType("monster");
                 monster.setExpLevel(nl + 1);
                 level.addActor(monster, cell.getX(), cell.getY());
                 game.addActor(monster);
-
-                /*
-                cell = this.getFreeRandCell(level);
-                var wolf = this.createMonster("wolf", {});
-                wolf.setType("wolf");
-                wolf.setExpLevel(nl + 1);
-                level.addActor(wolf, cell.getX(), cell.getY());
-                game.addActor(wolf);
-               */
             }
 
             allLevels.push(level);
@@ -2544,9 +2585,16 @@ RG.RogueObjectStubParser = function() {
             value: "setValue",
             weight: "setWeight",
 
+            armour: {
+                attack: "setAttack",
+                defense: "setDefense",
+                armourType: "setArmourType",
+            },
+
             weapon: {
                 damage: "setDamage",
                 attack: "setAttack",
+                defense: "setDefense",
             },
             food: {
                 energy: "setEnergy",
@@ -2749,11 +2797,12 @@ RG.RogueObjectStubParser = function() {
             case RG.TYPE_ITEM: 
                 var subtype = obj.type;
                 switch(subtype) {
+                    case "armour": return new RG.RogueItemArmour(obj.name);
                     case "weapon": return new RG.RogueItemWeapon(obj.name);
                     case "food": return new RG.RogueItemFood(obj.name);
                     case "tool": break;
                 }
-                return new RG.RogueItem(obj.name);
+                return new RG.RogueItem(obj.name); // generic, useless
                 break;
             case "levels": 
                 return RG.FACT.createLevel(obj.type, obj.cols, obj.rows);
