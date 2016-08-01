@@ -43,7 +43,7 @@ var RoguelikeTop = React.createClass({
 
     // Simple configuration for the game
     gameConf: {
-        cols: 30,
+        cols: 200,
         rows: 30,
         levels : 3,
         monsters: 10
@@ -420,7 +420,7 @@ var GameItems = React.createClass({
         var setSelectedItem = this.props.setSelectedItem;
 
         while (item !== null && typeof item !== "undefined") {
-            var type = item.getItemType();
+            var type = item.getType();
             var we = item.getWeight();
             items.push(<GameItemSlot setSelectedItem={setSelectedItem} item={item} />);
             item = inv.next();
@@ -554,33 +554,86 @@ var GameBoard = React.createClass({
 
     tableClasses: "",
 
+    viewportX: 35, // * 2
+    viewportY: 12, // * 2
+
+    getCellsInViewPort: function(x, y, map) {
+        var startX = x - this.viewportX;
+        var endX = x + this.viewportX;
+        var startY = y - this.viewportY;
+        var endY = y + this.viewportY;
+        var res = {};
+
+        var maxX = map.cols - 1;
+        var maxY = map.rows - 1;
+
+        var leftStartX = this.viewportX - x;
+        if (leftStartX > 0) {
+            endX += leftStartX;
+        }
+        else {
+            var leftEndX = x + this.viewportX - maxX;
+            if (leftEndX > 0) startX -= leftEndX;
+        }
+
+        var leftStartY = this.viewportY - y;
+        if (leftStartY > 0) {
+            endY += leftStartY;
+        }
+        else {
+            var leftEndY = y + this.viewportY - maxY;
+            if (leftEndY > 0) startY -= leftEndY;
+        }
+
+        // Some sanity checks for level edges
+        if (startX < 0) startX = 0;
+        if (startY < 0) startY = 0;
+        if (endX > map.cols-1) endX = map.cols - 1;
+        if (endY > map.rows-1) endY = map.rows - 1;
+
+        // Compute leftovers if player is close enough to the edges
+        //var leftStartX = viewPortX - x;
+        //var endStartX = viewPortX - x;
+
+        for (var yy = startY; yy <= endY; yy++) {
+            res[yy] = [];
+            for (var xx = startX; xx <= endX; xx++) {
+                res[yy].push(map.getCell(xx, yy));
+            }
+        }
+
+        res.startX = startX;
+        res.endX = endX;
+        res.startY = startY;
+        res.endY = endY;
+        res.rows = map.rows;
+        res.getCellRow = function(y) {return res[y];};
+        //console.log(res);
+        return res;
+    },
+
     render: function() {
+        var player = this.props.player;
+        var playX = player.getX();
+        var playY = player.getY();
         var map = this.props.map;
+
+        var shownCells = this.getCellsInViewPort(playX, playY, map);
+
         var onCellClick = this.props.onCellClick;
         var visibleCells = this.props.visibleCells;
         var renderFullScreen = this.props.renderFullScreen;
 
         var rows = [];
-        for (var i = 0; i < map.rows; ++i) {
-            var rowCellData = map.getCellRow(i);
+        //for (var i = 0; i < map.rows; ++i) {
+
+        for (var i = shownCells.startY; i <= shownCells.endY; ++i) {
+            var rowCellData = shownCells.getCellRow(i);
             rows.push(<GameRow 
                 y={i} onCellClick={onCellClick} renderFullScreen={renderFullScreen}
                 visibleCells={visibleCells} rowCellData={rowCellData} key={i} 
                     />);
         }
-
-        /*
-        return (
-            <div id="game-board">
-                <table id="game-table" border className={this.tableClasses}>
-                    <thead></thead>
-                    <tbody>
-                        {rows}
-                    </tbody>
-                </table>
-            </div>
-        );
-        */
 
         return (
             <div id="game-board">
@@ -608,13 +661,16 @@ var GameRow = React.createClass({
         var y = this.props.y;
         var visibleCells = this.props.visibleCells;
         var rowCells = this.props.rowCellData.map( function(cell, index) {
-            var cellClass = RG.getStyleClassForCell(cell);
-            var cellChar  = RG.getCellChar(cell);
             var cellIndex = visibleCells.indexOf(cell);
-            var render = cellIndex === -1 ? false : true;
+            var visibleToPlayer = cellIndex < 0 ? false: true;
+            var cellClass = RG.getClassName(cell, visibleToPlayer);
+            var cellChar  = RG.getChar(cell, visibleToPlayer);
+            var cellX = cell.getX();
+            //var render = cellIndex === -1 ? false : true;
+            var render = true;
             if (renderFullScreen) render = true;
 
-            return (<GameCell cell={cell} cellChar={cellChar} className={cellClass} x={index} 
+            return (<GameCell cell={cell} cellChar={cellChar} className={cellClass} x={cellX}
                     y={y} render={render} onCellClick={onCellClick} key={index}/>);
         });
         return (
