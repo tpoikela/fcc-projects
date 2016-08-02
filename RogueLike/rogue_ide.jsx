@@ -50,7 +50,7 @@ var RoguelikeTop = React.createClass({
     gameConf: {
         cols: 30,
         rows: 30,
-        levels : 3,
+        levels : 2,
         sqrPerMonster: 10,
         sqrPerItem: 30,
     },
@@ -155,16 +155,7 @@ var RoguelikeTop = React.createClass({
                     this.doGUICommand(code);
                 }
                 else {
-                    this.playerCommand(code);
-                    this.nextActor = game.nextActor();
-
-                    // Next/act until player found, then go back waiting for key...
-                    while (!this.nextActor.isPlayer() && !game.isGameOver()) {
-                        var action = this.nextActor.nextAction();
-                        game.doAction(action);
-                        this.nextActor = game.nextActor();
-                        if (RG.isNullOrUndef([this.nextActor])) break;
-                    }
+                    this.updateGameLoop({code: code});
                 }
                 this.setState({render: true, renderFullScreen: false});
             }
@@ -177,11 +168,30 @@ var RoguelikeTop = React.createClass({
         }
     },
 
+    /** Updates the game loop. Goes through one player command and loops other
+     * actors till the player is found again.*/
+    updateGameLoop: function(obj) {
+        var game = this.game;
+        this.playerCommand(obj);
+        this.nextActor = game.nextActor();
+
+        // Next/act until player found, then go back waiting for key...
+        while (!this.nextActor.isPlayer() && !game.isGameOver()) {
+            var action = this.nextActor.nextAction();
+            game.doAction(action);
+            this.nextActor = game.nextActor();
+            if (RG.isNullOrUndef([this.nextActor])) {
+                console.error("Game loop out of events! This is bad!");
+                break;
+            }
+        }
+
+    },
 
     /** Performs time consuming player command.*/
-    playerCommand: function(code) {
+    playerCommand: function(obj) {
         var game = this.game;
-        var action = this.nextActor.nextAction({code: code});
+        var action = this.nextActor.nextAction(obj);
         game.doAction(action);
         this.visibleCells = game.shownLevel().exploreCells(this.nextActor);
     },
@@ -597,13 +607,16 @@ var GameStats = React.createClass({
 
     render: function() {
         var player = this.props.player;
+        var dungeonLevel = this.props.dungeonLevel;
 
         var stats = {
             HP: player.getHP() + "/" + player.getMaxHP(),
             Att: player.getAttack(),
             Def: player.getDefense(),
+            Agi: player.getAgility(),
             XP: player.getExp(),
-            Level: player.getExpLevel(),
+            XL: player.getExpLevel(),
+            DL: dungeonLevel,
         };
 
         var statsHTML = [];
@@ -759,6 +772,8 @@ var GameRow = React.createClass({
         var y = this.props.y;
         var visibleCells = this.props.visibleCells;
         var mapShown = this.props.mapShown;
+        var rowClass = "cell-row-div-char-view";
+        if (mapShown) rowClass = "cell-row-div-map-view";
 
         var rowCells = this.props.rowCellData.map( function(cell, index) {
             var cellIndex = visibleCells.indexOf(cell);
@@ -777,7 +792,7 @@ var GameRow = React.createClass({
 
 
         return (
-            <div className="cell-row-div">
+            <div className={rowClass}>
                 {rowCells}
             </div>
         );
