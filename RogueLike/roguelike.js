@@ -166,10 +166,12 @@ var RG = { // {{{2
             "default": "X",
             "monster": "@",
             "player" : "@",
+            "summoner" : "Z",
             "wolf"   : "w",
         },
         items: {
             "default": "(",
+            "corpse" : "§",
         },
         traps: {},
     },
@@ -185,7 +187,7 @@ var RG = { // {{{2
             "default": "cell-actor-default",
             "player": "cell-actor-player",
             "monster": "cell-actor-monster",
-            "boss": "cell-actor-boss",
+            "summoner": "cell-actor-summoner",
             "wolf": "cell-actor-animal",
         },
         items: {
@@ -205,6 +207,8 @@ var RG = { // {{{2
         console.error("[ERROR]: " + obj + ": " + fun + " -> " + msg);
     },
 
+    /** Used to inherit from a prototype. Supports multiple inheritance but
+     * sacrifices instanceof.*/
     extend2: function(Child, Parent) {
         var p = Parent.prototype;
         var c = Child.prototype;
@@ -244,10 +248,11 @@ var RG = { // {{{2
     },
 
     gameMsg: function(msg) {
+        msg = msg[0].toUpperCase() + msg.substring(1);
         this.POOL.emitEvent(this.EVT_MSG, {msg: msg});
     },
 
-    /** Checks if actor level can be increased.*/
+    /** Checks if actor's experience level can be increased.*/
     checkExp: function(actor) {
         var expLevel = actor.getExpLevel();
         var exp = actor.getExp();
@@ -566,9 +571,12 @@ RG.RogueGame = function() { // {{{2
 
     /** Adds an actor to scheduler.*/
     this.addActor = function(actor) {
-        _scheduler.add(actor, true, 0);
         if (actor.getLevel() === null) {
             RG.err("Game", "addActor", "actor has null level");
+        }
+        else {
+            _scheduler.add(actor, true, 0);
+            console.log("Added actor " + actor.getName() + " to scheduler.");
         }
     };
 
@@ -598,11 +606,13 @@ RG.RogueGame = function() { // {{{2
         action.doAction();
     };
 
+    /** Adds one level to the game.*/
     this.addLevel = function(level) {
         _levels.push(level);
         _activeLevels.push(level);
     };
 
+    /** Returns all active (simulated) levels. */
     this.getActiveLevels = function() {
         return _activeLevels;
     };
@@ -619,13 +629,14 @@ RG.RogueGame = function() { // {{{2
         return level.moveActorTo(actor, x, y);
     };
 
+    /** Used by the event pool. Game receives notifications about different
+     * game events from child components. */
     this.notify = function(evtName, args) {
         if (evtName === RG.EVT_ACTOR_KILLED) {
             if (args.actor.isPlayer()) {
                 if (_players.length === 1) {
                     _gameOver = true;
                     RG.gameMsg("GAME OVER!");
-                    console.log("Captured game over!");
                 }
             }
         }
@@ -634,7 +645,6 @@ RG.RogueGame = function() { // {{{2
             if (actor.isPlayer()) {
                 _shownLevel = actor.getLevel();
             }
-            console.log("Captured level changed.");
         }
         else if (evtName === RG.EVT_DESTROY_ITEM) {
             var item = args.item;
@@ -645,7 +655,13 @@ RG.RogueGame = function() { // {{{2
             }
         }
         else if (evtName === RG.EVT_ACTOR_CREATED) {
-            this.addActor(args.actor);
+            if (args.hasOwnProperty("actor")) {
+                this.addActor(args.actor);
+            }
+            else {
+                RG.err("Game", "notify - ACTOR_CREATED",
+                    "No actor specified for the event.");
+            }
         }
     };
     RG.POOL.listenEvent(RG.EVT_ACTOR_CREATED, this);
@@ -1037,6 +1053,7 @@ RG.RogueCombat = function(att, def) { // {{{2
         var hitChange = totalAttack / (totalAttack + totalDefense);
 
         RG.gameMsg(_att.getName() + " attacks " + _def.getName() + ".");
+        _def.addEnemy(_att);
         if (hitChange > Math.random()) {
             this.doDamage(_def, damage);
         }
@@ -1128,6 +1145,13 @@ RG.RogueItemFood = function(name) {
 
 };
 RG.extend2(RG.RogueItemFood, RG.RogueItem);
+
+/** Corpse object dropped by killed actors.*/
+RG.RogueItemCorpse = function(name) {
+    RG.RogueItem.call(this, name);
+    this.setType("corpse");
+};
+RG.extend2(RG.RogueItemCorpse, RG.RogueItem);
 
 /** Base object for all weapons.*/
 RG.RogueItemWeapon = function(name) {
@@ -1470,6 +1494,7 @@ RG.RogueActor = function(name) { // {{{2
         }
     };
 
+    this.addEnemy = function(actor) {_brain.addEnemy(actor);};
     this.setBrain = function(brain) {
         _brain = brain;
         _brain.setActor(this);
@@ -1675,8 +1700,28 @@ RG.PlayerBrain = function(actor) { // {{{2
         return null; // Null action
     };
 
+    this.addEnemy = function(actor) {};
+
 }; // }}} PlayerBrain
 
+
+/** Memory is used by the actor to hold information about enemies, items etc.*/
+RG.RogueBrainMemory = function(brain) {
+
+    var _enemies = [];
+
+    this.isEnemy = function(actor) {
+        var index = _enemies.indexOf(actor);
+        return index !== -1;
+    };
+
+    this.addEnemy = function(actor) {
+        if (!this.isEnemy(actor)) {
+            _enemies.push(actor);
+        }
+    };
+
+};
 
 /** Brain is used by the AI to perform and decide on actions. Brain returns
  * actionable callbacks but doesn't know Action objects.  */
@@ -1685,8 +1730,12 @@ RG.RogueBrain = function(actor) { // {{{2
     var _actor = actor; // Owner of the brain
     var _explored = {}; // Memory of explored cells
 
+    var _memory = new RG.RogueBrainMemory(this);
+
     this.setActor = function(actor) {_actor = actor;};
     this.getActor = function() {return _actor;};
+
+    this.addEnemy = function(actor) {_memory.addEnemy(actor);};
 
     var passableCallback = function(x, y) {
         var map = _actor.getLevel().getMap();
@@ -1708,39 +1757,46 @@ RG.RogueBrain = function(actor) { // {{{2
         return _actor.getLevel().getMap().getVisibleCells(_actor);
     };
 
-
     /** Main function for retrieving the actionable callback. Acting actor must
      * be passed in. */
     this.decideNextAction = function(obj) {
-        var level = _actor.getLevel();
         var seenCells = this.getSeenCells();
-        var playerCell = this.findPlayerCell(seenCells);
+        var playerCell = this.findEnemyCell(seenCells);
 
         // We have found the player
         if (!RG.isNullOrUndef([playerCell])) { // Move or attack
-            var playX = playerCell.getX();
-            var playY = playerCell.getY();
-            if (this.canAttack(playX, playY)) {
+            return this.actionTowardsEnemy(playerCell);
+        }
+        return this.exploreLevel(seenCells);
+    };
+
+    /** Takes action towards given enemy cell.*/
+    this.actionTowardsEnemy = function(enemyCell) {
+        var level = _actor.getLevel();
+        var playX = enemyCell.getX();
+        var playY = enemyCell.getY();
+        if (this.canAttack(playX, playY)) {
+            return function() {
+                level.attackWith(_actor, playX, playY);
+            };
+        }
+        else { // Move closer
+            var pathCells = this.getShortestPathTo(enemyCell);
+            if (pathCells.length > 1) {
+                var pathX = pathCells[1].getX();
+                var pathY = pathCells[1].getY();
                 return function() {
-                    level.attackWith(_actor, playX, playY);
+                    level.moveActorTo(_actor, pathX, pathY);
                 };
             }
-            else { // Move closer
-                var pathCells = this.getShortestPathTo(playerCell);
-                if (pathCells.length > 1) {
-                    var pathX = pathCells[1].getX();
-                    var pathY = pathCells[1].getY();
-                    return function() {
-                        level.moveActorTo(_actor, pathX, pathY);
-                    };
-                }
-                else { // Cannot move anywhere, no action
-                    return function() {};
-                }
+            else { // Cannot move anywhere, no action
+                return function() {};
             }
         }
+    };
 
-
+    this.exploreLevel = function(seenCells) {
+        var level = _actor.getLevel();
         // If player not seen, wander around exploring
         var index = -1;
         for (var i = 0, ll = seenCells.length; i < ll; i++) {
@@ -1765,6 +1821,7 @@ RG.RogueBrain = function(actor) { // {{{2
 
     };
 
+    /** Checks if the actor can attack given x,y coordinate.*/
     this.canAttack = function(x, y) {
         var actorX = _actor.getX();
         var actorY = _actor.getY();
@@ -1774,12 +1831,13 @@ RG.RogueBrain = function(actor) { // {{{2
         return false;
     };
 
-    /** Given a list of cells, returns a cell with player in it or null.*/
-    this.findPlayerCell = function(cells) {
-        for (var i = 0, iMax=cells.length; i < iMax; i++) {
-            if (cells[i].hasProp("actors")) {
-                var actors = cells[i].getProp("actors");
-                if (actors[0].isPlayer()) return cells[i];
+    /** Given a list of cells, returns a cell with an enemy in it or null.*/
+    this.findEnemyCell = function(seenCells) {
+        for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
+            if (seenCells[i].hasProp("actors")) {
+                var actors = seenCells[i].getProp("actors");
+                if (actors[0].isPlayer()) return seenCells[i];
+                else if (_memory.isEnemy(actors[0])) return seenCells[i];
             }
         }
         return null;
@@ -1811,74 +1869,87 @@ RG.RogueBrain = function(actor) { // {{{2
 
 }; // }}} RogueBrain
 
-RG.ZombieBrain = function(actor) {
+/** Brain used by most of the animals. TODO: Add some corpse eating behaviour. */
+RG.AnimalBrain = function(actor) {
     RG.RogueBrain.call(this, actor);
 
+    this.findEnemyCell = function(seenCells) {
+        for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
+            if (seenCells[i].hasProp("actors")) {
+                var actors = seenCells[i].getProp("actors");
+                if (actors[0].isPlayer() || actors[0].getType() === "human" ||
+                _memory.isEnemy(actors[0]))
+                    return seenCells[i];
+            }
+        }
+        return null;
+    };
+
+};
+RG.extend2(RG.AnimalBrain, RG.RogueBrain);
+
+RG.ZombieBrain = function(actor) {
+    RG.RogueBrain.call(this, actor);
 };
 RG.extend2(RG.ZombieBrain, RG.RogueBrain);
 
-/** Brain used by the Boss. */
-RG.BossBrain = function() {
+/** Brain used by summoners. */
+RG.SummonerBrain = function(actor) {
     RG.RogueBrain.call(this, actor);
 
+    var _actor = actor;
     this.numSummoned = 0;
     this.maxSummons = 20;
 
     this.decideNextAction = function(obj) {
         var level = _actor.getLevel();
         var seenCells = this.getSeenCells();
-        var playerCell = this.findPlayerCell(seenCells);
+        var playerCell = this.findEnemyCell(seenCells);
 
         // We have found the player
         if (!RG.isNullOrUndef([playerCell])) { // Move or attack
-            var playX = playerCell.getX();
-            var playY = playerCell.getY();
-
             if (this.summonedMonster()) {
                 return function() {};
             }
-            else if (this.canAttack(playX, playY)) {
-                return function() {
-                    level.attackWith(_actor, playX, playY);
-                };
-            }
-            else { // Move closer
-                var pathCells = this.getShortestPathTo(playerCell);
-                if (pathCells.length > 1) {
-                    var pathX = pathCells[1].getX();
-                    var pathY = pathCells[1].getY();
-                    return function() {
-                        level.moveActorTo(_actor, pathX, pathY);
-                    };
-                }
-                else { // Cannot move anywhere, no action
-                    return function() {};
-                }
+            else {
+                this.actionTowardsEnemy(playerCell);
             }
         }
+        return this.exploreLevel(seenCells);
 
     };
 
+    /** Tries to summon a monster to a nearby cell. Returns true if success.*/
     this.summonedMonster = function() {
         if (this.numSummoned === this.maxSummons) return false;
 
         var summon = Math.random();
         if (summon > 0.8) {
+            var level = _actor.getLevel();
+            console.log("Boss summoning now!");
             var cellsAround = this.getFreeCellsAround();
-            var freeX = cellsAround[0].getX();
-            var freeY = cellsAround[0].getY();
-            var summoned = RG.FACT.createMonster("Summoned", {hp: 15, att: 7, def: 7});
-            summoned.setExpLevel(5);
-            level.addActor(summoned, freeX, freeY);
-            RG.emitEvent(RG.EVT_ACTOR_CREATED, {actor: monster});
-            RG.gameMsg("Boss summons a monster!");
-            this.numSummoned += 1;
-            return true;
+            if (cellsAround.length > 0) {
+                var freeX = cellsAround[0].getX();
+                var freeY = cellsAround[0].getY();
+                var summoned = RG.FACT.createMonster("Summoned", 
+                    {hp: 15, att: 7, def: 7});
+                summoned.setExpLevel(5);
+                level.addActor(summoned, freeX, freeY);
+                RG.POOL.emitEvent(RG.EVT_ACTOR_CREATED, {actor: summoned});
+                RG.gameMsg(_actor.getName() + " summons some help!");
+                this.numSummoned += 1;
+                return true;
+            }
+            else {
+                var txt = " screamed incantation but nothing happened!";
+                RG.gameMsg(_actor.getName() + txt);
+            }
         }
         return false;
 
     };
 
+    /** Returns a list of cells in 3x3 around the actor with the brain.*/
     this.getCellsAround = function() {
         var map = _actor.getLevel().getMap();
         var x = _actor.getX();
@@ -1903,7 +1974,7 @@ RG.BossBrain = function() {
     };
 
 };
-RG.extend2(RG.BossBrain, RG.RogueBrain);
+RG.extend2(RG.SummonerBrain, RG.RogueBrain);
 
 // }}} BRAINS
 
@@ -2465,11 +2536,12 @@ RG.Factory = function() { // {{{2
         // Create the final boss
         var lastLevel = allLevels.slice(-1)[0];
         var bossCell = this.getFreeRandCell(lastLevel);
-        var boss = this.createMonster("Boss", {hp: 100, att: 10, def: 10});
-        boss.setType("boss");
-        boss.setExpLevel(10);
-        lastLevel.addActor(boss, bossCell.getX(), bossCell.getY());
-        game.addActor(boss);
+        var summoner = this.createMonster("Summoner", {hp: 100, att: 10, def: 10});
+        summoner.setType("summoner");
+        summoner.setExpLevel(10);
+        summoner.setBrain(new RG.SummonerBrain(summoner));
+        lastLevel.addActor(summoner, bossCell.getX(), bossCell.getY());
+        game.addActor(summoner);
 
         var extraLevel = this.createLevel("arena", cols, rows);
 
