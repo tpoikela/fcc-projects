@@ -576,7 +576,7 @@ RG.RogueGame = function() { // {{{2
         }
         else {
             _scheduler.add(actor, true, 0);
-            console.log("Added actor " + actor.getName() + " to scheduler.");
+            //console.log("Added actor " + actor.getName() + " to scheduler.");
         }
     };
 
@@ -745,7 +745,6 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     // ITEM RELATED FUNCTIONS
     //---------------------------------------------------------------------
 
-
     this.addItem = function(item, x, y) {
         if (!RG.isNullOrUndef([x, y])) {
             return this._addPropToLevelXY(RG.TYPE_ITEM, item, x, y);
@@ -772,10 +771,10 @@ RG.RogueLevel = function(cols, rows) { // {{{2
             var item = cell.getProp(RG.TYPE_ITEM)[0];
             actor.getInvEq().addItem(item);
             cell.removeProp(RG.TYPE_ITEM, item);
-            RG.gameMsg(actor.getName() + " picked up " + item.getName() + "!");
+            RG.gameMsg(actor.getName() + " picked up " + item.getName());
         }
         else {
-            RG.gameMsg("Nothing to pickup!");
+            RG.gameMsg("Nothing to pickup");
         }
     };
 
@@ -856,6 +855,7 @@ RG.RogueLevel = function(cols, rows) { // {{{2
                 if (_map.removeProp(xOld, yOld, "actors", actor)) {
                     _map.setProp(x, y, "actors", actor);
                     actor.setXY(x, y);
+                    if (actor.isPlayer()) this.checkMessageEmits(cell);
                     return true;
                 }
                 else {
@@ -869,18 +869,20 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         return false;
     };
 
-    /** Given actor attacks square x,y.*/
+
+    /** Given actor attacks square x,y. Returns true if successful.*/
     this.attackWith = function(actor, x, y) {
         var cell = _map.getCell(x, y);
         if (cell.hasProp("actors")) {
             var target = cell.getProp("actors")[0];
             var combat = new RG.RogueCombat(actor, target);
             combat.fight();
-            console.log("Actor attacks at " + x + ", " + y);
             return true;
         }
+        return true;
     };
 
+    /** Removes given actor from level. Returns true if successful.*/
     this.removeActor = function(actor) {
         var index = _p.actors.indexOf(actor);
         var x = actor.getX();
@@ -911,18 +913,37 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         return _map.getExploredCells();
     };
 
+    //----------------------------------------------------------
+    // MESSAGING FUNCTIONS
+    //----------------------------------------------------------
+
+    // If player moved to the square, checks if any messages must be emitted.
+    this.checkMessageEmits = function(cell) {
+        if (cell.hasStairs()) RG.gameMsg("You see stairs here");
+        if (cell.hasProp("items")) {
+            var items = cell.getProp("items");
+            if (items.length > 1) RG.gameMsg("There are several items here");
+            else RG.gameMsg(items[0].getName() + " is on the floor");
+        }
+    };
+
 }; // }}} Level
 
 RG.DefenseObject = function() {
 
-    var _attack   = 10;
-    var _defense  = 5;
+    var _attack   = 1;
+    var _defense  = 1;
+    var _protection = 0;
+
     this.getAttack = function() {return _attack;};
     this.setAttack = function(attack) { _attack = attack; };
 
     /** Defense related methods.*/
     this.getDefense = function() { return _defense; };
     this.setDefense = function(defense) { _defense = defense; };
+
+    this.getProtection = function() {return _protection;};
+    this.setProtection = function(prot) {return _prot;};
 
 };
 
@@ -962,7 +983,7 @@ RG.DamageObject = function() {
         return _damage.roll();
     };
 
-    this.getDamageRoll = function() {
+    this.getDamageDie = function() {
         return _damage;
     };
 
@@ -970,7 +991,7 @@ RG.DamageObject = function() {
 
 RG.DamageObject.prototype.toString = function() {
     var msg = "a: " + this.getAttack() + ", d: " + this.getDefense() + ", ";
-    msg += "dmg: " + this.getDamageRoll().toString();
+    msg += "dmg: " + this.getDamageDie().toString();
     msg += ",r:" + this.getAttackRange();
     return msg;
 };
@@ -1028,37 +1049,36 @@ RG.RogueCombat = function(att, def) { // {{{2
     var _def = def;
 
     this.fight = function() {
+        var attEquip = _att.getEquipAttack();
+        var defEquip = _def.getEquipDefense();
+        var protEquip = _def.getEquipProtection();
         var attWeapon = _att.getWeapon();
-        var defWeapon = _def.getWeapon();
 
         var attackPoints = _att.getAttack();
         var defPoints = _def.getDefense();
         var damage = _att.getDamage();
-
-        if (defWeapon !== null) {
-            if (defWeapon.hasOwnProperty("getDefense")) defPoints += defWeapon.getDefense();
-        }
-
-        if (attWeapon !== null) {
-            if (attWeapon.hasOwnProperty("getAttack")) attackPoints += attWeapon.getAttack();
-            if (attWeapon.hasOwnProperty("getDamage")) damage += attWeapon.getDamage();
-        }
+        var protection = _def.getProtection();
 
         var accuracy = _att.getAccuracy();
         var agility = _def.getAgility();
 
         // Actual hit change calculation
-        var totalAttack = attackPoints + accuracy/2;
-        var totalDefense = defPoints + agility/2;
+        var totalAttack = attackPoints + accuracy/2 + attEquip;
+        var totalDefense = defPoints + agility/2 + defEquip;
+        var totalProtection = protection + protEquip;
         var hitChange = totalAttack / (totalAttack + totalDefense);
 
-        RG.gameMsg(_att.getName() + " attacks " + _def.getName() + ".");
+        RG.gameMsg(_att.getName() + " attacks " + _def.getName());
         _def.addEnemy(_att);
         if (hitChange > Math.random()) {
-            this.doDamage(_def, damage);
+            var totalDamage = damage - totalProtection;
+            if (totalDamage > 0)
+                this.doDamage(_def, damage);
+            else
+                RG.gameMsg(_att.getName() + " fails to hurt " + _def.getName());
         }
         else {
-            RG.gameMsg(_att.getName() + " misses " + _def.getName() + ".");
+            RG.gameMsg(_att.getName() + " misses " + _def.getName());
         }
     };
 
@@ -1068,7 +1088,7 @@ RG.RogueCombat = function(att, def) { // {{{2
             this.killActor(def);
         }
         else {
-            RG.gameMsg(_def.getName() + " got " + dmg + " damage.");
+            RG.gameMsg(_def.getName() + " got " + dmg + " damage");
         }
     };
 
@@ -1076,7 +1096,7 @@ RG.RogueCombat = function(att, def) { // {{{2
         var level = actor.getLevel();
         if (level.removeActor(actor)) {
             this.giveExp(_att, _def.getExpLevel());
-            RG.gameMsg(_def.getName() + " was killed.");
+            RG.gameMsg(_def.getName() + " was killed");
             RG.POOL.emitEvent(RG.EVT_ACTOR_KILLED, {actor: actor});
         }
         else {
@@ -1386,6 +1406,23 @@ RG.RogueEquipment = function(actor) {
         return false;
     };
 
+    this.propertySum = function(funcname) {
+        var result = 0;
+        for (var slot in _slots) {
+            var items = this.getItems(slot);
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].hasOwnProperty(funcname)) {
+                    result += items[i][funcname]();
+                }
+            }
+        }
+        return result;
+    };
+
+    this.getDefense = function() {return this.propertySum("getDefense");};
+    this.getAttack = function() {return this.propertySum("getAttack");};
+    this.getProtection = function() {return this.propertySum("getProtection");};
+
 };
 RG.extend2(RG.RogueEquipment, RG.Ownable);
 
@@ -1526,6 +1563,18 @@ RG.RogueActor = function(name) { // {{{2
 
     this.getInvEq = function() {
         return _invEq;
+    };
+
+    this.getEquipAttack = function() {
+        return _invEq.getEquipment().getAttack();
+    };
+
+    this.getEquipDefense = function() {
+        return _invEq.getEquipment().getDefense();
+    };
+
+    this.getEquipProtection = function() {
+        return _invEq.getEquipment().getProtection();
     };
 
 };
@@ -1912,7 +1961,7 @@ RG.SummonerBrain = function(actor) {
                 return function() {};
             }
             else {
-                this.actionTowardsEnemy(playerCell);
+                return this.actionTowardsEnemy(playerCell);
             }
         }
         return this.exploreLevel(seenCells);
@@ -1936,12 +1985,12 @@ RG.SummonerBrain = function(actor) {
                 summoned.setExpLevel(5);
                 level.addActor(summoned, freeX, freeY);
                 RG.POOL.emitEvent(RG.EVT_ACTOR_CREATED, {actor: summoned});
-                RG.gameMsg(_actor.getName() + " summons some help!");
+                RG.gameMsg(_actor.getName() + " summons some help");
                 this.numSummoned += 1;
                 return true;
             }
             else {
-                var txt = " screamed incantation but nothing happened!";
+                var txt = " screamed incantation but nothing happened";
                 RG.gameMsg(_actor.getName() + txt);
             }
         }
@@ -2004,7 +2053,7 @@ RG.RogueRegenEvent = function(actor, dur) {
         hp += 1;
         if (hp <= maxHP) {
             actor.setHP(hp);
-            RG.gameMsg(actor.getName() + " regenerates 1 HP.");
+            RG.gameMsg(actor.getName() + " regenerates 1 HP");
         }
     };
 
