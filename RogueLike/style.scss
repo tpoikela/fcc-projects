@@ -16,13 +16,15 @@ $ctrl-top-color: darken($main-color, 10%);
 }
 
 @mixin cell-font {
-    font-family: 'VT323', monospace;
-    font-size: 20px;
+    //font-family: 'VT323', monospace;
+    font-family: monospace;
+    font-size: 16px;
 }
 
 @mixin cell-font-map {
-    font-family: 'VT323', monospace;
-    font-size: 10px;
+    //font-family: 'VT323', monospace;
+    font-family: monospace;
+    font-size: 8px;
 }
 
 // Control panel theme
@@ -87,7 +89,7 @@ body {
     color: white;
 };
 
-.cell-actor-boss {
+.cell-actor-summoner {
     background-color: yellow;
     color: black;
 };
@@ -132,7 +134,7 @@ body {
 
 .cell-item-armour {
     background-color: green;
-    color: blue;
+    color: white;
 };
 
 .cell-item-food {
@@ -144,10 +146,6 @@ body {
     background-color: blue;
     color: white;
 };
-
-.cell-row-div {
-    margin-bottom: -9px;
-}
 
 //---------------------------------------------------------------------
 // MENUS
@@ -172,17 +170,21 @@ body {
     @include cell-font;
 };
 
+.cell-row-div-char-view {
+    margin-bottom: -4px;
+}
+
 .game-board-map-view {
     @include cell-font-map;
 };
 
+.cell-row-div-map-view {
+    margin-bottom: 0;
+}
+
 #game-board {
     margin-left: 10px;
     margin-right: 10px;
-}
-
-.num-generations {
-    margin-left: 20px;
 }
 
 .ctrl-bottom {
