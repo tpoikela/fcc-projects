@@ -159,7 +159,12 @@ body {
 .game-messages {
     margin-bottom: 10px;
     height: 30px;
-    @include ctrl-panel;
+    border: 1px solid black;
+    border-radius: 5px;
+    background-color: $ctrl-top-color;
+    font-size: 18px;
+    padding-top: 2px;
+    padding-left: 5px;
 }
 
 .game-stats {
