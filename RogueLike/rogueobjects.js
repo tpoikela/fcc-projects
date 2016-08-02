@@ -14,6 +14,15 @@
 
 var RGObjects = {
 
+    // Can be used in items freely
+    /*effects: {
+        poison: function() {
+
+        },
+        healing: function() {
+        },
+    },*/
+
     actors: [
 
         // ANIMALS
@@ -31,46 +40,56 @@ var RGObjects = {
         },
         {
             name: "rattlesnake", "char": "s", base: "animal",
-            poison: true,
-            attack: 2,
-            defense: 3,
-            damage: "1d3",
+            poison: true, // Change to weapon: venomous fangs
+            attack: 2, defense: 3, damage: "1d3",
             hp: 10, danger: 3,
         },
         {
-            name: "coyote", "char": "c",
-            base: "animal",
-            attack: 3,
-            defense: 3,
-            damage: "1d4",
+            name: "coyote", "char": "c", base: "animal",
+            attack: 3, defense: 3, damage: "1d4",
             hp: 12, danger: 2,
         },
         {
-            name: "wolf", "char": "w",
-            base: "animal",
-            attack: 4,
-            defense: 2,
-            damage: "1d6",
+            name: "wolf", "char": "w", base: "animal",
+            attack: 4, defense: 2, damage: "1d6",
             hp: 20, danger: 3,
         },
 
         // HUMANS
         {
-            name: "human", "char": "@",
-            type: "human",
-            attack: 3, defense: 3,
-            damage: "1d4",
+            name: "human", "char": "@", type: "human",
+            attack: 2, defense: 2, damage: "1d4",
             range: 1, hp: 20, danger: 3,
         },
         {
             name: "miner", base: "human",
-            attack: 4, danger: 4,
+            attack: 4, danger: 4, damage: "1d5",
         },
         {
             name: "robber", base: "human",
             attack: 2, defense: 4,
-
-        }
+        },
+        {
+            name: "fighter", base: "human", hp: 25,
+            attack: 4, defense: 4, damage: "1d8",
+            danger: 5,
+        },
+        {
+            name: "warlord", base: "human", hp: 35,
+            attack: 5, defense: 6, damage: "3d3",
+            danger: 6
+        },
+        // WILDLINGS
+        {
+            name: "wildling", "char": "I", className: "cell-actor-wildling",
+            type: "wildling",
+            attack: 4, defense: 1, damage: "1d6", range: 1,
+            hp: 15, danger: 3
+        },
+        {
+            name: "wildling warrior", base: "wildling",
+            attack: 6, defense: 3, damage: "1d10", hp: 25, danger: 5
+        },
 
     ],
 
@@ -104,7 +123,6 @@ var RGObjects = {
             material: "iron",
             damage: "1d6",
             weight: 0.5, value: 20,
-            // TODO combine with rifle
         },
         {
             name: "Whip", base: "melee weapon",
@@ -134,21 +152,31 @@ var RGObjects = {
             damage: "1d8", attack: 1, defense: 3,
             weight: 1.2, value: 30,
         },
+        {
+            name: "Magic Sword", base: "melee weapon",
+            material: "forium", damage: "5d5 + 3",
+            attack: 5, defense: 2, weight: 1.0, value: 100
+        },
 
         // ARMOUR
         {
             name: "ArmourBase", type: "armour", className: "cell-item-armour",
-            "char": "[", dontCreate: true
-        },
-        {
-            name: "Leather armour", base: "ArmourBase",
-            weight: 2.0, attack: 0, defense: 2, material: "leather",
-            armourType: "chest", value: 20,
+            "char": "[", dontCreate: true, attack: 0, defense: 0,
         },
         {
             name: "Leather helmet", base: "ArmourBase",
-            weight: 0.3, attack: 0, defense: 1, material: "leather",
+            weight: 0.3, defense: 1, material: "leather",
             armourType: "head", value: 15,
+        },
+        {
+            name: "Leather boots", base: "ArmourBase",
+            weight: 0.5, defense: 1, material: "leather",
+            armourType: "feet", value: 15,
+        },
+        {
+            name: "Leather armour", base: "ArmourBase",
+            weight: 2.0, defense: 2, material: "leather",
+            armourType: "chest", value: 30,
         },
 
         // POTIONS
