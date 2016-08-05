@@ -521,8 +521,13 @@ RG.RogueGame = function() { // {{{2
     var _scheduler = new RG.RogueScheduler();
     var _msg = new RG.Messages();
 
+    // Systems updated after each action
     this.systems = {};
-    this.systems["Hunger"] = new RG.HungerSystem("Hunger", ["Action", "Hunger"]);
+    this.systems["Damage"] = new RG.DamageSystem("Damage", ["Damage", "Health"]);
+
+    // Systems updated once each game loop
+    this.loopSystems = {};
+    this.loopSystems["Hunger"] = new RG.HungerSystem("Hunger", ["Action", "Hunger"]);
 
     this.getMessages = function() {
         return _msg.getMessages();
@@ -673,7 +678,7 @@ RG.RogueGame = function() { // {{{2
             }
         }
 
-        for (var s in this.systems) this.systems[s].update();
+        for (var s in this.loopSystems) this.loopSystems[s].update();
 
     };
 
@@ -1217,6 +1222,35 @@ RG.HungerComponent = function(energy) {
 };
 RG.extend2(RG.HungerComponent, RG.Component);
 
+/** Health component takes care of HP and such. */
+RG.HealthComponent = function(hp) {
+    RG.Component.call(this, "Health");
+
+    var _hp = hp;
+    var _maxHP = hp;
+
+    /** Hit points getters and setters.*/
+    this.getHP = function() {return _hp;};
+    this.setHP = function(hp) {_hp = hp;};
+    this.getMaxHP = function() {return _maxHP;};
+    this.setMaxHP = function(hp) {_maxHP = hp;};
+
+    this.addHP = function(hp) {
+        _hp += hp;
+        if (_hp > _maxHP) _hp = _maxHP;
+    };
+
+    this.decrHP = function(hp) {_hp -= hp;};
+
+    this.isAlive = function() {return _hp > 0;};
+    this.isDead = function() {return _hp <= 0;};
+
+};
+RG.extend2(RG.HealthComponent, RG.Component);
+
+
+
+
 //---------------------------------------------------------------------------
 // ECS SYSTEMS
 //---------------------------------------------------------------------------
@@ -1293,31 +1327,14 @@ RG.extend2(RG.HungerSystem, RG.System);
 
 /** Combatant object can be used for all actors and objects involved in
  * combat. */
-RG.Combatant = function(hp) { // {{{2
+RG.Combatant = function() { // {{{2
     RG.DamageObject.call(this);
-
-    var _maxHP = hp;
-    var _hp = hp;
 
     var _accuracy = 10;
     var _agility  = 5;
 
     var _exp      = 0;
     var _expLevel = 1;
-
-    /** Hit points getters and setters.*/
-    this.getHP = function() {return _hp;};
-    this.setHP = function(hp) {_hp = hp;};
-    this.getMaxHP = function() {return _maxHP;};
-    this.setMaxHP = function(hp) {_maxHP = hp;};
-
-    this.addHP = function(hp) {
-        _hp += hp;
-        if (_hp > _maxHP) _hp = _maxHP;
-    };
-
-    this.isAlive = function() {return _hp > 0;};
-    this.isDead = function() {return _hp <= 0;};
 
     /** These determine the chance of hitting. */
     this.setAccuracy = function(accu) {_accuracy = accu;};
@@ -1377,8 +1394,8 @@ RG.RogueCombat = function(att, def) { // {{{2
     };
 
     this.doDamage = function(def, dmg) {
-        def.setHP(def.getHP() - dmg);
-        if (!def.isAlive()) {
+        def.get("Health").decrHP(dmg);
+        if (!def.get("Health").isAlive()) {
             this.killActor(def);
         }
         else {
@@ -1805,7 +1822,7 @@ RG.extend2(RG.RogueInvAndEquip, RG.Ownable);
 /** Object representing a game actor who takes actions.  */
 RG.RogueActor = function(name) { // {{{2
     RG.Locatable.call(this);
-    RG.Combatant.call(this, RG.DEFAULT_HP);
+    RG.Combatant.call(this);
     RG.Entity.call(this);
     this.setPropType("actors");
 
@@ -1816,8 +1833,7 @@ RG.RogueActor = function(name) { // {{{2
     var _name = name;
     var _invEq = new RG.RogueInvAndEquip(this);
 
-    var actionComponent = new RG.ActionComponent();
-    this.add("Action", actionComponent);
+    this.add("Action", new RG.ActionComponent());
 
     this.setName = function(name) {_name = name;};
     this.getName = function() {return _name;};
@@ -1848,14 +1864,17 @@ RG.RogueActor = function(name) { // {{{2
     this.nextAction = function(obj) {
         // Use actor brain to determine the action
         var cb = _brain.decideNextAction(obj);
+        var action = null;
         if (cb !== null) {
-            var action = new RG.RogueAction(RG.ACTION_DUR, cb, {});
+            action = new RG.RogueAction(RG.ACTION_DUR, cb, {});
         }
         else {
-            var action = RG.RogueAction(0, function(){}, {});
+            action = RG.RogueAction(0, function(){}, {});
         }
-        if (_brain.hasOwnProperty("energy")) action.energy = _brain.energy;
-        action.actor = this;
+        if (action !== null) {
+            if (_brain.hasOwnProperty("energy")) action.energy = _brain.energy;
+            action.actor = this;
+        }
         return action;
     };
 
@@ -2356,11 +2375,11 @@ RG.RogueGameEvent = function(dur, cb) {
 RG.RogueRegenEvent = function(actor, dur) {
 
     var _regenerate = function() {
-        var maxHP = actor.getMaxHP();
-        var hp = actor.getHP();
+        var maxHP = actor.get("Health").getMaxHP();
+        var hp = actor.get("Health").getHP();
         hp += 1;
         if (hp <= maxHP) {
-            actor.setHP(hp);
+            actor.get("Health").setHP(hp);
             RG.gameMsg(actor.getName() + " regenerates 1 HP");
         }
     };
@@ -2753,7 +2772,9 @@ RG.Factory = function() { // {{{2
         var hp = obj.hp;
         var att = obj.att;
         var def = obj.def;
-        if (!RG.isNullOrUndef([hp])) comb.setHP(hp);
+        if (!RG.isNullOrUndef([hp])) {
+            comb.add("Health", new RG.HealthComponent(hp));
+        }
         if (!RG.isNullOrUndef([att])) comb.setAttack(att);
         if (!RG.isNullOrUndef([def])) comb.setAttack(def);
     };
@@ -2835,6 +2856,7 @@ RG.Factory = function() { // {{{2
 
         var player = this.createPlayer("Player", {});
         player.setType("player");
+        player.add("Health", new RG.HealthComponent(50));
         var sword = parser.createActualObj("items", "Short sword");
         player.getInvEq().addItem(sword);
         player.getInvEq().equipItem(sword);
@@ -3009,7 +3031,7 @@ RG.RogueObjectStubParser = function() {
             attack: "setAttack",
             defense: "setDefense",
             damage: "setDamage",
-            hp: ["setHP", "setMaxHP"],
+            hp: {comp: "Health"},
         },
         items: {
             // Generic item functions
@@ -3157,6 +3179,13 @@ RG.RogueObjectStubParser = function() {
         }
     };
 
+    this.createComponent = function(type, val) {
+        switch(type) {
+            case "Health": return new RG.HealthComponent(val);
+
+        }
+
+    };
 
     /** Returns an actual game object when given category and name. Note that
      * the blueprint must exist already in the database (blueprints must have
@@ -3175,14 +3204,21 @@ RG.RogueObjectStubParser = function() {
         // If propToCall table has the same key as obj, call corresponding
         // function using the newly created object.
         for (var p in obj) {
-            //console.log("obj property is now: |" + p + "| value: " + obj[p]);
+
+            // Called for basic type: actors, items...
             if (propCalls.hasOwnProperty(p)) {
                 var funcName = propCalls[p];
                 if (typeof funcName === "object") {
-                    for (var f in funcName) {
-                        var fName = funcName[f];
-                        if (newObj.hasOwnProperty(fName)) {
-                            newObj[fName](obj[p]);
+                    if (funcName.hasOwnProperty("comp")) {
+                        newObj.add(funcName.comp, 
+                            this.createComponent(funcName.comp, obj[p]));
+                    }
+                    else {
+                        for (var f in funcName) {
+                            var fName = funcName[f];
+                            if (newObj.hasOwnProperty(fName)) {
+                                newObj[fName](obj[p]);
+                            }
                         }
                     }
                 }
