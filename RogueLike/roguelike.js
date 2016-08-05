@@ -262,9 +262,12 @@ var RG = { // {{{2
             reqExp += i * 10;
         }
         if (exp >= reqExp) {
+            var hComp = actor.get("Health");
             actor.setExpLevel(nextLevel);
-            actor.setMaxHP(actor.getMaxHP() + 5);
-            actor.setHP(actor.getHP() + 5);
+
+            hComp.setMaxHP(hComp.getMaxHP() + 5);
+            hComp.setHP(hComp.getHP() + 5);
+
             actor.setAttack(actor.getAttack() + 1);
             actor.setDefense(actor.getDefense() + 1);
             RG.gameMsg(actor.getName() + " advanced to level " + nextLevel);
@@ -522,8 +525,10 @@ RG.RogueGame = function() { // {{{2
     var _msg = new RG.Messages();
 
     // Systems updated after each action
+    this.systemOrder = ["Damage", "ExpPoints"];
     this.systems = {};
     this.systems["Damage"] = new RG.DamageSystem("Damage", ["Damage", "Health"]);
+    this.systems["ExpPoints"] = new RG.ExpPointsSystem("ExpPoints", ["ExpPoints", "Experience"]);
 
     // Systems updated once each game loop
     this.loopSystems = {};
@@ -671,6 +676,12 @@ RG.RogueGame = function() { // {{{2
         while (!this.nextActor.isPlayer() && !this.isGameOver()) {
             var action = this.nextActor.nextAction();
             this.doAction(action);
+
+            for (var i = 0; i < this.systemOrder.length; i++) {
+                var sysName = this.systemOrder[i];
+                this.systems[sysName].update();
+            }
+
             this.nextActor = this.getNextActor();
             if (RG.isNullOrUndef([this.nextActor])) {
                 console.error("Game loop out of events! This is bad!");
@@ -685,6 +696,10 @@ RG.RogueGame = function() { // {{{2
     this.playerCommand = function(obj) {
         var action = this.nextActor.nextAction(obj);
         this.doAction(action);
+        for (var i = 0; i < this.systemOrder.length; i++) {
+            var sysName = this.systemOrder[i];
+            this.systems[sysName].update();
+        }
         this.visibleCells = this.shownLevel().exploreCells(this.nextActor);
     };
 
@@ -1039,25 +1054,8 @@ RG.DamageObject = function() {
     this.setAttackRange = function() {_range = range;};
     this.getAttackRange = function() {return _range; };
 
-    var _dmgRe = /\s*(\d+)d(\d+)\s*(\+|-)?\s*(\d+)?/;
     this.setDamage = function(dStr) {
-        var match = _dmgRe.exec(dStr);
-        if (match !== null) {
-            var num = match[1];
-            var dType = match[2];
-            var mod;
-            if (!RG.isNullOrUndef([match[3], match[4]])) {
-                if (match[3] === "+") mod = match[4];
-                else mod = -match[4];
-            }
-            else {
-                mod = 0;
-            }
-            _damage = new RG.Die(num, dType, mod);
-        }
-        else {
-            RG.err("DamageObject", "setDamage", "Cannot parse: " + dStr);
-        }
+        _damage = RG.FACT.createDie(dStr);
     };
 
     this.getDamage = function() {
@@ -1186,7 +1184,7 @@ RG.ActionComponent.prototype.removeCallback = function(entity) {
     RG.POOL.emitEvent(RG.EVT_ACT_COMP_REMOVED, {actor: entity});
 };
 
-/** Object which takes care of hunger and satiation. */
+/** Component which takes care of hunger and satiation. */
 RG.HungerComponent = function(energy) {
     RG.Component.call(this, "Hunger");
 
@@ -1248,8 +1246,118 @@ RG.HealthComponent = function(hp) {
 };
 RG.extend2(RG.HealthComponent, RG.Component);
 
+/** Component which is used to deal damage.*/
+RG.DamageComponent = function(dmg, type) {
+    RG.Component.call(this, "Damage");
+
+    var _dmg = dmg;
+    var _type = type;
+    var _src = null;
+
+    this.getDamage = function() {return _dmg;};
+    this.setDamage = function(dmg) {_dmg = dmg;};
+
+    this.getDamageType = function() {return _type;};
+    this.setDamageType = function(type) {_type = type;};
+
+    this.getSource = function() {return _src;};
+    this.setSource = function(src) {_src = src;};
+
+};
+RG.extend2(RG.DamageComponent, RG.Component);
+
+/** Component used in entities gaining experience.*/
+RG.ExperienceComponent = function() {
+    RG.Component.call(this, "Experience");
+
+    var _exp      = 0;
+    var _expLevel = 1;
+
+    /** Experience-level methods.*/
+    this.setExp = function(exp) {_exp = exp;};
+    this.getExp = function() {return _exp;};
+    this.addExp = function(nExp) {_exp += nExp;};
+    this.setExpLevel = function(expLevel) {_expLevel = expLevel;};
+    this.getExpLevel = function() {return _expLevel;};
+
+};
+RG.extend2(RG.ExperienceComponent, RG.Component);
+
+/** This component is added when entity gains experience.*/
+RG.ExpPointsComponent = function(expPoints) {
+    RG.Component.call(this, "ExpPoints");
+
+    var _expPoints = expPoints;
+    var _skills = {};
+
+    this.setSkillPoints = function(skill, pts) {
+        _skills[skill] = pts;
+    };
+    this.getSkillPoints = function() {return _skills;};
+
+    this.setExpPoints = function(exp) {_expPoints = exp;};
+    this.getExpPoints = function() {return _expPoints;};
+    this.addExpPoints = function(exp) { _expPoints += exp;};
+
+};
+RG.extend2(RG.ExpPointsComponent, RG.Component);
+
+/** This component is added when entity gains experience.*/
+RG.CombatComponent = function() {
+    RG.Component.call(this, "Combat");
+
+    var _attack   = 1;
+    var _defense  = 1;
+    var _protection = 0;
+    var _damage = RG.FACT.createDie("1d4");
+    var _range    = 1;
+
+    this.getAttack = function() {return _attack;};
+    this.setAttack = function(attack) { _attack = attack; };
+
+    /** Defense related methods.*/
+    this.getDefense = function() { return _defense; };
+    this.setDefense = function(defense) { _defense = defense; };
+
+    this.getProtection = function() {return _protection;};
+    this.setProtection = function(prot) {return _prot;};
+
+    this.getDamage = function() {
+        // TODO add weapon effects
+        if (this.getEntity().hasOwnProperty("getWeapon")) {
+            var weapon = this.getEntity().getWeapon();
+            if (weapon !== null)
+                return weapon.getDamage();
+        }
+        return _damage.roll();
+    };
+
+    this.setDamage = function(strOrArray) {
+        _damage = RG.FACT.createDie(strOrArray);
+    };
+
+    /** Attack methods. */
+    this.setAttackRange = function() {_range = range;};
+    this.getAttackRange = function() {return _range; };
+
+};
+RG.extend2(RG.CombatComponent, RG.Component);
 
 
+RG.StatsComponent = function() {
+    RG.Component.call(this, "Stats");
+
+    var _accuracy = 10;
+    var _agility  = 5;
+
+    /** These determine the chance of hitting. */
+    this.setAccuracy = function(accu) {_accuracy = accu;};
+    this.getAccuracy = function() {return _accuracy;};
+    this.setAgility = function(agil) {_agility = agil;};
+    this.getAgility = function() {return _agility;};
+
+};
+RG.extend2(RG.StatsComponent, RG.Component);
 
 //---------------------------------------------------------------------------
 // ECS SYSTEMS
@@ -1321,36 +1429,108 @@ RG.HungerSystem = function(type, compTypes) {
 };
 RG.extend2(RG.HungerSystem, RG.System);
 
+/** Processes entities with damage component.*/
+RG.DamageSystem = function(type, compTypes) {
+    RG.System.call(this, type, compTypes);
+
+    this.update = function() {
+        for (var e in this.entities) {
+            var ent = this.entities[e];
+            if (ent.has("Health")) {
+                var health = ent.get("Health");
+                var dmg = ent.get("Damage").getDamage();
+                health.decrHP(dmg);
+
+                if (health.isDead()) {
+                    var src = ent.get("Damage").getSource();
+                    this.killActor(src, ent);
+                }
+                ent.remove("Damage"); // After dealing damage, remove comp
+            }
+        }
+    };
+
+    this.killActor = function(src, actor) {
+        var level = actor.getLevel();
+        if (level.removeActor(actor)) {
+            if (actor.has("Experience")) {
+                this.giveExp(src, actor);
+            }
+            RG.gameMsg(actor.getName() + " was killed");
+            RG.POOL.emitEvent(RG.EVT_ACTOR_KILLED, {actor: actor});
+        }
+        else {
+            RG.err("Combat", "killActor", "Couldn't kill actor");
+        }
+    };
+
+    this.giveExp = function(att, def) {
+        var defLevel = def.get("Experience").getExpLevel();
+        var expPoints = new RG.ExpPointsComponent(defLevel);
+        att.add("ExpPoints", expPoints);
+        //console.log("Added expoints comp to " + defLevel);
+    };
+
+};
+RG.extend2(RG.DamageSystem, RG.System);
+
+/** Called for entities which gained experience recently.*/
+RG.ExpPointsSystem = function(type, compTypes) {
+    RG.System.call(this, type, compTypes);
+
+    this.update = function() {
+        for (var e in this.entities) {
+            var ent = this.entities[e];
+
+            var expComp = ent.get("Experience");
+            var expPoints = ent.get("ExpPoints");
+
+            console.log("Points coming " + expPoints.getExpPoints());
+
+            var expLevel = expComp.getExpLevel();
+            var exp = expComp.getExp();
+            exp += expPoints.getExpPoints();
+            expComp.setExp(exp);
+            var nextLevel = expLevel + 1;
+            var reqExp = 0;
+            for (var i = 1; i <= nextLevel; i++) {
+                reqExp += i * 10;
+            }
+            if (exp >= reqExp) {
+
+                expComp.setExpLevel(nextLevel);
+
+                // Increase max HP
+                if (ent.has("Health")) {
+                    var hComp = actor.get("Health");
+                    hComp.setMaxHP(hComp.getMaxHP() + 5);
+                    hComp.setHP(hComp.getHP() + 5);
+                }
+
+                if (ent.has("Combat")) {
+                    var combatComp = ent.get("Combat");
+                    combatComp.setAttack(combatComp.getAttack() + 1);
+                    combatComp.setDefense(combatComp.getDefense() + 1);
+                    if (nextLevel % 3 === 0) {
+                        var prot = combatComp.getProtection();
+                        combatComp.setProtection(prot + 1);
+                    }
+                    // TODO add something to damage roll
+                }
+                RG.gameMsg(actor.getName() + " advanced to level " + nextLevel);
+            }
+            ent.remove("ExpPoints");
+
+        }
+    };
+
+};
+
+RG.extend2(RG.ExpPointsSystem, RG.System);
+
 //---------------------------------------------------------------------------
 // COMBAT RELATED CLASSES
 //---------------------------------------------------------------------------
-
-/** Combatant object can be used for all actors and objects involved in
- * combat. */
-RG.Combatant = function() { // {{{2
-    RG.DamageObject.call(this);
-
-    var _accuracy = 10;
-    var _agility  = 5;
-
-    var _exp      = 0;
-    var _expLevel = 1;
-
-    /** These determine the chance of hitting. */
-    this.setAccuracy = function(accu) {_accuracy = accu;};
-    this.getAccuracy = function() {return _accuracy;};
-    this.setAgility = function(agil) {_agility = agil;};
-    this.getAgility = function() {return _agility;};
-
-    /** Experience-level methods.*/
-    this.setExp = function(exp) {_exp = exp;};
-    this.getExp = function() {return _exp;};
-    this.addExp = function(nExp) {_exp += nExp;};
-    this.setExpLevel = function(expLevel) {_expLevel = expLevel;};
-    this.getExpLevel = function() {return _expLevel;};
-
-}; // }}} Combatant
-RG.extend2(RG.Combatant, RG.DamageObject);
 
 /** Object representing a combat betweent two actors.  */
 RG.RogueCombat = function(att, def) { // {{{2
@@ -1365,13 +1545,16 @@ RG.RogueCombat = function(att, def) { // {{{2
         var protEquip = _def.getEquipProtection();
         var attWeapon = _att.getWeapon();
 
-        var attackPoints = _att.getAttack();
-        var defPoints    = _def.getDefense();
-        var damage       = _att.getDamage();
-        var protection   = _def.getProtection();
+        var attComp = _att.get("Combat");
+        var defComp = _def.get("Combat");
 
-        var accuracy = _att.getAccuracy();
-        var agility = _def.getAgility();
+        var attackPoints = attComp.getAttack();
+        var defPoints    = defComp.getDefense();
+        var damage       = attComp.getDamage();
+        var protection   = defComp.getProtection();
+
+        var accuracy = _att.get("Stats").getAccuracy();
+        var agility = _def.get("Stats").getAgility();
 
         // Actual hit change calculation
         var totalAttack = attackPoints + accuracy/2 + attEquip;
@@ -1384,7 +1567,7 @@ RG.RogueCombat = function(att, def) { // {{{2
         if (hitChange > Math.random()) {
             var totalDamage = damage - totalProtection;
             if (totalDamage > 0)
-                this.doDamage(_def, damage);
+                this.doDamage(_att, _def, damage);
             else
                 RG.gameMsg(_att.getName() + " fails to hurt " + _def.getName());
         }
@@ -1393,32 +1576,10 @@ RG.RogueCombat = function(att, def) { // {{{2
         }
     };
 
-    this.doDamage = function(def, dmg) {
-        def.get("Health").decrHP(dmg);
-        if (!def.get("Health").isAlive()) {
-            this.killActor(def);
-        }
-        else {
-            RG.gameMsg(_def.getName() + " got " + dmg + " damage");
-        }
-    };
-
-    this.killActor = function(actor) {
-        var level = actor.getLevel();
-        if (level.removeActor(actor)) {
-            this.giveExp(_att, _def.getExpLevel());
-            RG.gameMsg(_def.getName() + " was killed");
-            RG.POOL.emitEvent(RG.EVT_ACTOR_KILLED, {actor: actor});
-        }
-        else {
-            RG.err("Combat", "killActor", "Couldn't kill actor");
-        }
-    };
-
-    /** Give some experience points.*/
-    this.giveExp = function(att, defLevel) {
-        att.addExp(defLevel);
-        RG.checkExp(att);
+    this.doDamage = function(att, def, dmg) {
+        var dmgComp = new RG.DamageComponent(dmg, "cut");
+        dmgComp.setSource(att);
+        def.add("Damage", dmgComp);
     };
 
 }; // }}} Combat
@@ -1822,7 +1983,7 @@ RG.extend2(RG.RogueInvAndEquip, RG.Ownable);
 /** Object representing a game actor who takes actions.  */
 RG.RogueActor = function(name) { // {{{2
     RG.Locatable.call(this);
-    RG.Combatant.call(this);
+    //RG.Combatant.call(this);
     RG.Entity.call(this);
     this.setPropType("actors");
 
@@ -1834,6 +1995,11 @@ RG.RogueActor = function(name) { // {{{2
     var _invEq = new RG.RogueInvAndEquip(this);
 
     this.add("Action", new RG.ActionComponent());
+    this.add("Experience", new RG.ExperienceComponent());
+    this.add("Combat", new RG.CombatComponent());
+    this.add("Stats", new RG.StatsComponent());
+
+    //this.add("Stats", new RG.StatsComponent());
 
     this.setName = function(name) {_name = name;};
     this.getName = function() {return _name;};
@@ -1865,12 +2031,14 @@ RG.RogueActor = function(name) { // {{{2
         // Use actor brain to determine the action
         var cb = _brain.decideNextAction(obj);
         var action = null;
+
         if (cb !== null) {
             action = new RG.RogueAction(RG.ACTION_DUR, cb, {});
         }
         else {
-            action = RG.RogueAction(0, function(){}, {});
+            action = new RG.RogueAction(0, function(){}, {});
         }
+
         if (action !== null) {
             if (_brain.hasOwnProperty("energy")) action.energy = _brain.energy;
             action.actor = this;
@@ -1899,7 +2067,8 @@ RG.RogueActor = function(name) { // {{{2
 
 };
 RG.extend2(RG.RogueActor, RG.Locatable);
-RG.extend2(RG.RogueActor, RG.Combatant);
+RG.extend2(RG.RogueActor, RG.Entity);
+
 // }}} Actor
 
 /** Element is a wall or other obstacle or a feature in the map. It's not
@@ -2201,7 +2370,7 @@ RG.RogueBrain = function(actor) { // {{{2
     this.canAttack = function(x, y) {
         var actorX = _actor.getX();
         var actorY = _actor.getY();
-        var attackRange = _actor.getAttackRange();
+        var attackRange = _actor.get("Combat").getAttackRange();
         var getDist = RG.shortestDist(x, y, actorX, actorY);
         if (getDist <= attackRange) return true;
         return false;
@@ -2309,9 +2478,8 @@ RG.SummonerBrain = function(actor) {
                 var freeY = cellsAround[0].getY();
                 var summoned = RG.FACT.createMonster("Summoned",
                     {hp: 15, att: 7, def: 7});
-                summoned.setExpLevel(5);
+                summoned.get("Experience").setExpLevel(5);
                 level.addActor(summoned, freeX, freeY);
-                //RG.POOL.emitEvent(RG.EVT_ACTOR_CREATED, {actor: summoned});
                 RG.gameMsg(_actor.getName() + " summons some help");
                 this.numSummoned += 1;
                 return true;
@@ -2775,8 +2943,41 @@ RG.Factory = function() { // {{{2
         if (!RG.isNullOrUndef([hp])) {
             comb.add("Health", new RG.HealthComponent(hp));
         }
-        if (!RG.isNullOrUndef([att])) comb.setAttack(att);
-        if (!RG.isNullOrUndef([def])) comb.setAttack(def);
+        var combatComp = new RG.CombatComponent();
+
+        if (!RG.isNullOrUndef([att])) combatComp.setAttack(att);
+        if (!RG.isNullOrUndef([def])) combatComp.setAttack(def);
+
+        comb.add("Combat", combatComp);
+    };
+
+    var _dmgRe = /\s*(\d+)d(\d+)\s*(\+|-)?\s*(\d+)?/;
+    this.createDie = function(strOrArray) {
+        if (typeof strOrArray === "object") {
+            if (strOrArray.length >= 3) {
+                return new RG.Die(strOrArray[0]. strOrArray[1], strOrArray[2]);
+            }
+        }
+        else {
+            var match = _dmgRe.exec(strOrArray);
+            if (match !== null) {
+                var num = match[1];
+                var dType = match[2];
+                var mod;
+                if (!RG.isNullOrUndef([match[3], match[4]])) {
+                    if (match[3] === "+") mod = match[4];
+                    else mod = -match[4];
+                }
+                else {
+                    mod = 0;
+                }
+                return new RG.Die(num, dType, mod);
+            }
+            else {
+                RG.err("DamageObject", "setDamage", "Cannot parse: " + strOrArray);
+            }
+        }
+        return null;
     };
 
     /** Factory method for players.*/
@@ -2908,7 +3109,7 @@ RG.Factory = function() { // {{{2
                 var monster = parser.createRandomActor({
                     func: function(actor){return actor.danger <= nl + 1;}
                 });
-                monster.setExpLevel(nl + 1);
+                monster.get("Experience").setExpLevel(nl + 1);
                 level.addActor(monster, cell.getX(), cell.getY());
             }
 
@@ -2920,7 +3121,7 @@ RG.Factory = function() { // {{{2
         var bossCell = this.getFreeRandCell(lastLevel);
         var summoner = this.createMonster("Summoner", {hp: 100, att: 10, def: 10});
         summoner.setType("summoner");
-        summoner.setExpLevel(10);
+        summoner.get("Experience").setExpLevel(10);
         summoner.setBrain(new RG.SummonerBrain(summoner));
         lastLevel.addActor(summoner, bossCell.getX(), bossCell.getY());
 
@@ -3028,9 +3229,9 @@ RG.RogueObjectStubParser = function() {
     var _propToCall = {
         actors: {
             type: "setType",
-            attack: "setAttack",
-            defense: "setDefense",
-            damage: "setDamage",
+            attack: {comp: "Combat", func: "setAttack"},
+            defense: {comp: "Combat", func:"setDefense"},
+            damage: {comp: "Combat", func:"setDamage"},
             hp: {comp: "Health"},
         },
         items: {
@@ -3210,8 +3411,7 @@ RG.RogueObjectStubParser = function() {
                 var funcName = propCalls[p];
                 if (typeof funcName === "object") {
                     if (funcName.hasOwnProperty("comp")) {
-                        newObj.add(funcName.comp, 
-                            this.createComponent(funcName.comp, obj[p]));
+                        this.addCompToObj(newObj, funcName, obj[p]);
                     }
                     else {
                         for (var f in funcName) {
@@ -3251,6 +3451,27 @@ RG.RogueObjectStubParser = function() {
 
         // TODO map different props to function calls
         return newObj;
+    };
+
+    /** Adds a component to the newly created object, or update existing
+     * component if it exists already.*/
+    this.addCompToObj = function(newObj, compData, val) {
+        if (compData.hasOwnProperty("func")) {
+            var fname = compData.func;
+            var compName = compData.comp;
+            if (newObj.has(compName)) {
+                newObj.get(compName)[fname](val);
+            }
+            else { // Have to create new component
+                var comp = this.createComponent(compName);
+                comp[fname](val);
+            }
+        }
+        else {
+            newObj.add(compData.comp, 
+                this.createComponent(compData.comp, val));
+        }
+
     };
 
     this.createFromStub = function(categ, obj) {

@@ -565,11 +565,11 @@ var GameStats = React.createClass({
 
         var stats = {
             HP: player.get("Health").getHP() + "/" + player.get("Health").getMaxHP(),
-            Att: player.getAttack(),
-            Def: player.getDefense(),
-            Agi: player.getAgility(),
-            XP: player.getExp(),
-            XL: player.getExpLevel(),
+            Att: player.get("Combat").getAttack(),
+            Def: player.get("Combat").getDefense(),
+            Agi: player.get("Stats").getAgility(),
+            XP: player.get("Experience").getExp(),
+            XL: player.get("Experience").getExpLevel(),
             DL: dungeonLevel,
         };
 
