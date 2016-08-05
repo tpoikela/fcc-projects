@@ -16,7 +16,7 @@ if (typeof ROT === 'undefined' ) {
 }
 
 /** Main object of the package for encapsulating all other objects. */
-var RG = { // {{{2 
+var RG = { // {{{2
 
     IdCount: 0,
 
@@ -286,11 +286,15 @@ var RG = { // {{{2
     EVT_MSG: "EVT_MSG",
     EVT_LEVEL_CHANGED: "EVT_LEVEL_CHANGED",
 
+    EVT_ACT_COMP_ADDED: "EVT_ACT_COMP_ADDED",
+    EVT_ACT_COMP_REMOVED: "EVT_ACT_COMP_REMOVED",
+
     // Different types
     TYPE_ITEM: "items",
 
 }; /// }}} RG
 RG.cellRenderArray = RG.cellRenderVisible;
+
 
 /** Each die has number of throws, type of dice (d6, d20, d200...) and modifier
  * which is +/- X. */
@@ -517,6 +521,9 @@ RG.RogueGame = function() { // {{{2
     var _scheduler = new RG.RogueScheduler();
     var _msg = new RG.Messages();
 
+    this.systems = {};
+    this.systems["Hunger"] = new RG.HungerSystem("Hunger", ["Action", "Hunger"]);
+
     this.getMessages = function() {
         return _msg.getMessages();
     };
@@ -528,8 +535,12 @@ RG.RogueGame = function() { // {{{2
     this.shownLevel = function() {return _shownLevel;};
     this.setShownLevel = function(level) {_shownLevel = level;};
 
+    this.doGUICommand = null;
+    this.isGUICommand = null;
+    this.nextActor = null;
+
     /** Returns next actor from the scheduling queue.*/
-    this.nextActor = function() {
+    this.getNextActor = function() {
         return _scheduler.next();
     };
 
@@ -537,9 +548,13 @@ RG.RogueGame = function() { // {{{2
         return _gameOver;
     };
 
+    /** Returns player(s) of the game.*/
     this.getPlayer = function() {
-        if (_players.length > 0) {
+        if (_players.length === 1) {
             return _players[0];
+        }
+        else if (_players.length > 1) {
+            return _players;
         }
         else {
             RG.err("Game", "getPlayer", "There are no players in the game.");
@@ -551,11 +566,11 @@ RG.RogueGame = function() { // {{{2
         if (_levels.length > 0) {
             if (_levels[0].addActorToFreeCell(player)) {
                 _players.push(player);
-                _scheduler.add(player, true, 0);
                 if (_shownLevel === null) {
                     _shownLevel = _levels[0];
                 }
                 RG.debug(this, "Added a player to the Game.");
+                if (this.nextActor === null) this.nextActor = player;
                 return true;
             }
             else {
@@ -571,39 +586,30 @@ RG.RogueGame = function() { // {{{2
 
     /** Adds an actor to scheduler.*/
     this.addActor = function(actor) {
-        if (actor.getLevel() === null) {
-            RG.err("Game", "addActor", "actor has null level");
-        }
-        else {
-            _scheduler.add(actor, true, 0);
-            //console.log("Added actor " + actor.getName() + " to scheduler.");
-        }
+        _scheduler.add(actor, true, 0);
     };
 
+    /** Removes an actor from a scheduler.*/
+    this.removeActor = function(actor) {
+        _scheduler.remove(actor);
+    };
+
+    /** Adds an event to the scheduler.*/
     this.addEvent = function(gameEvent) {
         _scheduler.add(gameEvent, true, 0);
     };
 
-    this.addActorToLevel = function(actor, level) {
-        var index = _levels.indexOf(level);
-        if (index >= 0) {
-            if (_levels[0].addActorToFreeCell(actor)) {
-                _scheduler.add(actor, true, 0);
-                return true;
-            }
-            else {
-                RG.err("Game", "addActorToLevel", "Failed to add the actor.");
-            }
-        }
-        else {
-            RG.err("Game", "actorToLevel", "No level exist. Cannot add actor.");
-        }
-        return false;
-    };
-
+    /** Performs one game action.*/
     this.doAction = function(action) {
         _scheduler.setAction(action);
         action.doAction();
+        if (action.hasOwnProperty("energy")) {
+            if (action.hasOwnProperty("actor")) {
+                var actor = action.actor;
+                if (actor.has("Action"))
+                    actor.get("Action").addEnergy(action.energy);
+            }
+        }
     };
 
     /** Adds one level to the game.*/
@@ -627,6 +633,54 @@ RG.RogueGame = function() { // {{{2
     this.moveActorTo = function(actor, x, y) {
         var level = actor.getLevel();
         return level.moveActorTo(actor, x, y);
+    };
+
+    this.update = function(evt) {
+        if (!this.isGameOver()) {
+            this.clearMessages();
+
+            if (this.nextActor !== null) {
+                var code = evt.keyCode;
+                if (this.isGUICommand(code)) {
+                    this.doGUICommand(code);
+                }
+                else {
+                    this.updateGameLoop({code: code});
+                }
+            }
+
+        }
+        else {
+            this.clearMessages();
+            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "GAME OVER!"});
+
+        }
+
+    };
+
+    this.updateGameLoop = function(obj) {
+        this.playerCommand(obj);
+        this.nextActor = this.getNextActor();
+
+        // Next/act until player found, then go back waiting for key...
+        while (!this.nextActor.isPlayer() && !this.isGameOver()) {
+            var action = this.nextActor.nextAction();
+            this.doAction(action);
+            this.nextActor = this.getNextActor();
+            if (RG.isNullOrUndef([this.nextActor])) {
+                console.error("Game loop out of events! This is bad!");
+                break;
+            }
+        }
+
+        for (var s in this.systems) this.systems[s].update();
+
+    };
+
+    this.playerCommand = function(obj) {
+        var action = this.nextActor.nextAction(obj);
+        this.doAction(action);
+        this.visibleCells = this.shownLevel().exploreCells(this.nextActor);
     };
 
     /** Used by the event pool. Game receives notifications about different
@@ -654,6 +708,26 @@ RG.RogueGame = function() { // {{{2
                     "Failed to remove item from inventory.");
             }
         }
+        else if (evtName === RG.EVT_ACT_COMP_ADDED) {
+            if (args.hasOwnProperty("actor")) {
+                this.addActor(args.actor);
+            }
+            else {
+                RG.err("Game", "notify - ACT_COMP_ADDED",
+                    "No actor specified for the event.");
+            }
+        }
+        else if (evtName === RG.EVT_ACT_COMP_REMOVED) {
+            if (args.hasOwnProperty("actor")) {
+                this.removeActor(args.actor);
+            }
+            else {
+                RG.err("Game", "notify - ACT_COMP_ADDED",
+                    "No actor specified for the event.");
+            }
+
+        }
+        /*
         else if (evtName === RG.EVT_ACTOR_CREATED) {
             if (args.hasOwnProperty("actor")) {
                 this.addActor(args.actor);
@@ -663,11 +737,14 @@ RG.RogueGame = function() { // {{{2
                     "No actor specified for the event.");
             }
         }
+       */
     };
     RG.POOL.listenEvent(RG.EVT_ACTOR_CREATED, this);
     RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);
     RG.POOL.listenEvent(RG.EVT_LEVEL_CHANGED, this);
     RG.POOL.listenEvent(RG.EVT_DESTROY_ITEM, this);
+    RG.POOL.listenEvent(RG.EVT_ACT_COMP_ADDED, this);
+    RG.POOL.listenEvent(RG.EVT_ACT_COMP_REMOVED, this);
 
 }; // }}} Game
 
@@ -974,12 +1051,17 @@ RG.DamageObject = function() {
             _damage = new RG.Die(num, dType, mod);
         }
         else {
-            RG.err("Combatant", "setDamage", "Cannot parse: " + dStr);
+            RG.err("DamageObject", "setDamage", "Cannot parse: " + dStr);
         }
     };
 
-
     this.getDamage = function() {
+        if (this.hasOwnProperty("getWeapon")) {
+            var weapon = this.getWeapon();
+            if (!RG.isNullOrUndef([weapon])) {
+                return weapon.getDamage();
+            }
+        }
         return _damage.roll();
     };
 
@@ -997,6 +1079,217 @@ RG.DamageObject.prototype.toString = function() {
 };
 RG.extend2(RG.DamageObject, RG.DefenseObject);
 
+//---------------------------------------------------------------------------
+// ECS ENTITY
+//---------------------------------------------------------------------------
+
+RG.Entity = function() {
+
+    var _id = RG.Entity.prototype.idCount++;
+
+    var _comps = {};
+
+    this.getID = function() {return _id;};
+
+    this.get = function(name) {
+        if (_comps.hasOwnProperty(name)) return _comps[name];
+        return null;
+    };
+
+    this.add = function(name, comp) {
+        _comps[name] = comp;
+        comp.addCallback(this);
+        RG.POOL.emitEvent(name, {entity: this, add: true});
+    };
+
+    this.has = function(name) {
+        return _comps.hasOwnProperty(name);
+    };
+
+    this.remove = function(name) {
+        if (_comps.hasOwnProperty(name)) {
+            var comp = _comps[name];
+            comp.removeCallback(this);
+            delete _comps[name];
+            RG.POOL.emitEvent(name, {entity: this, remove: true});
+        }
+    };
+
+};
+RG.Entity.prototype.idCount = 0;
+
+//---------------------------------------------------------------------------
+// ECS COMPONENTS
+//---------------------------------------------------------------------------
+
+RG.Component = function(type) {
+
+    var _type = type;
+    var _entity = null;
+    this.getType = function() {return _type;};
+
+    this.getEntity = function() {return _entity;};
+    this.setEntity = function(entity) {
+        if (_entity === null && entity !== null) {
+            _entity = entity;
+        }
+        else if (entity === null) {
+            _entity = null;
+        }
+        else {
+            RG.err("Component", "setEntity", "Entity already set.");
+        }
+    };
+
+};
+// Called when a component is added to the entity
+RG.Component.prototype.addCallback = function(entity) {
+    this.setEntity(entity);
+    RG.POOL.emitEvent(this.getType(), {add:true, entity: entity});
+};
+
+// Called when a component is removed from the entity
+RG.Component.prototype.removeCallback = function(entity) {
+    this.setEntity(null);
+    RG.POOL.emitEvent(this.getType(), {remove:true, entity: entity});
+};
+
+
+/** Action component is added to all schedulable acting entities.*/
+RG.ActionComponent = function() {
+    RG.Component.call(this, "Action");
+
+    var _energy = 0;
+    this.getEnergy = function() {return _energy;};
+
+    this.addEnergy = function(energy) {
+        _energy += energy;
+    };
+
+    this.resetEnergy = function() {_energy = 0;};
+
+};
+RG.extend2(RG.ActionComponent, RG.Component);
+
+RG.ActionComponent.prototype.addCallback = function(entity) {
+    RG.Component.prototype.addCallback.call(this, entity);
+    RG.POOL.emitEvent(RG.EVT_ACT_COMP_ADDED, {actor: entity});
+};
+
+RG.ActionComponent.prototype.removeCallback = function(entity) {
+    RG.Component.prototype.removeCallback.call(this, entity);
+    RG.POOL.emitEvent(RG.EVT_ACT_COMP_REMOVED, {actor: entity});
+};
+
+/** Object which takes care of hunger and satiation. */
+RG.HungerComponent = function(energy) {
+    RG.Component.call(this, "Hunger");
+
+    var _currEnergy = 2000;
+    var _maxEnergy = 2000;
+
+    this.getEnergy = function() {return _currEnergy;};
+    this.getMaxEnergy = function() {return _maxEnergy;};
+
+    this.setEnergy = function(energy) {_currEnergy = energy;};
+    this.setMaxEnergy = function(energy) {_maxEnergy = energy;};
+
+    if (!RG.isNullOrUndef([energy])) {
+        _currEnergy = energy;
+        _maxEnergy = energy;
+    }
+
+    this.addEnergy = function(energy) {
+        _currEnergy += energy;
+        if (_currEnergy > _maxEnergy) _currEnergy = _maxEnergy;
+    };
+
+    this.decrEnergy = function(energy) {
+        _currEnergy -= energy;
+    };
+
+    this.isStarving = function() {
+        return _currEnergy < 100;
+    };
+
+    this.isFull = function() {return _currEnergy === _maxEnergy;};
+
+};
+RG.extend2(RG.HungerComponent, RG.Component);
+
+//---------------------------------------------------------------------------
+// ECS SYSTEMS
+//---------------------------------------------------------------------------
+
+/** Base class for all systems in ECS framework.*/
+RG.System = function(type, compTypes) {
+
+    this.type = type;
+    this.compTypes = compTypes; // Required comps in entity
+    this.entities = {};
+
+    this.addEntity = function(entity) {
+        this.entities[entity.getID()] = entity;
+    };
+
+    this.removeEntity = function(entity) {
+        delete this.entities[entity.getID()];
+    };
+
+    this.notify = function(evtName, obj) {
+        if (obj.hasOwnProperty("add")) {
+            if (this.hasCompTypes(obj.entity))
+                this.addEntity(obj.entity);
+        }
+        else if (obj.hasOwnProperty("remove")) {
+            this.removeEntity(obj.entity);
+        }
+    };
+
+    this.validateNotify = function(obj) {
+        if (obj.hasOwnProperty("remove")) return true;
+        if (obj.hasOwnProperty("add")) return true;
+        return false;
+    };
+
+    /** Returns true if entity has all required component types.*/
+    this.hasCompTypes = function(entity) {
+        for (var i = 0; i < compTypes.length; i++) {
+            if (! entity.has(compTypes[i])) return false;
+        }
+        return true;
+    };
+
+    for (var i = 0; i < this.compTypes.length; i++) {
+        RG.POOL.listenEvent(this.compTypes[i], this);
+    }
+
+};
+
+/** Processes actor with hunger component.*/
+RG.HungerSystem = function(type, compTypes) {
+    RG.System.call(this, type, compTypes);
+
+    this.update = function() {
+        for (var e in this.entities) {
+            var ent = this.entities[e];
+            var hungerComp = ent.get("Hunger");
+            var actionComp = ent.get("Action");
+            hungerComp.decrEnergy(actionComp.getEnergy());
+            actionComp.resetEnergy();
+            if (hungerComp.isStarving()) {
+                if (ent.has("Health")) ent.get("Health").decrHP(1);
+
+            }
+        }
+    };
+
+};
+RG.extend2(RG.HungerSystem, RG.System);
+
+//---------------------------------------------------------------------------
+// COMBAT RELATED CLASSES
+//---------------------------------------------------------------------------
 
 /** Combatant object can be used for all actors and objects involved in
  * combat. */
@@ -1049,15 +1342,16 @@ RG.RogueCombat = function(att, def) { // {{{2
     var _def = def;
 
     this.fight = function() {
-        var attEquip = _att.getEquipAttack();
-        var defEquip = _def.getEquipDefense();
+
+        var attEquip  = _att.getEquipAttack();
+        var defEquip  = _def.getEquipDefense();
         var protEquip = _def.getEquipProtection();
         var attWeapon = _att.getWeapon();
 
         var attackPoints = _att.getAttack();
-        var defPoints = _def.getDefense();
-        var damage = _att.getDamage();
-        var protection = _def.getProtection();
+        var defPoints    = _def.getDefense();
+        var damage       = _att.getDamage();
+        var protection   = _def.getProtection();
 
         var accuracy = _att.getAccuracy();
         var agility = _def.getAgility();
@@ -1512,14 +1806,18 @@ RG.extend2(RG.RogueInvAndEquip, RG.Ownable);
 RG.RogueActor = function(name) { // {{{2
     RG.Locatable.call(this);
     RG.Combatant.call(this, RG.DEFAULT_HP);
+    RG.Entity.call(this);
     this.setPropType("actors");
 
+    // Member vars
     var _brain = new RG.RogueBrain(this);
     var _isPlayer = false;
     var _fovRange = RG.FOV_RANGE;
-
     var _name = name;
     var _invEq = new RG.RogueInvAndEquip(this);
+
+    var actionComponent = new RG.ActionComponent();
+    this.add("Action", actionComponent);
 
     this.setName = function(name) {_name = name;};
     this.getName = function() {return _name;};
@@ -1551,11 +1849,14 @@ RG.RogueActor = function(name) { // {{{2
         // Use actor brain to determine the action
         var cb = _brain.decideNextAction(obj);
         if (cb !== null) {
-            return new RG.RogueAction(RG.ACTION_DUR, cb, {});
+            var action = new RG.RogueAction(RG.ACTION_DUR, cb, {});
         }
         else {
-            return new RG.RogueAction(0, function(){}, {});
+            var action = RG.RogueAction(0, function(){}, {});
         }
+        if (_brain.hasOwnProperty("energy")) action.energy = _brain.energy;
+        action.actor = this;
+        return action;
     };
 
     this.getFOVRange = function() { return _fovRange;};
@@ -1627,7 +1928,7 @@ RG.RogueStairsElement = function(down, srcLevel, targetLevel) {
             var newY = _targetStairs.getY();
             if (_srcLevel.removeActor(actor)) {
                 if (_targetLevel.addActor(actor, newX, newY)) {
-                    RG.POOL.emitEvent(RG.EVT_LEVEL_CHANGED, 
+                    RG.POOL.emitEvent(RG.EVT_LEVEL_CHANGED,
                         {target: _targetLevel, src: _srcLevel, actor: actor});
                     return true;
                 }
@@ -1655,6 +1956,11 @@ RG.RogueAction = function(dur, cb, obj) { // {{{2
 
     var _duration = dur;
     var _cb = cb; // Action callback
+    var _energy = 0;
+
+    this.setEnergy = function(en) {_energy = en;};
+    this.getEnergy = function() {return _energy;};
+
 
     this.getDuration = function() {
         return _duration;
@@ -1681,6 +1987,8 @@ RG.PlayerBrain = function(actor) { // {{{2
     this.addGUICallback = function(code, callback) {
         _guiCallbacks[code] = callback;
     };
+
+    this.energy = 1;
 
     this.decideNextAction = function(obj) {
         var code = obj.code;
@@ -1980,11 +2288,11 @@ RG.SummonerBrain = function(actor) {
             if (cellsAround.length > 0) {
                 var freeX = cellsAround[0].getX();
                 var freeY = cellsAround[0].getY();
-                var summoned = RG.FACT.createMonster("Summoned", 
+                var summoned = RG.FACT.createMonster("Summoned",
                     {hp: 15, att: 7, def: 7});
                 summoned.setExpLevel(5);
                 level.addActor(summoned, freeX, freeY);
-                RG.POOL.emitEvent(RG.EVT_ACTOR_CREATED, {actor: summoned});
+                //RG.POOL.emitEvent(RG.EVT_ACTOR_CREATED, {actor: summoned});
                 RG.gameMsg(_actor.getName() + " summons some help");
                 this.numSummoned += 1;
                 return true;
@@ -2006,7 +2314,7 @@ RG.SummonerBrain = function(actor) {
         var cells = [];
         for (var xx = x-1; xx <= x+1; xx++) {
             for (var yy = y-1; yy <= y+1; yy++) {
-                if (map.hasXY(xx, yy)) 
+                if (map.hasXY(xx, yy))
                     cells.push(map.getCell(xx, yy));
             }
         }
@@ -2035,7 +2343,7 @@ RG.RogueGameEvent = function(dur, cb) {
 
     this.isEvent = true;
 
-    /** Clunky, but must implement for the scheduler.*/
+    /** Clunky for events, but must implement for the scheduler.*/
     this.isPlayer = function(){return false;};
 
     this.nextAction = function() {
@@ -2160,7 +2468,7 @@ RG.RogueMapGen = function() { // {{{2
 
 /** Object representing one game cell. It can hold actors, items, traps or
  * elements. */
-RG.MapCell = function(x, y, elem) { // {{{2 
+RG.MapCell = function(x, y, elem) { // {{{2
 
     var _baseElem = elem;
     var _x   = x;
@@ -2549,7 +2857,11 @@ RG.Factory = function() { // {{{2
             var nLevelType = Math.floor(Math.random() * maxLevelType);
             var level = this.createLevel(levels[nLevelType], cols, rows);
             game.addLevel(level);
-            if (nl === 0) game.addPlayer(player);
+            if (nl === 0) {
+                var hunger = new RG.HungerComponent(2000);
+                player.add("Hunger", hunger);
+                game.addPlayer(player);
+            }
 
             var numFree = level.getMap().getFree().length;
             var monstersPerLevel = Math.round(numFree / sqrPerMonster);
@@ -2576,7 +2888,6 @@ RG.Factory = function() { // {{{2
                 });
                 monster.setExpLevel(nl + 1);
                 level.addActor(monster, cell.getX(), cell.getY());
-                game.addActor(monster);
             }
 
             allLevels.push(level);
@@ -2590,7 +2901,6 @@ RG.Factory = function() { // {{{2
         summoner.setExpLevel(10);
         summoner.setBrain(new RG.SummonerBrain(summoner));
         lastLevel.addActor(summoner, bossCell.getX(), bossCell.getY());
-        game.addActor(summoner);
 
         var extraLevel = this.createLevel("arena", cols, rows);
 
@@ -2853,7 +3163,7 @@ RG.RogueObjectStubParser = function() {
      * been parser before). */
     this.createActualObj = function(categ, name) {
         if (!this.dbExists(categ, name)) {
-            RG.err("ObjectParser", "createActualObj", 
+            RG.err("ObjectParser", "createActualObj",
                 "Categ: " + categ + " Name: " + name + " doesn't exist.");
             return null;
         }
@@ -2915,7 +3225,7 @@ RG.RogueObjectStubParser = function() {
     this.createNewObject = function(categ, obj) {
         switch(categ) {
             case "actors": return new RG.RogueActor(obj.name);
-            case RG.TYPE_ITEM: 
+            case RG.TYPE_ITEM:
                 var subtype = obj.type;
                 switch(subtype) {
                     case "armour": return new RG.RogueItemArmour(obj.name);
@@ -2925,7 +3235,7 @@ RG.RogueObjectStubParser = function() {
                 }
                 return new RG.RogueItem(obj.name); // generic, useless
                 break;
-            case "levels": 
+            case "levels":
                 return RG.FACT.createLevel(obj.type, obj.cols, obj.rows);
             case "dungeons": break;
             default: break;

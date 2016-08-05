@@ -93,11 +93,7 @@ var RoguelikeTop = React.createClass({
 
     getInitialState: function() {
         this.initGUICommandTable();
-        this.game = RG.FACT.createFCCGame(this.gameConf);
-        RG.game = this.game;
-        var player = this.game.getPlayer();
-        this.nextActor = player;
-        this.visibleCells = player.getLevel().exploreCells(player);
+        this.createNewGame();
         RG.POOL.listenEvent(RG.EVT_LEVEL_CHANGED, this);
         return {
             render: true,
@@ -105,6 +101,15 @@ var RoguelikeTop = React.createClass({
             boardClassName: "game-board-char-view",
             mapShown: false,
         };
+    },
+
+    createNewGame: function() {
+        this.game = RG.FACT.createFCCGame(this.gameConf);
+        RG.game = this.game;
+        this.game.doGUICommand = this.doGUICommand;
+        this.game.isGUICommand = this.isGUICommand;
+        var player = this.game.getPlayer();
+        this.visibleCells = player.getLevel().exploreCells(player);
     },
 
     /** When a cell is clicked, shows some debug info. */
@@ -119,11 +124,7 @@ var RoguelikeTop = React.createClass({
 
     /** Called when "Start" button is clicked to create a new game.*/
     newGame: function(evt) {
-        this.game = RG.FACT.createFCCGame(this.gameConf);
-        RG.game = this.game;
-        var player = this.game.getPlayer();
-        this.nextActor = player;
-        this.visibleCells = player.getLevel().exploreCells(player);
+        this.createNewGame();
         this.setState({render: true, renderFullScreen: true});
     },
 
@@ -144,56 +145,9 @@ var RoguelikeTop = React.createClass({
 
     /** Listens for player key presses and handles them.*/
     handleKeyDown: function(evt) {
-        var game = this.game;
-
-        if (!game.isGameOver()) {
-            game.clearMessages();
-
-            if (this.nextActor !== null) {
-                var code = evt.keyCode;
-                if (this.isGUICommand(code)) {
-                    this.doGUICommand(code);
-                }
-                else {
-                    this.updateGameLoop({code: code});
-                }
-                this.setState({render: true, renderFullScreen: false});
-            }
-
-        }
-        else {
-            game.clearMessages();
-            RG.POOL.emitEvent(RG.EVT_MSG, {msg: "GAME OVER!"});
-            this.setState({render: true, renderFullScreen: false});
-        }
-    },
-
-    /** Updates the game loop. Goes through one player command and loops other
-     * actors till the player is found again.*/
-    updateGameLoop: function(obj) {
-        var game = this.game;
-        this.playerCommand(obj);
-        this.nextActor = game.nextActor();
-
-        // Next/act until player found, then go back waiting for key...
-        while (!this.nextActor.isPlayer() && !game.isGameOver()) {
-            var action = this.nextActor.nextAction();
-            game.doAction(action);
-            this.nextActor = game.nextActor();
-            if (RG.isNullOrUndef([this.nextActor])) {
-                console.error("Game loop out of events! This is bad!");
-                break;
-            }
-        }
-
-    },
-
-    /** Performs time consuming player command.*/
-    playerCommand: function(obj) {
-        var game = this.game;
-        var action = this.nextActor.nextAction(obj);
-        game.doAction(action);
-        this.visibleCells = game.shownLevel().exploreCells(this.nextActor);
+        this.game.update(evt);
+        this.visibleCells = this.game.visibleCells;
+        this.setState({render: true, renderFullScreen: false});
     },
 
     render: function() {
@@ -618,6 +572,10 @@ var GameStats = React.createClass({
             XL: player.getExpLevel(),
             DL: dungeonLevel,
         };
+
+        if (player.has("Hunger")) {
+            stats.E = player.get("Hunger").getEnergy();
+        }
 
         var statsHTML = [];
         var index = 0;
