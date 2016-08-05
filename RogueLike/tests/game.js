@@ -164,7 +164,7 @@ describe('How AI brain works', function() {
         var brain = new RG.RogueBrain(mons1);
         var seenCells = level.getMap().getVisibleCells(mons1);
         expect(seenCells.length).to.not.equal(0);
-        var playerCell = brain.findPlayerCell(seenCells);
+        var playerCell = brain.findEnemyCell(seenCells);
         expect(playerCell.hasProp("actors")).to.equal(true);
 
         var pathCells = brain.getShortestPathTo(playerCell);
