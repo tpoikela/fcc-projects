@@ -524,11 +524,13 @@ RG.RogueGame = function() { // {{{2
     var _scheduler = new RG.RogueScheduler();
     var _msg = new RG.Messages();
 
-    // Systems updated after each action
-    this.systemOrder = ["Damage", "ExpPoints"];
+    // These systems updated after each action
+    this.systemOrder = ["Attack", "Damage", "ExpPoints"];
     this.systems = {};
+    this.systems["Attack"] = new RG.AttackSystem("Attack", ["Attack"]);
     this.systems["Damage"] = new RG.DamageSystem("Damage", ["Damage", "Health"]);
-    this.systems["ExpPoints"] = new RG.ExpPointsSystem("ExpPoints", ["ExpPoints", "Experience"]);
+    this.systems["ExpPoints"] = new RG.ExpPointsSystem("ExpPoints", 
+        ["ExpPoints", "Experience"]);
 
     // Systems updated once each game loop
     this.loopSystems = {};
@@ -668,6 +670,8 @@ RG.RogueGame = function() { // {{{2
 
     };
 
+    /** Updates game for one player command, and a number of AI commands until
+     * next player command.*/
     this.updateGameLoop = function(obj) {
         this.playerCommand(obj);
         this.nextActor = this.getNextActor();
@@ -972,8 +976,8 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         var cell = _map.getCell(x, y);
         if (cell.hasProp("actors")) {
             var target = cell.getProp("actors")[0];
-            var combat = new RG.RogueCombat(actor, target);
-            combat.fight();
+            var attackComp = new RG.AttackComponent(target);
+            actor.add("Attack", attackComp);
             return true;
         }
         return true;
@@ -1359,6 +1363,19 @@ RG.StatsComponent = function() {
 };
 RG.extend2(RG.StatsComponent, RG.Component);
 
+
+/** Attack component is added to the actor when it attacks.*/
+RG.AttackComponent = function(target) {
+    RG.Component.call(this, "Attack");
+
+    var _target = target;
+
+    this.setTarget = function(t) {_target = t;};
+    this.getTarget = function() {return _target;};
+
+};
+RG.extend2(RG.AttackComponent, RG.Component);
+
 //---------------------------------------------------------------------------
 // ECS SYSTEMS
 //---------------------------------------------------------------------------
@@ -1408,7 +1425,7 @@ RG.System = function(type, compTypes) {
 
 };
 
-/** Processes actor with hunger component.*/
+/** Processes entities with hunger component.*/
 RG.HungerSystem = function(type, compTypes) {
     RG.System.call(this, type, compTypes);
 
@@ -1428,6 +1445,63 @@ RG.HungerSystem = function(type, compTypes) {
 
 };
 RG.extend2(RG.HungerSystem, RG.System);
+
+/** Processes entities with attack-related components.*/
+RG.AttackSystem = function(type, compTypes) {
+    RG.System.call(this, type, compTypes);
+
+    this.update = function() {
+        for (var e in this.entities) {
+            var ent = this.entities[e];
+
+            var _att = ent;
+            var _def = ent.get("Attack").getTarget();
+
+            var attEquip  = _att.getEquipAttack();
+            var defEquip  = _def.getEquipDefense();
+            var protEquip = _def.getEquipProtection();
+            var attWeapon = _att.getWeapon();
+
+            var attComp = _att.get("Combat");
+            var defComp = _def.get("Combat");
+
+            var attackPoints = attComp.getAttack();
+            var defPoints    = defComp.getDefense();
+            var damage       = attComp.getDamage();
+            var protection   = defComp.getProtection();
+
+            var accuracy = _att.get("Stats").getAccuracy();
+            var agility = _def.get("Stats").getAgility();
+
+            // Actual hit change calculation
+            var totalAttack = attackPoints + accuracy/2 + attEquip;
+            var totalDefense = defPoints + agility/2 + defEquip;
+            var totalProtection = protection + protEquip;
+            var hitChange = totalAttack / (totalAttack + totalDefense);
+
+            RG.gameMsg(_att.getName() + " attacks " + _def.getName());
+            _def.addEnemy(_att);
+            if (hitChange > Math.random()) {
+                var totalDamage = damage - totalProtection;
+                if (totalDamage > 0)
+                    this.doDamage(_att, _def, damage);
+                else
+                    RG.gameMsg(_att.getName() + " fails to hurt " + _def.getName());
+            }
+            else {
+                RG.gameMsg(_att.getName() + " misses " + _def.getName());
+            }
+            ent.remove("Attack");
+        }
+    }
+
+    this.doDamage = function(att, def, dmg) {
+        var dmgComp = new RG.DamageComponent(dmg, "cut");
+        dmgComp.setSource(att);
+        def.add("Damage", dmgComp);
+    };
+};
+RG.extend2(RG.AttackSystem, RG.System);
 
 /** Processes entities with damage component.*/
 RG.DamageSystem = function(type, compTypes) {
@@ -1474,7 +1548,7 @@ RG.DamageSystem = function(type, compTypes) {
 };
 RG.extend2(RG.DamageSystem, RG.System);
 
-/** Called for entities which gained experience recently.*/
+/** Called for entities which gained experience points recently.*/
 RG.ExpPointsSystem = function(type, compTypes) {
     RG.System.call(this, type, compTypes);
 
@@ -1485,8 +1559,6 @@ RG.ExpPointsSystem = function(type, compTypes) {
             var expComp = ent.get("Experience");
             var expPoints = ent.get("ExpPoints");
 
-            console.log("Points coming " + expPoints.getExpPoints());
-
             var expLevel = expComp.getExpLevel();
             var exp = expComp.getExp();
             exp += expPoints.getExpPoints();
@@ -1496,7 +1568,8 @@ RG.ExpPointsSystem = function(type, compTypes) {
             for (var i = 1; i <= nextLevel; i++) {
                 reqExp += i * 10;
             }
-            if (exp >= reqExp) {
+
+            if (exp >= reqExp) { // Required exp points exceeded
 
                 expComp.setExpLevel(nextLevel);
 
@@ -1527,62 +1600,6 @@ RG.ExpPointsSystem = function(type, compTypes) {
 };
 
 RG.extend2(RG.ExpPointsSystem, RG.System);
-
-//---------------------------------------------------------------------------
-// COMBAT RELATED CLASSES
-//---------------------------------------------------------------------------
-
-/** Object representing a combat betweent two actors.  */
-RG.RogueCombat = function(att, def) { // {{{2
-
-    var _att = att;
-    var _def = def;
-
-    this.fight = function() {
-
-        var attEquip  = _att.getEquipAttack();
-        var defEquip  = _def.getEquipDefense();
-        var protEquip = _def.getEquipProtection();
-        var attWeapon = _att.getWeapon();
-
-        var attComp = _att.get("Combat");
-        var defComp = _def.get("Combat");
-
-        var attackPoints = attComp.getAttack();
-        var defPoints    = defComp.getDefense();
-        var damage       = attComp.getDamage();
-        var protection   = defComp.getProtection();
-
-        var accuracy = _att.get("Stats").getAccuracy();
-        var agility = _def.get("Stats").getAgility();
-
-        // Actual hit change calculation
-        var totalAttack = attackPoints + accuracy/2 + attEquip;
-        var totalDefense = defPoints + agility/2 + defEquip;
-        var totalProtection = protection + protEquip;
-        var hitChange = totalAttack / (totalAttack + totalDefense);
-
-        RG.gameMsg(_att.getName() + " attacks " + _def.getName());
-        _def.addEnemy(_att);
-        if (hitChange > Math.random()) {
-            var totalDamage = damage - totalProtection;
-            if (totalDamage > 0)
-                this.doDamage(_att, _def, damage);
-            else
-                RG.gameMsg(_att.getName() + " fails to hurt " + _def.getName());
-        }
-        else {
-            RG.gameMsg(_att.getName() + " misses " + _def.getName());
-        }
-    };
-
-    this.doDamage = function(att, def, dmg) {
-        var dmgComp = new RG.DamageComponent(dmg, "cut");
-        dmgComp.setSource(att);
-        def.add("Damage", dmgComp);
-    };
-
-}; // }}} Combat
 
 /** Models an item. Each item is ownable by someone. During game, there are no
  * items with null owners. Ownership shouldn't be ever set to null. */
