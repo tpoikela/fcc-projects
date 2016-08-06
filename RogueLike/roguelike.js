@@ -366,6 +366,15 @@ RG.Locatable = function() { // {{{2
         _x = x;
         _y = y;
     };
+    /** Sets the level of this locatable object.*/
+    this.setLevel = function(level) {
+        _level = level;
+        RG.nullOrUndefError(this, "arg |level|", level);
+    };
+
+    this.getLevel = function() {
+        return _level;
+    };
 
     /** Returns true if object is located at a position on a level.*/
     this.isLocated = function() {
@@ -380,15 +389,6 @@ RG.Locatable = function() { // {{{2
         return true;
     };
 
-    /** Sets the level of this locatable object.*/
-    this.setLevel = function(level) {
-        _level = level;
-        RG.nullOrUndefError(this, "arg |level|", level);
-    };
-
-    this.getLevel = function() {
-        return _level;
-    };
 
 
 }; // }}} Locatable
@@ -1360,6 +1360,14 @@ RG.AttackComponent = function(target) {
 };
 RG.extend2(RG.AttackComponent, RG.Component);
 
+RG.MoveComponent = function(x, y level) {
+    RG.Component.call(this, "Attack");
+
+    var _x = x, _y = y, _level = level;
+
+
+};
+RG.extend2(RG.MoveComponent, RG.Component);
 //---------------------------------------------------------------------------
 // ECS SYSTEMS
 //---------------------------------------------------------------------------
