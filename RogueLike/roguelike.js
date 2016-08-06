@@ -298,7 +298,6 @@ var RG = { // {{{2
 }; /// }}} RG
 RG.cellRenderArray = RG.cellRenderVisible;
 
-
 /** Each die has number of throws, type of dice (d6, d20, d200...) and modifier
  * which is +/- X. */
 RG.Die = function(num, dice, mod) {
@@ -317,7 +316,6 @@ RG.Die = function(num, dice, mod) {
     this.toString = function() {
         var sign = "+";
         if (mod < 0) sign = "-";
-        //console.log("Returning " + _num + "d" + _dice + " " + _mod);
         return _num + "d" + _dice + " " + sign + " " + _mod;
     };
 };
@@ -350,7 +348,6 @@ RG.TypedObject = function(propType, type) {
 };
 
 RG.TypedObject.prototype.types = ["actors", "items", "traps", "elements"];
-
 
 /** This object is used by all locatable objects in the game.  */
 RG.Locatable = function() { // {{{2
@@ -970,19 +967,6 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         return false;
     };
 
-
-    /** Given actor attacks square x,y. Returns true if successful.*/
-    this.attackWith = function(actor, x, y) {
-        var cell = _map.getCell(x, y);
-        if (cell.hasProp("actors")) {
-            var target = cell.getProp("actors")[0];
-            var attackComp = new RG.AttackComponent(target);
-            actor.add("Attack", attackComp);
-            return true;
-        }
-        return true;
-    };
-
     /** Removes given actor from level. Returns true if successful.*/
     this.removeActor = function(actor) {
         var index = _p.actors.indexOf(actor);
@@ -1324,7 +1308,7 @@ RG.CombatComponent = function() {
     this.setDefense = function(defense) { _defense = defense; };
 
     this.getProtection = function() {return _protection;};
-    this.setProtection = function(prot) {return _prot;};
+    this.setProtection = function(prot) {_protection = prot;};
 
     this.getDamage = function() {
         // TODO add weapon effects
@@ -1575,7 +1559,7 @@ RG.ExpPointsSystem = function(type, compTypes) {
 
                 // Increase max HP
                 if (ent.has("Health")) {
-                    var hComp = actor.get("Health");
+                    var hComp = ent.get("Health");
                     hComp.setMaxHP(hComp.getMaxHP() + 5);
                     hComp.setHP(hComp.getHP() + 5);
                 }
@@ -1590,10 +1574,9 @@ RG.ExpPointsSystem = function(type, compTypes) {
                     }
                     // TODO add something to damage roll
                 }
-                RG.gameMsg(actor.getName() + " advanced to level " + nextLevel);
+                RG.gameMsg(ent.getName() + " advanced to level " + nextLevel);
             }
             ent.remove("ExpPoints");
-
         }
     };
 
@@ -1651,6 +1634,21 @@ RG.RogueItemFood = function(name) {
 
     this.setEnergy = function(energy) {_energy = energy;};
     this.getEnergy = function() {return _energy;};
+
+    /** Uses (eats) the food item.*/
+    this.useItem = function(obj) {
+        if (obj.hasOwnProperty("target")) {
+            var target = obj.target;
+            if (target.has("Hunger")) {
+                target.get("Hunger").addEnergy(_energy);
+                var msg = {item: this};
+                RG.POOL.emitEvent(RG.EVT_DESTROY_ITEM, msg);
+            }
+        }
+        else {
+            RG.err("ItemFood", "useItem", "No target given in obj.");
+        }
+    };
 
 };
 RG.extend2(RG.RogueItemFood, RG.RogueItem);
@@ -2000,7 +1998,6 @@ RG.extend2(RG.RogueInvAndEquip, RG.Ownable);
 /** Object representing a game actor who takes actions.  */
 RG.RogueActor = function(name) { // {{{2
     RG.Locatable.call(this);
-    //RG.Combatant.call(this);
     RG.Entity.call(this);
     this.setPropType("actors");
 
@@ -2015,8 +2012,6 @@ RG.RogueActor = function(name) { // {{{2
     this.add("Experience", new RG.ExperienceComponent());
     this.add("Combat", new RG.CombatComponent());
     this.add("Stats", new RG.StatsComponent());
-
-    //this.add("Stats", new RG.StatsComponent());
 
     this.setName = function(name) {_name = name;};
     this.getName = function() {return _name;};
@@ -2251,7 +2246,9 @@ RG.PlayerBrain = function(actor) { // {{{2
             }
             else if (level.getMap().getCell(x,y).hasProp("actors")) {
                 return function() {
-                    level.attackWith(_actor, x, y);
+                    var target = level.getMap().getCell(x, y).getProp("actors")[0];
+                    var attackComp = new RG.AttackComponent(target);
+                    _actor.add("Attack", attackComp);
                 };
             }
         }
@@ -2339,7 +2336,10 @@ RG.RogueBrain = function(actor) { // {{{2
         var playY = enemyCell.getY();
         if (this.canAttack(playX, playY)) {
             return function() {
-                level.attackWith(_actor, playX, playY);
+                var cell = level.getMap().getCell(playX, playY);
+                var target = cell.getProp("actors")[0];
+                var attackComp = new RG.AttackComponent(target);
+                _actor.add("Attack", attackComp);
             };
         }
         else { // Move closer
