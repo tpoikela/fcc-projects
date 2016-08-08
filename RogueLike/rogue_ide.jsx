@@ -48,11 +48,11 @@ var RoguelikeTop = React.createClass({
 
     // Simple configuration for the game
     gameConf: {
-        cols: 30,
-        rows: 30,
+        cols: 100,
+        rows: 100,
         levels : 2,
-        sqrPerMonster: 10,
-        sqrPerItem: 30,
+        sqrPerMonster: 20,
+        sqrPerItem: 50,
     },
 
     forceRender: function() {
