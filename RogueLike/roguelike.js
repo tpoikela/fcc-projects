@@ -127,16 +127,24 @@ var RG = { // {{{2
         return "."; // Returned for floor
     },
 
-    /** Returns shortest distance between two points.*/
-    shortestDist: function(x0, y0, x1, y1) {
+    /** Returns shortest path between two points.*/
+    getShortestPath: function(x0, y0, x1, y1) {
         var coords = [];
         var result = 0;
         var passableCallback = function(x, y) {return true;};
-        var finder = new ROT.Path.Dijkstra(x0, y0, passableCallback);
-        finder.compute(x1, y1, function(x, y) {
-            ++result;
+        var finder = new ROT.Path.Dijkstra(x1, y1, passableCallback);
+        finder.compute(x0, y0, function(x, y) {
+            coords.push({x: x, y: y});
+            //console.log("PATH: " + x + ", " + y);
         });
-        return result - 1; // Subtract one because starting cell included
+        //console.log("Path is " + coords);
+        return coords;
+    },
+
+    /** Returns shortest distance between two points.*/
+    shortestDist: function(x0, y0, x1, y1) {
+        var coords = this.getShortestPath(x0, y0, x1, y1);
+        return coords.length - 1; // Subtract one because starting cell included
     },
 
     addCellStyle: function(prop, type, className) {
@@ -147,7 +155,6 @@ var RG = { // {{{2
 
     addCharStyle: function(prop, type, charName) {
         if (this.charStyles.hasOwnProperty(prop)) {
-            //console.log("Adding charStyle: " + prop + ", |" + type + "| is " + charName);
             this.charStyles[prop][type] = charName;
         }
     },
@@ -522,9 +529,11 @@ RG.RogueGame = function() { // {{{2
     var _msg = new RG.Messages();
 
     // These systems updated after each action
-    this.systemOrder = ["Attack", "Damage", "ExpPoints"];
+    this.systemOrder = ["Attack", "Missile", "Movement", "Damage", "ExpPoints"];
     this.systems = {};
     this.systems["Attack"] = new RG.AttackSystem("Attack", ["Attack"]);
+    this.systems["Missile"] = new RG.MissileSystem("Missile", ["Missile"]);
+    this.systems["Movement"] = new RG.MovementSystem("Movement", ["Movement"]);
     this.systems["Damage"] = new RG.DamageSystem("Damage", ["Damage", "Health"]);
     this.systems["ExpPoints"] = new RG.ExpPointsSystem("ExpPoints", 
         ["ExpPoints", "Experience"]);
@@ -938,35 +947,6 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         return false;
     };
 
-    /** Moves actor to x,y if possible and returns true. Returns false
-     * otherwise.*/
-    this.moveActorTo = function(actor, x, y) {
-        var index = _p.actors.indexOf(actor);
-        var cell = _map.getCell(x, y);
-        RG.debug(this, "moveActorTo: Index is " + index);
-        if (cell.isFree()) {
-            if (index >= 0) {
-                var xOld = actor.getX();
-                var yOld = actor.getY();
-                RG.debug(this, "Trying to move actor from " + xOld + ", " + yOld);
-
-                if (_map.removeProp(xOld, yOld, "actors", actor)) {
-                    _map.setProp(x, y, "actors", actor);
-                    actor.setXY(x, y);
-                    if (actor.isPlayer()) this.checkMessageEmits(cell);
-                    return true;
-                }
-                else {
-                    RG.err("Level", "moveActorTo", "Couldn't remove actor.");
-                }
-            }
-        }
-        else {
-            RG.debug(this, "Cell wasn't free at " + x + ", " + y);
-        }
-        return false;
-    };
-
     /** Removes given actor from level. Returns true if successful.*/
     this.removeActor = function(actor) {
         var index = _p.actors.indexOf(actor);
@@ -996,20 +976,6 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     /** Returns all explored cells in the map.*/
     this.getExploredCells = function() {
         return _map.getExploredCells();
-    };
-
-    //----------------------------------------------------------
-    // MESSAGING FUNCTIONS
-    //----------------------------------------------------------
-
-    // If player moved to the square, checks if any messages must be emitted.
-    this.checkMessageEmits = function(cell) {
-        if (cell.hasStairs()) RG.gameMsg("You see stairs here");
-        if (cell.hasProp("items")) {
-            var items = cell.getProp("items");
-            if (items.length > 1) RG.gameMsg("There are several items here");
-            else RG.gameMsg(items[0].getName() + " is on the floor");
-        }
     };
 
 }; // }}} Level
@@ -1360,14 +1326,106 @@ RG.AttackComponent = function(target) {
 };
 RG.extend2(RG.AttackComponent, RG.Component);
 
-RG.MoveComponent = function(x, y level) {
-    RG.Component.call(this, "Attack");
+RG.MovementComponent = function(x, y, level) {
+    RG.Locatable.call(this);
+    RG.Component.call(this, "Movement");
 
-    var _x = x, _y = y, _level = level;
+    this.setXY(x, y);
+    this.setLevel(level);
 
 
 };
-RG.extend2(RG.MoveComponent, RG.Component);
+RG.extend2(RG.MovementComponent, RG.Locatable);
+RG.extend2(RG.MovementComponent, RG.Component);
+
+
+RG.MissileComponent = function(source) {
+    RG.Component.call(this, "Missile");
+
+    var _x = source.getX();
+    var _y = source.getY();
+    var _source = source;
+    var _level = source.getLevel();
+    var _isFlying = true;
+
+    var _targetX = null;
+    var _targetY = null;
+
+    var _attack = 0;
+    var _dmg = 0;
+
+    var _path = []; // Flying path for the missile
+    var _path_iter = -1;
+
+    this.getX = function() {return _x;};
+    this.getY = function() {return _y;};
+    this.getSource = function() {return _source;};
+    this.getLevel = function() {return _level;};
+
+    this.isFlying = function() {return _isFlying;};
+    this.stopMissile = function() {_isFlying = false;};
+
+    this.getAttack = function() {return _attack;};
+    this.setAttack = function(att) {_attack = att;};
+    this.getDamage = function() {return _dmg;};
+    this.setDamage = function(dmg) {_dmg = dmg;};
+
+    this.setTargetXY = function(x, y) {
+        _path = RG.getShortestPath(_x, _y, x, y);
+        _targetX = x;
+        _targetY = y;
+        if (_path.length > 0) _path_iter = 0;
+    };
+
+    this.getTargetX = function() {return _targetX;};
+    this.getTargetY = function() {return _targetY;};
+
+    /** Returns true if missile has reached its target map cell.*/
+    this.inTarget = function() {
+        return _x === _targetX && _y === _targetY;
+    };
+
+    var iteratorValid = function() {
+        return _path_iter >= 0 && _path_iter < _path.length;
+    };
+
+    var setValuesFromIterator = function() {
+        var coord = _path[_path_iter];
+        _x = coord.x;
+        _y = coord.y;
+    };
+
+    this.first = function() {
+        if (iteratorValid()) {
+            _path_iter = 0;
+            setValuesFromIterator();
+        }
+        return null;
+    };
+
+    /** Returns the next cell in missile's path. Moves iterator forward. */
+    this.next = function() {
+        if (iteratorValid()) {
+            ++_path_iter;
+            setValuesFromIterator();
+            return true;
+        }
+        return null;
+    };
+
+    /** Returns the prev cell in missile's path. Moves iterator backward. */
+    this.prev = function() {
+        if (iteratorValid()) {
+            --_path_iter;
+            setValuesFromIterator();
+            return true;
+        }
+        return null;
+    };
+
+};
+RG.extend2(RG.MissileComponent, RG.Component);
+
 //---------------------------------------------------------------------------
 // ECS SYSTEMS
 //---------------------------------------------------------------------------
@@ -1417,26 +1475,6 @@ RG.System = function(type, compTypes) {
 
 };
 
-/** Processes entities with hunger component.*/
-RG.HungerSystem = function(type, compTypes) {
-    RG.System.call(this, type, compTypes);
-
-    this.update = function() {
-        for (var e in this.entities) {
-            var ent = this.entities[e];
-            var hungerComp = ent.get("Hunger");
-            var actionComp = ent.get("Action");
-            hungerComp.decrEnergy(actionComp.getEnergy());
-            actionComp.resetEnergy();
-            if (hungerComp.isStarving()) {
-                if (ent.has("Health")) ent.get("Health").decrHP(1);
-
-            }
-        }
-    };
-
-};
-RG.extend2(RG.HungerSystem, RG.System);
 
 /** Processes entities with attack-related components.*/
 RG.AttackSystem = function(type, compTypes) {
@@ -1451,7 +1489,6 @@ RG.AttackSystem = function(type, compTypes) {
 
             var attEquip  = _att.getEquipAttack();
             var defEquip  = _def.getEquipDefense();
-            var protEquip = _def.getEquipProtection();
             var attWeapon = _att.getWeapon();
 
             var attComp = _att.get("Combat");
@@ -1460,7 +1497,6 @@ RG.AttackSystem = function(type, compTypes) {
             var attackPoints = attComp.getAttack();
             var defPoints    = defComp.getDefense();
             var damage       = attComp.getDamage();
-            var protection   = defComp.getProtection();
 
             var accuracy = _att.get("Stats").getAccuracy();
             var agility = _def.get("Stats").getAgility();
@@ -1474,7 +1510,7 @@ RG.AttackSystem = function(type, compTypes) {
             RG.gameMsg(_att.getName() + " attacks " + _def.getName());
             _def.addEnemy(_att);
             if (hitChange > Math.random()) {
-                var totalDamage = damage - totalProtection;
+                var totalDamage = damage;
                 if (totalDamage > 0)
                     this.doDamage(_att, _def, damage);
                 else
@@ -1495,6 +1531,79 @@ RG.AttackSystem = function(type, compTypes) {
 };
 RG.extend2(RG.AttackSystem, RG.System);
 
+// Missile has
+// srcX/Y, targetX/X, path, currX/Y, shooter + all damage components, item ref
+// SourceComponent, TargetComponent, LocationComponent, OwnerComponent
+
+/** Processes all missiles launched by actors/traps/etc.*/
+RG.MissileSystem = function(type, compTypes) {
+    RG.System.call(this, type, compTypes);
+
+    this.update = function() {
+        for (var e in this.entities) {
+
+            var ent   = this.entities[e];
+            var mComp = ent.get("Missile");
+            var level = mComp.getLevel();
+            var map   = level.getMap();
+
+            while (mComp.isFlying() && !mComp.inTarget()) {
+
+                // Advance missile
+                mComp.next();
+                var currX = mComp.getX();
+                var currY = mComp.getY();
+                console.log("MIssile now in " + currX + ", " + currY);
+                var cell  = map.getCell(currX, currY);
+
+                if (cell.hasPropType("wall")) {
+                    mComp.prev();
+                    mComp.stopMissile(); // Wall was hit, stop missile
+                    console.log("Stopped missile to wall");
+                }
+                else if (cell.hasProp("actors")) {
+                    var actor = cell.getProp("actors")[0];
+                    // Check hit and miss
+                    if (this.targetHit(actor, mComp)) {
+                        mComp.stopMissile(); // Actor was hit, stop missile
+                        var dmg = mComp.getDamage();
+                        var damageComp = new RG.DamageComponent(dmg, "thrust");
+                        damageComp.setSource(mComp.getSource());
+                        damageComp.setDamage(mComp.getDamage());
+                        actor.add("Damage", damageComp);
+                        console.log("Hit an actor");
+                    }
+                    else if (mComp.inTarget()) {
+                        mComp.stopMissile(); // Target reached, stop missile
+                        console.log("In target cell, and missed an entity");
+                    }
+                }
+                else if (mComp.inTarget()) {
+                    mComp.stopMissile(); // Target reached, stop missile
+                    console.log("In target cell but no hits");
+                }
+            }
+
+        }
+    };
+
+    /** Returns true if the target was hit.*/
+    this.targetHit = function(target, mComp) {
+        var attack = mComp.getAttack();
+        var defense = target.get("Combat").getDefense();
+        var hitProp = attack / (attack + defense);
+        var hitRand = Math.random();
+        if (hitProp > hitRand) return true;
+        return false;
+    };
+
+    this.getDamage = function(target, mComp) {
+
+    };
+
+};
+RG.extend2(RG.MissileSystem, RG.System);
+
 /** Processes entities with damage component.*/
 RG.DamageSystem = function(type, compTypes) {
     RG.System.call(this, type, compTypes);
@@ -1502,10 +1611,18 @@ RG.DamageSystem = function(type, compTypes) {
     this.update = function() {
         for (var e in this.entities) {
             var ent = this.entities[e];
-            if (ent.has("Health")) {
+            if (ent.has("Health")) { // Redundant ??
                 var health = ent.get("Health");
                 var dmg = ent.get("Damage").getDamage();
-                health.decrHP(dmg);
+
+                // Take defs protection value into account
+                var protEquip = ent.getEquipProtection();
+                var protStats   = ent.get("Combat").getProtection();
+                var protTotal = protEquip + protStats;
+                var totalDmg = dmg - protTotal;
+
+                if (totalDmg < 0) totalDmg = 0;
+                health.decrHP(totalDmg);
 
                 if (health.isDead()) {
                     var src = ent.get("Damage").getSource();
@@ -1520,7 +1637,7 @@ RG.DamageSystem = function(type, compTypes) {
         var level = actor.getLevel();
         if (level.removeActor(actor)) {
             if (actor.has("Experience")) {
-                this.giveExp(src, actor);
+                this.giveExpToSource(src, actor);
             }
             RG.gameMsg(actor.getName() + " was killed");
             RG.POOL.emitEvent(RG.EVT_ACTOR_KILLED, {actor: actor});
@@ -1530,11 +1647,11 @@ RG.DamageSystem = function(type, compTypes) {
         }
     };
 
-    this.giveExp = function(att, def) {
+    /** When an actor is killed, gives experience to damage's source.*/
+    this.giveExpToSource = function(att, def) {
         var defLevel = def.get("Experience").getExpLevel();
         var expPoints = new RG.ExpPointsComponent(defLevel);
         att.add("ExpPoints", expPoints);
-        //console.log("Added expoints comp to " + defLevel);
     };
 
 };
@@ -1591,6 +1708,84 @@ RG.ExpPointsSystem = function(type, compTypes) {
 };
 
 RG.extend2(RG.ExpPointsSystem, RG.System);
+
+/** This system handles all entity movement.*/
+RG.MovementSystem = function(type, compTypes) {
+    RG.System.call(this, type, compTypes);
+
+    this.update = function() {
+        for (var e in this.entities) {
+            var ent = this.entities[e];
+            this.moveEntity(ent);
+        }
+    };
+
+    this.moveEntity = function(actor) {
+        var x = actor.get("Movement").getX();
+        var y = actor.get("Movement").getY();
+        var level = actor.get("Movement").getLevel();
+        var map = level.getMap();
+        var cell = map.getCell(x, y);
+
+        if (cell.isFree()) {
+            var xOld = actor.getX();
+            var yOld = actor.getY();
+            RG.debug(this, "Trying to move actor from " + xOld + ", " + yOld);
+
+            if (map.removeProp(xOld, yOld, "actors", actor)) {
+                map.setProp(x, y, "actors", actor);
+                actor.setXY(x, y);
+                if (actor.isPlayer()) this.checkMessageEmits(cell);
+                actor.remove("Movement");
+                return true;
+            }
+            else {
+                RG.err("MovementSystem", "moveActorTo", "Couldn't remove actor.");
+            }
+        }
+        else {
+            RG.debug(this, "Cell wasn't free at " + x + ", " + y);
+        }
+        actor.remove("Movement");
+        return false;
+    };
+
+    // If player moved to the square, checks if any messages must be emitted.
+    this.checkMessageEmits = function(cell) {
+        if (cell.hasStairs()) RG.gameMsg("You see stairs here");
+        if (cell.hasProp("items")) {
+            var items = cell.getProp("items");
+            if (items.length > 1) RG.gameMsg("There are several items here");
+            else RG.gameMsg(items[0].getName() + " is on the floor");
+        }
+    };
+
+};
+RG.extend2(RG.MovementSystem, RG.System);
+
+/** Processes entities with hunger component.*/
+RG.HungerSystem = function(type, compTypes) {
+    RG.System.call(this, type, compTypes);
+
+    this.update = function() {
+        for (var e in this.entities) {
+            var ent = this.entities[e];
+            var hungerComp = ent.get("Hunger");
+            var actionComp = ent.get("Action");
+            hungerComp.decrEnergy(actionComp.getEnergy());
+            actionComp.resetEnergy();
+            if (hungerComp.isStarving()) {
+                if (ent.has("Health")) ent.get("Health").decrHP(1);
+
+            }
+        }
+    };
+
+};
+RG.extend2(RG.HungerSystem, RG.System);
+//---------------------------------------------------------------------------
+// ITEMS
+//---------------------------------------------------------------------------
 
 /** Models an item. Each item is ownable by someone. During game, there are no
  * items with null owners. Ownership shouldn't be ever set to null. */
@@ -1870,7 +2065,6 @@ RG.RogueEquipment = function(actor) {
 
     this.isEquipped = function(item) {
         var index = _equipped.indexOf(item);
-        console.log("Index is " + index);
         return index !== -1;
     };
 
@@ -2020,6 +2214,7 @@ RG.RogueActor = function(name) { // {{{2
     this.add("Experience", new RG.ExperienceComponent());
     this.add("Combat", new RG.CombatComponent());
     this.add("Stats", new RG.StatsComponent());
+    this.add("Health", new RG.HealthComponent(50));
 
     this.setName = function(name) {_name = name;};
     this.getName = function() {return _name;};
@@ -2249,7 +2444,8 @@ RG.PlayerBrain = function(actor) { // {{{2
         if (type === "MOVE") {
             if (level.getMap().isPassable(x, y)) {
                 return function() {
-                    level.moveActorTo(_actor, x, y);
+                    var movComp = new RG.MovementComponent(x, y, level);
+                    _actor.add("Movement", movComp);
                 };
             }
             else if (level.getMap().getCell(x,y).hasProp("actors")) {
@@ -2356,7 +2552,8 @@ RG.RogueBrain = function(actor) { // {{{2
                 var pathX = pathCells[1].getX();
                 var pathY = pathCells[1].getY();
                 return function() {
-                    level.moveActorTo(_actor, pathX, pathY);
+                    var movComp = new RG.MovementComponent(pathX, pathY, level);
+                    _actor.add("Movement", movComp);
                 };
             }
             else { // Cannot move anywhere, no action
@@ -2386,7 +2583,8 @@ RG.RogueBrain = function(actor) { // {{{2
         return function() {
             var x = seenCells[index].getX();
             var y = seenCells[index].getY();
-            level.moveActorTo(_actor, x, y);
+            var movComp = new RG.MovementComponent(x, y, level);
+            _actor.add("Movement", movComp);
         };
 
     };
@@ -2496,7 +2694,6 @@ RG.SummonerBrain = function(actor) {
         var summon = Math.random();
         if (summon > 0.8) {
             var level = _actor.getLevel();
-            console.log("Boss summoning now!");
             var cellsAround = this.getFreeCellsAround();
             if (cellsAround.length > 0) {
                 var freeX = cellsAround[0].getX();
@@ -2929,10 +3126,8 @@ RG.Map = function(cols, rows) { //{{{2
             if (actor.getLevel().getMap() === this) {
                 var range = actor.getFOVRange();
                 fov.compute(xActor, yActor, range, function(x, y, r, visibility) {
-                    //console.log(x + "," + y + " r: " + r + "vis: " + visibility);
                     if (visibility) {
                         if (_hasXY(x, y)) {
-                            //console.log(map[x][y].toString());
                             cells.push(map[x][y]);
                         }
                     }
