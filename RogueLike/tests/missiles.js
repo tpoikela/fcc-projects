@@ -28,13 +28,14 @@ describe('How missile is fired and hits a wall', function() {
 
         level.addActor(srcEnt, 1, 1);
 
-        var mEnt = new RG.Entity();
+        var mEnt = new RG.RogueItemMissile("missile");
         var mComp = new RG.MissileComponent(srcEnt);
         mEnt.add("Missile", mComp);
 
         expect(mComp.getX()).to.equal(1);
         expect(mComp.getY()).to.equal(1);
         mComp.setTargetXY(1, 4);
+        mComp.setRange(3);
 
         updateSystems(systems);
         expect(mComp.getX()).to.equal(1);
@@ -42,7 +43,9 @@ describe('How missile is fired and hits a wall', function() {
         expect(mComp.inTarget()).to.equal(true);
         expect(mComp.isFlying()).to.equal(false);
 
-        //level.addActor(targetEnt, 1, 4);
+        // Now item should be lying around in the slot
+        var targetCell = level.getMap().getCell(1, 4);
+        expect(targetCell.hasProp("items")).to.equal(true);
     });
 
     it('Stops and hits a wall', function() {
@@ -56,16 +59,20 @@ describe('How missile is fired and hits a wall', function() {
         var cell = map.getCell(1, 3);
         cell.setProp("elements", wall);
 
-        var mEnt = new RG.Entity();
+        var mEnt = new RG.RogueItemMissile("missile");
         var mComp = new RG.MissileComponent(srcEnt);
         mEnt.add("Missile", mComp);
         mComp.setTargetXY(1, 4);
+        mComp.setRange(3);
 
         updateSystems(systems);
         expect(mComp.getX()).to.equal(1);
         expect(mComp.getY()).to.equal(2);
         expect(mComp.inTarget()).to.equal(false);
         expect(mComp.isFlying()).to.equal(false);
+
+        var targetCell = level.getMap().getCell(1, 2);
+        expect(targetCell.hasProp("items")).to.equal(true);
 
     });
 
@@ -75,15 +82,18 @@ describe('How missile is fired and hits a wall', function() {
         var srcEnt = new Actor("archer");
         level.addActor(srcEnt, 1, 1);
         var targetEnt = new Actor("prey");
+        var targetHP = targetEnt.get("Health").getHP();
+
         targetEnt.get("Combat").setDefense(0);
         level.addActor(targetEnt, 1, 6);
 
-        var mEnt = new RG.Entity();
+        var mEnt = new RG.RogueItemMissile("missile");
         var mComp = new RG.MissileComponent(srcEnt);
         mComp.setAttack(1);
         mComp.setDamage(5);
         mEnt.add("Missile", mComp);
         mComp.setTargetXY(1, 6);
+        mComp.setRange(10);
 
         updateSystems(systems);
         expect(mComp.getX()).to.equal(1);
@@ -91,7 +101,37 @@ describe('How missile is fired and hits a wall', function() {
         expect(mComp.inTarget()).to.equal(true);
         expect(mComp.isFlying()).to.equal(false);
 
+        var currHP = targetEnt.get("Health").getHP();
         expect(targetEnt.has("Damage")).to.equal(false);
+        expect(currHP).to.equal(targetHP - 5);
 
+        var targetCell = level.getMap().getCell(1, 6);
+        expect(targetCell.hasProp("items")).to.equal(true);
+        expect(targetCell.hasPropType("missile")).to.equal(true);
+
+    });
+
+    it('Stops after reaching maximum range', function() {
+        var level = RG.FACT.createLevel("arena", 30, 30);
+        // Archer to fire the missiles
+        var srcEnt = new Actor("archer");
+        level.addActor(srcEnt, 1, 1);
+
+        var mEnt = new RG.RogueItemMissile("missile");
+        var mComp = new RG.MissileComponent(srcEnt);
+        mComp.setDamage(5);
+        mEnt.add("Missile", mComp);
+        mComp.setTargetXY(1, 6);
+        mComp.setRange(4);
+
+        updateSystems(systems);
+        expect(mComp.getX()).to.equal(1);
+        expect(mComp.getY()).to.equal(5);
+        expect(mComp.inTarget()).to.equal(false);
+        expect(mComp.isFlying()).to.equal(false);
+
+        var targetCell = level.getMap().getCell(1, 5);
+        expect(targetCell.hasProp("items")).to.equal(true);
+        expect(targetCell.hasPropType("missile")).to.equal(true);
     });
 });
