@@ -179,6 +179,22 @@ var RGObjects = {
             armourType: "chest", value: 30,
         },
 
+        // MISSILES
+        {
+            name: "MissileBase", className: "cell-item-missile", "char": "/",
+            type: "missile", dontCreate: true,
+            attack: 1, damage: "1d1", range: 2,
+        },
+        {
+            name: "Shuriken", base: "MissileBase",
+            damage: "1d4", range: 3, value: 10,
+        },
+        {
+            name: "Dart", base: "MissileBase",
+            damage: "1d4 + 1", range: 4, value: 30,
+        },
+
+
         // POTIONS
         // Note: Each potion should define useItem method. See examples below.
         {
