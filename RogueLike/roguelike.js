@@ -653,17 +653,22 @@ RG.RogueGame = function() { // {{{2
         return level.moveActorTo(actor, x, y);
     };
 
-    this.update = function(evt) {
+    this.update = function(obj) {
         if (!this.isGameOver()) {
             this.clearMessages();
 
             if (this.nextActor !== null) {
-                var code = evt.keyCode;
-                if (this.isGUICommand(code)) {
-                    this.doGUICommand(code);
+                if (obj.hasOwnProperty("evt")) {
+                    var code = obj.evt.keyCode;
+                    if (this.isGUICommand(code)) {
+                        this.doGUICommand(code);
+                    }
+                    else {
+                        this.updateGameLoop({code: code});
+                    }
                 }
                 else {
-                    this.updateGameLoop({code: code});
+                    this.updateGameLoop(obj);
                 }
             }
 
@@ -1005,7 +1010,7 @@ RG.DamageObject = function() {
     var _range    = 1;
 
     /** Attack methods. */
-    this.setAttackRange = function() {_range = range;};
+    this.setAttackRange = function(range) {_range = range;};
     this.getAttackRange = function() {return _range; };
 
     this.setDamage = function(dStr) {
@@ -1338,7 +1343,7 @@ RG.MovementComponent = function(x, y, level) {
 RG.extend2(RG.MovementComponent, RG.Locatable);
 RG.extend2(RG.MovementComponent, RG.Component);
 
-
+/** Added to entities which must act as missiles flying through cells.*/
 RG.MissileComponent = function(source) {
     RG.Component.call(this, "Missile");
 
@@ -1351,6 +1356,7 @@ RG.MissileComponent = function(source) {
     var _targetX = null;
     var _targetY = null;
 
+    var _range = 0;
     var _attack = 0;
     var _dmg = 0;
 
@@ -1362,6 +1368,8 @@ RG.MissileComponent = function(source) {
     this.getSource = function() {return _source;};
     this.getLevel = function() {return _level;};
 
+    this.setRange = function(range) {_range = range;};
+    this.hasRange = function() {return _range > 0;};
     this.isFlying = function() {return _isFlying;};
     this.stopMissile = function() {_isFlying = false;};
 
@@ -1406,6 +1414,7 @@ RG.MissileComponent = function(source) {
     /** Returns the next cell in missile's path. Moves iterator forward. */
     this.next = function() {
         if (iteratorValid()) {
+            --_range;
             ++_path_iter;
             setValuesFromIterator();
             return true;
@@ -1416,6 +1425,7 @@ RG.MissileComponent = function(source) {
     /** Returns the prev cell in missile's path. Moves iterator backward. */
     this.prev = function() {
         if (iteratorValid()) {
+            ++_range;
             --_path_iter;
             setValuesFromIterator();
             return true;
@@ -1504,7 +1514,6 @@ RG.AttackSystem = function(type, compTypes) {
             // Actual hit change calculation
             var totalAttack = attackPoints + accuracy/2 + attEquip;
             var totalDefense = defPoints + agility/2 + defEquip;
-            var totalProtection = protection + protEquip;
             var hitChange = totalAttack / (totalAttack + totalDefense);
 
             RG.gameMsg(_att.getName() + " attacks " + _def.getName());
@@ -1546,26 +1555,32 @@ RG.MissileSystem = function(type, compTypes) {
             var mComp = ent.get("Missile");
             var level = mComp.getLevel();
             var map   = level.getMap();
+            var mSrc = mComp.getSource();
+            //mSrc.getInvEq().unequipAndGetItem("missile", 0);
 
-            while (mComp.isFlying() && !mComp.inTarget()) {
+            while (mComp.isFlying() && !mComp.inTarget() && mComp.hasRange()) {
 
-                // Advance missile
+                // Advance missile to next cell
                 mComp.next();
                 var currX = mComp.getX();
                 var currY = mComp.getY();
-                console.log("MIssile now in " + currX + ", " + currY);
-                var cell  = map.getCell(currX, currY);
+                var currCell = map.getCell(currX, currY);
 
-                if (cell.hasPropType("wall")) {
+                // Wall was hit, stop missile
+                if (currCell.hasPropType("wall")) {
                     mComp.prev();
-                    mComp.stopMissile(); // Wall was hit, stop missile
+                    var prevX = mComp.getX();
+                    var prevY = mComp.getY();
+                    var prevCell = map.getCell(prevX, prevY);
+
+                    this.finishMissileFlight(ent, mComp, prevCell);
                     console.log("Stopped missile to wall");
                 }
-                else if (cell.hasProp("actors")) {
-                    var actor = cell.getProp("actors")[0];
+                else if (currCell.hasProp("actors")) {
+                    var actor = currCell.getProp("actors")[0];
                     // Check hit and miss
                     if (this.targetHit(actor, mComp)) {
-                        mComp.stopMissile(); // Actor was hit, stop missile
+                        this.finishMissileFlight(ent, mComp, currCell);
                         var dmg = mComp.getDamage();
                         var damageComp = new RG.DamageComponent(dmg, "thrust");
                         damageComp.setSource(mComp.getSource());
@@ -1574,17 +1589,33 @@ RG.MissileSystem = function(type, compTypes) {
                         console.log("Hit an actor");
                     }
                     else if (mComp.inTarget()) {
-                        mComp.stopMissile(); // Target reached, stop missile
+                        this.finishMissileFlight(ent, mComp, currCell);
                         console.log("In target cell, and missed an entity");
+                    }
+                    else if (!mComp.hasRange()) {
+                        this.finishMissileFlight(ent, mComp, currCell);
+                        console.log("Missile out of range. Missed entity.");
                     }
                 }
                 else if (mComp.inTarget()) {
-                    mComp.stopMissile(); // Target reached, stop missile
+                    this.finishMissileFlight(ent, mComp, currCell);
                     console.log("In target cell but no hits");
+                }
+                else if (!mComp.hasRange()) {
+                    this.finishMissileFlight(ent, mComp, currCell);
+                    console.log("Missile out of range. Hit nothing.");
                 }
             }
 
         }
+    };
+
+    this.finishMissileFlight = function(ent, mComp, currCell) {
+        mComp.stopMissile(); // Target reached, stop missile
+        ent.remove("Missile");
+        var level = mComp.getLevel();
+        //currCell.setProp(ent.getPropType(), ent);
+        level.addItem(ent, currCell.getX(), currCell.getY());
     };
 
     /** Returns true if the target was hit.*/
@@ -1918,6 +1949,18 @@ RG.RogueItemPotion = function(name) {
 };
 RG.extend2(RG.RogueItemPotion, RG.RogueItem);
 
+/** Models an object which is used as a missile.*/
+RG.RogueItemMissile = function(name) {
+    RG.RogueItem.call(this, name);
+    RG.DamageObject.call(this);
+    RG.Entity.call(this);
+    this.setType("missile");
+
+};
+RG.extend2(RG.RogueItemMissile, RG.RogueItem);
+RG.extend2(RG.RogueItemMissile, RG.DamageObject);
+RG.extend2(RG.RogueItemMissile, RG.Entity);
+
 /** Models an item container. Can hold a number of items.*/
 RG.RogueItemContainer = function(owner) {
     RG.RogueItem.call(this, "container");
@@ -1953,6 +1996,7 @@ RG.RogueItemContainer = function(owner) {
 
     this.removeItem = function(item) {
         var index = _items.indexOf(item);
+        console.log("removeItem Index is " + index);
         if (index !== -1) {
             _items.splice(index, 1);
             return true;
@@ -1984,6 +2028,10 @@ RG.RogueItemContainer = function(owner) {
 
 };
 RG.extend2(RG.RogueItemContainer, RG.RogueItem);
+
+//---------------------------------------------------------------------------
+// EQUIPMENT AND INVENTORY
+//---------------------------------------------------------------------------
 
 /** Models one slot in the inventory. */
 RG.RogueEquipSlot = function(eq, type, n) {
@@ -2035,6 +2083,7 @@ RG.RogueEquipment = function(actor) {
         chest: new RG.RogueEquipSlot(this, "chest", 1),
         neck: new RG.RogueEquipSlot(this, "neck", 1),
         feet: new RG.RogueEquipSlot(this, "feet", 1),
+        missile: new RG.RogueEquipSlot(this, "missile", 1),
     };
 
     this.getSlotTypes = function() {return Object.keys(_slots);};
@@ -2046,6 +2095,8 @@ RG.RogueEquipment = function(actor) {
         return [];
     };
 
+    /** Equips given item. Slot is chosen automatically from suitable available
+     * ones.*/
     this.equipItem = function(item) {
         // TODO add proper checks for equipping
         if (item.hasOwnProperty("getArmourType")) {
@@ -2055,7 +2106,13 @@ RG.RogueEquipment = function(actor) {
             }
         }
         else { // No equip property, can only equip to hand
-            if (_slots.hand.equipItem(item)) {
+            if (item.getType() === "missile") {
+                if (_slots.missile.equipItem(item)) {
+                    _equipped.push(item);
+                    return true;
+                }
+            }
+            else if (_slots.hand.equipItem(item)) {
                 _equipped.push(item);
                 return true;
             }
@@ -2063,6 +2120,7 @@ RG.RogueEquipment = function(actor) {
         return false;
     };
 
+    /** Returns true if given item is equipped.*/
     this.isEquipped = function(item) {
         var index = _equipped.indexOf(item);
         return index !== -1;
@@ -2185,6 +2243,14 @@ RG.RogueInvAndEquip = function(actor) {
         return false;
     };
 
+    this.unequipAndGetItem = function(slotType, n) {
+        var eqItems = _eq.getItems(slotType);
+        if (n < eqItems.length) {
+            return eqItems.pop();
+        }
+        return null;
+    };
+
     this.getWeapon = function() {
         var items = _eq.getItems("hand");
         if (items.length > 0) {
@@ -2239,6 +2305,11 @@ RG.RogueActor = function(name) { // {{{2
 
     this.getWeapon = function() {
         return _invEq.getWeapon();
+    };
+
+    /** Returns missile equipped by the player.*/
+    this.getMissile = function() {
+        return _invEq.getEquipment().getItems("missile")[0];
     };
 
     /** Returns the next action for this actor.*/
@@ -2394,6 +2465,10 @@ RG.PlayerBrain = function(actor) { // {{{2
     this.energy = 1;
 
     this.decideNextAction = function(obj) {
+        if (obj.hasOwnProperty("cmd")) {
+            return function() {};
+        }
+
         var code = obj.code;
         var level = _actor.getLevel();
 
@@ -2442,18 +2517,20 @@ RG.PlayerBrain = function(actor) { // {{{2
         }
 
         if (type === "MOVE") {
-            if (level.getMap().isPassable(x, y)) {
-                return function() {
-                    var movComp = new RG.MovementComponent(x, y, level);
-                    _actor.add("Movement", movComp);
-                };
-            }
-            else if (level.getMap().getCell(x,y).hasProp("actors")) {
-                return function() {
-                    var target = level.getMap().getCell(x, y).getProp("actors")[0];
-                    var attackComp = new RG.AttackComponent(target);
-                    _actor.add("Attack", attackComp);
-                };
+            if (level.getMap().hasXY(x, y)) {
+                if (level.getMap().isPassable(x, y)) {
+                    return function() {
+                        var movComp = new RG.MovementComponent(x, y, level);
+                        _actor.add("Movement", movComp);
+                    };
+                }
+                else if (level.getMap().getCell(x,y).hasProp("actors")) {
+                    return function() {
+                        var target = level.getMap().getCell(x, y).getProp("actors")[0];
+                        var attackComp = new RG.AttackComponent(target);
+                        _actor.add("Attack", attackComp);
+                    };
+                }
             }
         }
         else if (type === "IDLE") {
@@ -2471,13 +2548,15 @@ RG.PlayerBrain = function(actor) { // {{{2
 /** Memory is used by the actor to hold information about enemies, items etc.*/
 RG.RogueBrainMemory = function(brain) {
 
-    var _enemies = [];
+    var _enemies = []; // List of enemies for this actor
 
+    /** Checks if given actor is an enemy. */
     this.isEnemy = function(actor) {
         var index = _enemies.indexOf(actor);
         return index !== -1;
     };
 
+    /** Adds given actor as enemy.*/
     this.addEnemy = function(actor) {
         if (!this.isEnemy(actor)) {
             _enemies.push(actor);
@@ -2835,6 +2914,8 @@ RG.RogueMapGen = function() { // {{{2
     var _types = ["arena", "cellular", "digger", "divided", "dungeon",
         "eller", "icey", "uniform", "rogue"];
 
+    var _wall = 1;
+
     this.getRandType = function() {
         var len = _types.length;
         var nRand = Math.floor(Math.random() * len);
@@ -2855,6 +2936,7 @@ RG.RogueMapGen = function() { // {{{2
             case "icey":  _mapGen = new ROT.Map.IceyMaze(cols, rows); break;
             case "rogue":  _mapGen = new ROT.Map.Rogue(cols, rows); break;
             case "uniform":  _mapGen = new ROT.Map.Uniform(cols, rows); break;
+            case "ruins": _mapGen = this.createRuins(cols, rows); break;
             default: RG.err("MapGen", "setGen", "_mapGen type " + type + " is unknown");
         }
     };
@@ -2863,13 +2945,24 @@ RG.RogueMapGen = function() { // {{{2
     this.getMap = function() {
         var map = new RG.Map(this.cols, this.rows);
         _mapGen.create(function(x, y, val) {
-            if (val > 0) {
+            if (val === _wall) {
                 map.setBaseElemXY(x, y, new RG.RogueElement("wall"));
             }
             else {
                 map.setBaseElemXY(x, y, new RG.RogueElement("floor"));
             }
         });
+        return map;
+    };
+
+    this.createRuins = function(cols, rows) {
+        var conf = {born: [4, 5, 6, 7, 8],
+            survive: [2, 3, 4, 5], connected: true};
+        var map = new ROT.Map.Cellular(cols, rows, conf);
+        map.randomize(0.9);
+        for (var i = 0; i < 5; i++) map.create();
+        map.connect(null, 1);
+        _wall = 0;
         return map;
     };
 
@@ -3286,7 +3379,7 @@ RG.Factory = function() { // {{{2
         game.addEvent(regenPlayer);
 
         //var levels = ["dungeon", "digger", "icey"];
-        var levels = ["digger"];
+        var levels = ["ruins"];
         var maxLevelType = levels.length;
 
         // For storing stairs and levels
@@ -3312,6 +3405,8 @@ RG.Factory = function() { // {{{2
 
             var potion = new RG.RogueItemPotion("Healing potion");
             level.addItem(potion);
+            var missile = new RG.RogueItemMissile("Shuriken");
+            level.addItem(missile);
 
             // Generate the items randomly for this level
             for (var j = 0; j < itemsPerLevel; j++) {
@@ -3469,6 +3564,11 @@ RG.RogueObjectStubParser = function() {
                 damage: "setDamage",
                 attack: "setAttack",
                 defense: "setDefense",
+            },
+            missile: {
+                damage: "setDamage",
+                attack: "setAttack",
+                range: "setAttackRange",
             },
             food: {
                 energy: "setEnergy",
@@ -3708,6 +3808,7 @@ RG.RogueObjectStubParser = function() {
                     case "armour": return new RG.RogueItemArmour(obj.name);
                     case "weapon": return new RG.RogueItemWeapon(obj.name);
                     case "food": return new RG.RogueItemFood(obj.name);
+                    case "missile": return new RG.RogueItemMissile(obj.name);
                     case "tool": break;
                 }
                 return new RG.RogueItem(obj.name); // generic, useless
