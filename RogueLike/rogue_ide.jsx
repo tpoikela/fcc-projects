@@ -48,9 +48,9 @@ var RoguelikeTop = React.createClass({
 
     // Simple configuration for the game
     gameConf: {
-        cols: 100,
-        rows: 100,
-        levels : 2,
+        cols: 80,
+        rows: 60,
+        levels : 5,
         sqrPerMonster: 40,
         sqrPerItem: 100,
     },
@@ -118,32 +118,20 @@ var RoguelikeTop = React.createClass({
             console.log("<Top> Trying ranged attack to " + x + ", " + y);
             var player = this.game.getPlayer();
             var invEq = player.getInvEq();
-            //var missile = player.getMissile();
             var missile = invEq.unequipAndGetItem("missile", 0);
 
             if (!RG.isNullOrUndef([missile])) {
-                console.log("Before unequip XXX: " + missile);
-                //if (invEq.unequipItem("missile", 0)) {
-                    console.log("XXX: " + missile);
-                    //if (invEq.removeItem(missile)) {
-                        var mComp = new RG.MissileComponent(player);
-                        mComp.setTargetXY(x, y);
-                        mComp.setDamage(missile.getDamage());
-                        mComp.setAttack(missile.getAttack());
-                        mComp.setRange(missile.getAttackRange());
-                        missile.add("Missile", mComp);
-                        this.game.update({cmd: "missile"});
-                        this.visibleCells = this.game.visibleCells;
-                        this.setState({render: true, renderFullScreen: false});
-                        debug("<Top> Ranged attack to x: " + x + ", y:" + y);
-                        //}
-                        /*else {
-                        console.error("Couldn't remove missile from inv.");
-                        }*/
-                        //}
-                    /*else {
-                    console.error("Couldn't unequip missile.");
-                    } */
+                var mComp = new RG.MissileComponent(player);
+                mComp.setTargetXY(x, y);
+                mComp.setDamage(missile.getDamage());
+                mComp.setAttack(missile.getAttack());
+                console.log("Setting range to " + missile.getAttackRange());
+                mComp.setRange(missile.getAttackRange());
+                missile.add("Missile", mComp);
+                this.game.update({cmd: "missile"});
+                this.visibleCells = this.game.visibleCells;
+                this.setState({render: true, renderFullScreen: false});
+                debug("<Top> Ranged attack to x: " + x + ", y:" + y);
             }
             else {
                 debug("<Top> No missile equipped. No ranged to x: " + x + ", y:" + y);
