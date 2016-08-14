@@ -29,7 +29,7 @@ var RGObjects = {
         {
             name: "animal", dontCreate: true,
             className: "cell-actor-animal",
-            attack: 1, defense: 1, hp: 10,
+            attack: 1, defense: 1, hp: 5,
             range: 1, danger: 1, 
         },
         {
@@ -52,7 +52,19 @@ var RGObjects = {
         {
             name: "wolf", "char": "w", base: "animal",
             attack: 4, defense: 2, damage: "1d6",
-            hp: 20, danger: 3,
+            hp: 15, danger: 3,
+        },
+        // HUMANOIDS
+        {
+            name: "humanoid", "char": "h", type: "humanoid",
+            attack: 1, defense: 1, damage: "1d4", range: 1, hp: 10,
+            danger: 2
+        },
+        // DEMONS AND WINTRY BEINGS
+        {
+            name: "Winter demon", type: "demon", "char": "d",
+            attack: 5, defense: 5, damage: "3d3", range: 1, hp: 30,
+            danger: 6
         },
 
         // HUMANS
@@ -161,12 +173,18 @@ var RGObjects = {
         // ARMOUR
         {
             name: "ArmourBase", type: "armour", className: "cell-item-armour",
-            "char": "[", dontCreate: true, attack: 0, defense: 0,
+            "char": "[", dontCreate: true, attack: 0, defense: 0, protection: 0,
         },
+        // ARMOUR LEATHER
         {
             name: "Leather helmet", base: "ArmourBase",
             weight: 0.3, defense: 1, material: "leather",
             armourType: "head", value: 15,
+        },
+        {
+            name: "Leather collar", base: "ArmourBase",
+            weight: 0.2, protection: 1, material: "leather",
+            armourType: "neck", value: 15,
         },
         {
             name: "Leather boots", base: "ArmourBase",
@@ -175,15 +193,23 @@ var RGObjects = {
         },
         {
             name: "Leather armour", base: "ArmourBase",
-            weight: 2.0, defense: 2, material: "leather",
+            weight: 2.0, defense: 2, material: "leather", protection: 2,
             armourType: "chest", value: 30,
+        },
+        // ARMOUR IRON
+
+        // ARMOUR MAGIC
+        {
+            name: "Magic armour", base: "ArmourBase",
+            weight: 2.0, defense: 10, protection: 10, material: "forium",
+            armourType: "chest", value: 500,
         },
 
         // MISSILES
         {
             name: "MissileBase", className: "cell-item-missile", "char": "/",
             type: "missile", dontCreate: true,
-            attack: 1, damage: "1d1", range: 2,
+            attack: 1, damage: "1d1", range: 2, weight: 0.1
         },
         {
             name: "Shuriken", base: "MissileBase",
@@ -193,7 +219,10 @@ var RGObjects = {
             name: "Dart", base: "MissileBase",
             damage: "1d4 + 1", range: 4, value: 30,
         },
-
+        {
+            name: "Throwing axe of death", base: "MissileBase",
+            attack: 2, damage: "2d10 + 3", range: 3, value: 200, weight: 0.5,
+        },
 
         // POTIONS
         // Note: Each potion should define useItem method. See examples below.
