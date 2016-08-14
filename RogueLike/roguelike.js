@@ -999,7 +999,7 @@ RG.DefenseObject = function() {
     this.setDefense = function(defense) { _defense = defense; };
 
     this.getProtection = function() {return _protection;};
-    this.setProtection = function(prot) {return _prot;};
+    this.setProtection = function(prot) {return _protection;};
 
 };
 
@@ -1034,9 +1034,9 @@ RG.DamageObject = function() {
 };
 
 RG.DamageObject.prototype.toString = function() {
-    var msg = "a: " + this.getAttack() + ", d: " + this.getDefense() + ", ";
-    msg += "dmg: " + this.getDamageDie().toString();
-    msg += ",r:" + this.getAttackRange();
+    var msg = " A: " + this.getAttack() + ", D: " + this.getDefense() + ", ";
+    msg += "Dmg: " + this.getDamageDie().toString();
+    msg += ",R:" + this.getAttackRange();
     return msg;
 };
 RG.extend2(RG.DamageObject, RG.DefenseObject);
@@ -1935,8 +1935,8 @@ RG.RogueItemPotion = function(name) {
             var target = obj.target;
             var die = new RG.Die(1, 10, 2);
             var pt = die.roll();
-            if (target.hasOwnProperty("addHP")) {
-                target.addHP(pt);
+            if (target.has("Health")) {
+                target.get("Health").addHP(pt);
                 var msg = {item: this};
                 RG.POOL.emitEvent(RG.EVT_DESTROY_ITEM, msg);
             }
@@ -2928,7 +2928,7 @@ RG.RogueMapGen = function() { // {{{2
         type = type.toLowerCase();
         switch(type) {
             case "arena":  _mapGen = new ROT.Map.Arena(cols, rows); break;
-            case "cellular":  _mapGen = new ROT.Map.Cellular(cols, rows); break;
+            case "cellular":  _mapGen = this.createCellular(cols, rows); break;
             case "digger":  _mapGen = new ROT.Map.Digger(cols, rows); break;
             case "divided":  _mapGen = new ROT.Map.DividedMaze(cols, rows); break;
             case "dungeon":  _mapGen = new ROT.Map.Dungeon(cols, rows); break;
@@ -2937,6 +2937,7 @@ RG.RogueMapGen = function() { // {{{2
             case "rogue":  _mapGen = new ROT.Map.Rogue(cols, rows); break;
             case "uniform":  _mapGen = new ROT.Map.Uniform(cols, rows); break;
             case "ruins": _mapGen = this.createRuins(cols, rows); break;
+            case "rooms": _mapGen = this.createRooms(cols, rows); break;
             default: RG.err("MapGen", "setGen", "_mapGen type " + type + " is unknown");
         }
     };
@@ -2955,6 +2956,8 @@ RG.RogueMapGen = function() { // {{{2
         return map;
     };
 
+    /** Creates "ruins" type level with open outer edges and inner fortress with
+     * some tunnels. */
     this.createRuins = function(cols, rows) {
         var conf = {born: [4, 5, 6, 7, 8],
             survive: [2, 3, 4, 5], connected: true};
@@ -2963,6 +2966,22 @@ RG.RogueMapGen = function() { // {{{2
         for (var i = 0; i < 5; i++) map.create();
         map.connect(null, 1);
         _wall = 0;
+        return map;
+    };
+
+    /** Creates a cellular type dungeon and makes all areas connected.*/
+    this.createCellular = function(cols, rows, gens) {
+        var map = new ROT.Map.Cellular(cols, rows);
+        map.randomize(0.5);
+        for (var i = 0; i < 5; i++) map.create();
+        map.connect(null, 1);
+        _wall = 0;
+        return map;
+    };
+
+    this.createRooms = function(cols, rows) {
+        var map = new ROT.Map.Digger(cols, rows, 
+            {roomWidth: [5, 20], dugPercentage: 0.7});
         return map;
     };
 
@@ -3370,7 +3389,7 @@ RG.Factory = function() { // {{{2
 
         var player = this.createPlayer("Player", {});
         player.setType("player");
-        player.add("Health", new RG.HealthComponent(50));
+        player.add("Health", new RG.HealthComponent(25));
         var sword = parser.createActualObj("items", "Short sword");
         player.getInvEq().addItem(sword);
         player.getInvEq().equipItem(sword);
@@ -3378,8 +3397,8 @@ RG.Factory = function() { // {{{2
         var regenPlayer = new RG.RogueRegenEvent(player);
         game.addEvent(regenPlayer);
 
-        //var levels = ["dungeon", "digger", "icey"];
-        var levels = ["ruins"];
+        var levels = ["rooms", "dungeon", "digger", "icey", "cellular"];
+        //var levels = ["ruins"];
         var maxLevelType = levels.length;
 
         // For storing stairs and levels
@@ -3387,11 +3406,14 @@ RG.Factory = function() { // {{{2
         var allStairsDown = [];
         var allLevels     = [];
 
-        // This loop creates one level per iteration
+        // Generate all game levels
         for (var nl = 0; nl < nLevels; nl++) {
 
             var nLevelType = Math.floor(Math.random() * maxLevelType);
-            var level = this.createLevel(levels[nLevelType], cols, rows);
+            var levelType = levels[nLevelType];
+            if (nl === 0) levelType = "ruins";
+            var level = this.createLevel(levelType, cols, rows);
+
             game.addLevel(level);
             if (nl === 0) {
                 var hunger = new RG.HungerComponent(2000);
@@ -3405,7 +3427,7 @@ RG.Factory = function() { // {{{2
 
             var potion = new RG.RogueItemPotion("Healing potion");
             level.addItem(potion);
-            var missile = new RG.RogueItemMissile("Shuriken");
+            var missile = parser.createActualObj("items", "Shuriken");
             level.addItem(missile);
 
             // Generate the items randomly for this level
@@ -3557,6 +3579,7 @@ RG.RogueObjectStubParser = function() {
             armour: {
                 attack: "setAttack",
                 defense: "setDefense",
+                protection: "setProtection",
                 armourType: "setArmourType",
             },
 
@@ -3629,6 +3652,7 @@ RG.RogueObjectStubParser = function() {
         return true;
     };
 
+    /** If an object doesn't have type, the name is chosen as its type.*/
     this.addTypeIfUntyped = function(obj) {
         if (!obj.hasOwnProperty("type")) {
             obj.type = obj.name;
@@ -3703,9 +3727,7 @@ RG.RogueObjectStubParser = function() {
     this.createComponent = function(type, val) {
         switch(type) {
             case "Health": return new RG.HealthComponent(val);
-
         }
-
     };
 
     /** Returns an actual game object when given category and name. Note that
@@ -3722,8 +3744,8 @@ RG.RogueObjectStubParser = function() {
         var propCalls = _propToCall[categ];
         var newObj = this.createNewObject(categ, obj);
 
-        // If propToCall table has the same key as obj, call corresponding
-        // function using the newly created object.
+        // If propToCall table has the same key as obj property, call corresponding
+        // function in _propToCall using the newly created object.
         for (var p in obj) {
 
             // Called for basic type: actors, items...
@@ -3773,7 +3795,7 @@ RG.RogueObjectStubParser = function() {
         return newObj;
     };
 
-    /** Adds a component to the newly created object, or update existing
+    /** Adds a component to the newly created object, or updates existing
      * component if it exists already.*/
     this.addCompToObj = function(newObj, compData, val) {
         if (compData.hasOwnProperty("func")) {
@@ -3798,7 +3820,7 @@ RG.RogueObjectStubParser = function() {
         return this.createActualObj(categ, obj.name);
     };
 
-    /** Factory-method for creating the actual object.*/
+    /** Factory-method for creating the actual objects.*/
     this.createNewObject = function(categ, obj) {
         switch(categ) {
             case "actors": return new RG.RogueActor(obj.name);
@@ -3830,6 +3852,7 @@ RG.RogueObjectStubParser = function() {
 
     };
 
+    /** Extends the given object stub with given base object.*/
     this.extendObj = function(obj, baseObj) {
         for (var prop in baseObj) {
             if (!obj.hasOwnProperty(prop)) {
@@ -3913,6 +3936,7 @@ RG.RogueObjectStubParser = function() {
                 return this.getRandFromObj(entries);
             }
         }
+        return null;
     };
 
     /** Returns a property from object selected randomly.*/
@@ -3945,7 +3969,12 @@ RG.RogueObjectStubParser = function() {
         if (obj.hasOwnProperty("danger")) {
             var danger = obj.danger;
             var randObj = this.dbGetRand({danger: danger, categ: "actors"});
-            return this.createFromStub("actors", randObj);
+            if (randObj !== null) {
+                return this.createFromStub("actors", randObj);
+            }
+            else {
+                return null;
+            }
         }
         else if (obj.hasOwnProperty("func")) {
             var res = this.filterCategWithFunc("actors", obj.func);
@@ -3956,10 +3985,14 @@ RG.RogueObjectStubParser = function() {
 
     /** Creates a random item based on selection functions.*/
     this.createRandomItem = function(obj) {
-        var res = this.filterCategWithFunc("items", obj.func);
-        var randObj = this.arrayGetRand(res);
-        return this.createFromStub("items", randObj);
-
+        if (obj.hasOwnProperty("func")) {
+            var res = this.filterCategWithFunc("items", obj.func);
+            var randObj = this.arrayGetRand(res);
+            return this.createFromStub("items", randObj);
+        }
+        else {
+            RG.err("ObjectParser", "createRandomItem", "No function given.");
+        }
     };
 
     /** Returns a random entry from the array.*/
