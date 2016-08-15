@@ -30,10 +30,13 @@ var RGObjects = {
             name: "animal", dontCreate: true,
             className: "cell-actor-animal",
             attack: 1, defense: 1, hp: 5,
-            range: 1, danger: 1, 
+            range: 1, danger: 1, speed: 100
         },
         {
             name: "bat", type: "bat", "char": "b", base: "animal",
+        },
+        {
+            name: "Ice bat", base: "bat", danger: 2, hp: 8, speed: 110,
         },
         {
             name: "rat", type: "rat", "char": "r", base: "animal",
@@ -110,7 +113,7 @@ var RGObjects = {
         // MELEE WEAPONS
         //------------------------------------------------------------
         {
-            name: "melee weapon", className: "cell-item-melee-weapon",
+            name: "MeleeWeaponBase", className: "cell-item-melee-weapon",
             "char": "(",
             material: ["iron", "wood"],
             type: "weapon",
@@ -118,58 +121,68 @@ var RGObjects = {
             dontCreate: true, // Base class only
         },
         {
-            name: "Dagger", base: "melee weapon",
+            name: "Dagger", base: "MeleeWeaponBase",
             material: "iron",
             damage: "1d4",
             weight: 0.2, value: 5,
         },
         {
-            name: "Bayonette", base: "melee weapon",
+            name: "Bayonette", base: "MeleeWeaponBase",
             material: "iron",
             damage: "1d5",
             weight: 0.1, value: 10,
             // TODO combine with rifle
         },
         {
-            name: "Short sword", base: "melee weapon",
+            name: "Short sword", base: "MeleeWeaponBase",
             material: "iron",
             damage: "1d6",
             weight: 0.5, value: 20,
         },
         {
-            name: "Whip", base: "melee weapon",
+            name: "Whip", base: "MeleeWeaponBase",
             material: "leather",
             damage: "1d6", range: 2, attack: -1,
             weight: 0.2, value: 10,
         },
         {
-            name: "Pick-axe", base: "melee weapon",
+            name: "Pick-axe", base: "MeleeWeaponBase",
             damage: "1d8", attack: 1, defense: 2,
             weight: 2.3, value: 15,
         },
         {
-            name: "Tomahawk", base: "melee weapon",
-            material: ["wood", "stone", "leather"],
-            damage: "1d9 + 2", attack: 2, defense: 1,
-            weight: 0.7, value: 20,
-        },
-        {
-            name: "Saber", base: "melee weapon",
+            name: "Saber", base: "MeleeWeaponBase",
             material: "iron",
             damage: "2d4 + 1", attack: 2, attack: 1,
             weight: 0.6, value: 20,
         },
         {
-            name: "Spear", base: "melee weapon",
+            name: "Spear", base: "MeleeWeaponBase",
             damage: "1d8", attack: 1, defense: 3,
             weight: 1.2, value: 30,
         },
         {
-            name: "Magic Sword", base: "melee weapon",
-            material: "forium", damage: "5d5 + 3",
-            attack: 5, defense: 2, weight: 1.0, value: 100
+            name: "Tomahawk", base: "MeleeWeaponBase",
+            material: ["wood", "stone", "leather"],
+            damage: "1d9 + 2", attack: 2, defense: 1,
+            weight: 0.7, value: 40,
         },
-
+        // MAGIC WEAPONS
+        {
+            name: "MagicWeaponBase", base: "MeleeWeaponBase",
+            className: "cell-item-magic",
+            material: "forium", dontCreate: true,
+        },
+        {
+            name: "Magic short sword", base: "MagicWeaponBase",
+            damage: "3d5 + 3",
+            attack: 3, defense: 2, weight: 0.7, value: 300
+        },
+        {
+            name: "Magic sword", base: "MagicWeaponBase",
+            damage: "5d5 + 3",
+            attack: 5, defense: 2, weight: 1.0, value: 500
+        },
         // ARMOUR
         {
             name: "ArmourBase", type: "armour", className: "cell-item-armour",
@@ -197,10 +210,48 @@ var RGObjects = {
             armourType: "chest", value: 30,
         },
         // ARMOUR IRON
-
+        {
+            name: "Iron helmet", base: "ArmourBase",
+            weight: 0.6, defense: 1, protection: 1, material: "iron",
+            armourType: "head", value: 45,
+        },
+        {
+            name: "Iron collar", base: "ArmourBase",
+            weight: 0.6, protection: 2, material: "iron",
+            armourType: "neck", value: 45,
+        },
+        {
+            name: "Iron boots", base: "ArmourBase",
+            weight: 1.2, defense: 1, protection: 1, material: "iron",
+            armourType: "feet", value: 45,
+        },
+        {
+            name: "Iron armour", base: "ArmourBase",
+            weight: 4.0, defense: 1, protection: 3, material: "iron",
+            armourType: "chest", value: 90,
+        },
         // ARMOUR MAGIC
         {
-            name: "Magic armour", base: "ArmourBase",
+            name: "MagicArmourBase", base: "ArmourBase", dontCreate: true,
+            material: "forium", className: "cell-item-magic",
+        },
+        {
+            name: "Magic helmet", base: "MagicArmourBase",
+            weight: 0.3, defense: 3, protection: 4, material: "forium",
+            armourType: "head", value: 200,
+        },
+        {
+            name: "Magic collar", base: "MagicArmourBase",
+            weight: 0.1, defense: 3, protection: 2, material: "forium",
+            armourType: "neck", value: 200,
+        },
+        {
+            name: "Magic boots", base: "MagicArmourBase",
+            weight: 0.5, defense: 3, protection: 2, material: "forium",
+            armourType: "feet", value: 200,
+        },
+        {
+            name: "Magic armour", base: "MagicArmourBase",
             weight: 2.0, defense: 10, protection: 10, material: "forium",
             armourType: "chest", value: 500,
         },
@@ -218,6 +269,10 @@ var RGObjects = {
         {
             name: "Dart", base: "MissileBase",
             damage: "1d4 + 1", range: 4, value: 30,
+        },
+        {
+            name: "Magic Shuriken", base: "MissileBase",
+            damage: "3d4 + 2", range: 5, value: 100, weight: 0.1
         },
         {
             name: "Throwing axe of death", base: "MissileBase",
