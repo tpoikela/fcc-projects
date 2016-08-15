@@ -585,12 +585,17 @@ var GameStats = React.createClass({
         var player = this.props.player;
         var dungeonLevel = this.props.dungeonLevel;
 
+        var eqAtt = player.getEquipAttack();
+        var eqDef = player.getEquipDefense();
+        var eqProt = player.getEquipProtection();
+
         var stats = {
             HP: player.get("Health").getHP() + "/" + player.get("Health").getMaxHP(),
-            Att: player.get("Combat").getAttack(),
-            Def: player.get("Combat").getDefense(),
-            Pro: player.get("Combat").getProtection(),
+            Att: player.get("Combat").getAttack() + eqAtt,
+            Def: player.get("Combat").getDefense() + eqDef,
+            Pro: player.get("Combat").getProtection() + eqProt,
             Agi: player.get("Stats").getAgility(),
+            Speed: player.get("Stats").getSpeed(),
             XP: player.get("Experience").getExp(),
             XL: player.get("Experience").getExpLevel(),
             DL: dungeonLevel,
