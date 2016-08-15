@@ -19,6 +19,7 @@ RG.cellRenderArray = RG.cellRenderVisible;
 
 describe('How actors are created from file', function() {
     var parser = new Parser();
+
     it('Returns base objects and supports also base', function() {
         var wolfNew = parser.parseObjStub("actors", {
             name: "wolf", attack: 15, defense: 10, damage: "1d6 + 2",
@@ -89,11 +90,12 @@ describe('How actors are created from file', function() {
     });
 });
 
-describe('How items are created from objects', function() {
+describe('How food items are created from objects', function() {
    var parser = new Parser();
     it('description', function() {
         var foodBase = parser.parseObjStub("items", {type: "food", name: "foodBase",
-        weight: 0.1, misc: "XXX", dontCreate: true, "char": "%"});
+            weight: 0.1, misc: "XXX", dontCreate: true, "char": "%",
+            className: "cell-item-food"});
 
         var food = parser.parseObjStub("items", {base: "foodBase", name: "Dried meat",
             energy: 100, value: 5
@@ -103,6 +105,8 @@ describe('How items are created from objects', function() {
         expect(food.value).to.equal(5);
         expect(food.type).to.equal("food");
         expect(food.weight).to.equal(0.1);
+        expect(food.char).to.equal("%");
+        expect(food.className).to.equal("cell-item-food");
 
         var expFood = parser.parseObjStub("items", {name: "Gelee", energy: 500, 
             weight: 0.2, value: 100, base: "foodBase"});
@@ -119,17 +123,15 @@ describe('How items are created from objects', function() {
 
         expect(randFood.getEnergy()).to.equal(100);
         expect(randFood.getValue()).to.equal(5);
+        RGTest.checkChar(randFood, "%");
+        RGTest.checkCSSClassName(randFood, "cell-item-food");
 
         var geleeFood = parser.createRandomItem({
             func: function(item) {return item.value >= 99;}
         });
         expect(geleeFood.getEnergy()).to.equal(500);
         expect(geleeFood.getType()).to.equal("food");
-
-        var testCell = RG.FACT.createFloorCell();
-        testCell.setExplored(true);
-        testCell.setProp("items", geleeFood);
-        expect(RG.getCellChar(testCell)).to.equal("%");
+        RGTest.checkChar(geleeFood, "%");
 
     });
 });
@@ -157,12 +159,18 @@ describe('It contains all game content info', function() {
         expect(ratObj.get("Health").getMaxHP()).to.equal(5);
         expect(ratObj.get("Combat").getAttack()).to.equal(1);
         expect(ratObj.get("Combat").getDefense()).to.equal(1);
+        expect(ratObj.get("Stats").getSpeed()).to.equal(100);
         RGTest.checkChar(ratObj, "r");
         RGTest.checkCSSClassName(ratObj, "cell-actor-animal");
+
     });
 
 
     it('Should parse all items properly', function() {
+        var bayStub = parser.get("items", "Bayonette");
+        expect(bayStub.base).to.equal("MeleeWeaponBase");
+        var bayon = parser.createActualObj("items", "Bayonette");
+        RGTest.checkCSSClassName(bayon, "cell-item-melee-weapon");
     });
 
 

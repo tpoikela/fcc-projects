@@ -50,13 +50,8 @@ var RG = { // {{{2
             if (cell.hasProp(propType)) {
                 var props = cell.getProp(propType);
                 var styles = this.cellStyles[propType];
-                var objType = props[0].getType();
-                if (styles.hasOwnProperty(objType)) {
-                    return styles[objType];
-                }
-                else {
-                    return styles["default"];
-                }
+                var propObj = props[0];
+                return this.getPropClassOrChar(styles, propObj);
             }
         }
 
@@ -64,67 +59,45 @@ var RG = { // {{{2
         return this.cellStyles.elements[baseType];
     },
 
+    getPropClassOrChar: function(styles, propObj) {
+        var objType = propObj.getType();
+
+        if (propObj.hasOwnProperty("getName")) {
+            var name = propObj.getName();
+            //console.log("getPropClassOrChar XXX Name is |" + name + "|");
+            if (styles.hasOwnProperty(name)) {
+                return styles[name];
+            }
+            //console.log("getPropClassOrChar No name found for obj type " + objType);
+            //for (var n in styles) console.log("\t\t===> " + n);
+        }
+
+        //console.log("getPropClassOrChar AFTER No name found for obj type " + objType);
+
+        if (styles.hasOwnProperty(objType)) {
+            return styles[objType];
+        }
+        else {
+            return styles["default"];
+        }
+    },
+
     /** Returns char which is rendered on the map cell based on cell contents.*/
     getCellChar: function(cell) {
-        if (!cell.isExplored()) return "N";
+        if (!cell.isExplored()) return "X";
 
         for (var i = 0; i < this.cellRenderArray.length; i++) {
             var propType = this.cellRenderArray[i];
             if (cell.hasProp(propType)) {
                 var props = cell.getProp(propType);
                 var styles = this.charStyles[propType];
-                var objType = props[0].getType();
-                if (styles.hasOwnProperty(objType)) {
-                    return styles[objType];
-                }
-                else {
-                    return styles["default"];
-                }
+                var propObj = props[0];
+                return this.getPropClassOrChar(styles, propObj);
             }
         }
 
         var baseType = cell.getBaseElem().getType();
         return this.charStyles.elements[baseType];
-
-        if (cell.hasProp("actors")) {
-            var actor = cell.getProp("actors")[0];
-            var type = actor.getType();
-            if (this.charStyles.actors.hasOwnProperty(type)) {
-                return this.charStyles.actors[type];
-            }
-            else {
-                return this.charStyles.actors["default"];
-            }
-        }
-
-        if (cell.hasProp(RG.TYPE_ITEM)) {
-            var item = cell.getProp("items")[0];
-            var type = item.getType();
-            if (this.charStyles.items.hasOwnProperty(type)) {
-                return this.charStyles.items[type];
-            }
-            else {
-                return this.charStyles.items["default"];
-            }
-        }
-
-        if (cell.hasProp("elements")) {
-            //var objType = cell.getProp("elements")[0].getType();
-            if (cell.hasPropType("wall")) {return this.charStyles.elements.wall;}
-            if (cell.hasPropType("floor")) {return this.charStyles.elements.floor;}
-            if (cell.hasStairs()) {
-                if (cell.getStairs().isDown()) {
-                    return this.charStyles.elements.stairsDown;
-                }
-                return this.charStyles.elements.stairsUp;
-            }
-        }
-        else { // Use base element
-            if (cell.hasPropType("wall")) {return this.charStyles.elements.wall;}
-            if (cell.hasPropType("floor")) {return this.charStyles.elements.floor;}
-        }
-
-        return "."; // Returned for floor
     },
 
     /** Returns shortest path between two points.*/
@@ -151,11 +124,18 @@ var RG = { // {{{2
         if (this.cellStyles.hasOwnProperty(prop)) {
             this.cellStyles[prop][type] = className;
         }
+        else {
+            this.err("RG", "addCellStyle", "Unknown prop type: " + prop);
+        }
     },
 
     addCharStyle: function(prop, type, charName) {
         if (this.charStyles.hasOwnProperty(prop)) {
+            //console.log("Adding char for [" + prop + "][" + type + "] =" + charName);
             this.charStyles[prop][type] = charName;
+        }
+        else {
+            this.err("RG", "addCharStyle", "Unknown prop type: " + prop);
         }
     },
 
@@ -179,6 +159,7 @@ var RG = { // {{{2
         items: {
             "default": "(",
             "corpse" : "§",
+            "potion" : "!",
         },
         traps: {},
     },
@@ -198,6 +179,7 @@ var RG = { // {{{2
             "wolf": "cell-actor-animal",
         },
         items: {
+            "potion": "cell-item-potion",
             "default": "cell-item-default",
         },
         traps: {
@@ -287,6 +269,7 @@ var RG = { // {{{2
     ROWS: 30,
     COLS: 50,
     ACTION_DUR: 100,
+    BASE_SPEED: 100,
     DEFAULT_HP: 50,
 
     // Different game events
@@ -308,9 +291,9 @@ RG.cellRenderArray = RG.cellRenderVisible;
 /** Each die has number of throws, type of dice (d6, d20, d200...) and modifier
  * which is +/- X. */
 RG.Die = function(num, dice, mod) {
-    var _num = num;
-    var _dice = dice;
-    var _mod = mod;
+    var _num = parseInt(num, 10);
+    var _dice = parseInt(dice, 10);
+    var _mod = parseInt(mod, 10);
 
     this.roll = function() {
         var res = 0;
@@ -1308,12 +1291,15 @@ RG.StatsComponent = function() {
 
     var _accuracy = 10;
     var _agility  = 5;
+    var _speed = 100;
 
     /** These determine the chance of hitting. */
     this.setAccuracy = function(accu) {_accuracy = accu;};
     this.getAccuracy = function() {return _accuracy;};
     this.setAgility = function(agil) {_agility = agil;};
     this.getAgility = function() {return _agility;};
+    this.setSpeed = function(speed) {_speed = speed;};
+    this.getSpeed = function() {return _speed;};
 
 };
 RG.extend2(RG.StatsComponent, RG.Component);
@@ -1648,7 +1634,7 @@ RG.DamageSystem = function(type, compTypes) {
 
                 // Take defs protection value into account
                 var protEquip = ent.getEquipProtection();
-                var protStats   = ent.get("Combat").getProtection();
+                var protStats = ent.get("Combat").getProtection();
                 var protTotal = protEquip + protStats;
                 var totalDmg = dmg - protTotal;
 
@@ -2319,7 +2305,9 @@ RG.RogueActor = function(name) { // {{{2
         var action = null;
 
         if (cb !== null) {
-            action = new RG.RogueAction(RG.ACTION_DUR, cb, {});
+            var speed = this.get("Stats").getSpeed();
+            var duration = parseInt(RG.BASE_SPEED/speed * RG.ACTION_DUR);
+            action = new RG.RogueAction(duration, cb, {});
         }
         else {
             action = new RG.RogueAction(0, function(){}, {});
@@ -3098,6 +3086,7 @@ RG.MapCell = function(x, y, elem) { // {{{2
         return null;
     };
 
+    /** Returns true if light passes through this map cell.*/
     this.lightPasses = function() {
         if (_baseElem.getType() === "wall") return false;
         return true;
@@ -3278,7 +3267,7 @@ RG.Factory = function() { // {{{2
         var combatComp = new RG.CombatComponent();
 
         if (!RG.isNullOrUndef([att])) combatComp.setAttack(att);
-        if (!RG.isNullOrUndef([def])) combatComp.setAttack(def);
+        if (!RG.isNullOrUndef([def])) combatComp.setDefense(def);
 
         comb.add("Combat", combatComp);
     };
@@ -3387,7 +3376,9 @@ RG.Factory = function() { // {{{2
 
         var game = new RG.RogueGame();
 
-        var player = this.createPlayer("Player", {});
+        var player = this.createPlayer("Player", {
+            att: 2, def: 4
+        });
         player.setType("player");
         player.add("Health", new RG.HealthComponent(25));
         var sword = parser.createActualObj("items", "Short sword");
@@ -3398,7 +3389,6 @@ RG.Factory = function() { // {{{2
         game.addEvent(regenPlayer);
 
         var levels = ["rooms", "dungeon", "digger", "icey", "cellular"];
-        //var levels = ["ruins"];
         var maxLevelType = levels.length;
 
         // For storing stairs and levels
@@ -3463,12 +3453,13 @@ RG.Factory = function() { // {{{2
         lastLevel.addActor(summoner, bossCell.getX(), bossCell.getY());
 
         var extraLevel = this.createLevel("arena", cols, rows);
-
+/*
         var magicSword = new RG.RogueItemWeapon("Magic Sword");
         magicSword.setDamage("10d10 + 10");
         magicSword.setAttack(20);
         magicSword.setDefense(20);
         allLevels[0].addItem(magicSword);
+*/
 
         // Connect levels with stairs
         for (nl = 0; nl < nLevels; nl++) {
@@ -3569,6 +3560,7 @@ RG.RogueObjectStubParser = function() {
             attack: {comp: "Combat", func: "setAttack"},
             defense: {comp: "Combat", func:"setDefense"},
             damage: {comp: "Combat", func:"setDamage"},
+            speed: {comp: "Stats", func: "setSpeed"},
             hp: {comp: "Health"},
         },
         items: {
@@ -3630,6 +3622,10 @@ RG.RogueObjectStubParser = function() {
                 if (this.baseExists(categ, baseName)) {
                     obj = this.extendObj(obj, this.getBase(categ, baseName));
                 }
+                else {
+                    RG.err("ObjectParser", "parseObjStub", 
+                        "Unknown base " + baseName + " specified for " + obj);
+                }
             }
 
             if (categ === "actors") this.addTypeIfUntyped(obj);
@@ -3649,6 +3645,7 @@ RG.RogueObjectStubParser = function() {
                 "Stub doesn't have a name.");
             return false;
         }
+        //console.log("validStub ==> " + obj.name);
         return true;
     };
 
@@ -3676,6 +3673,7 @@ RG.RogueObjectStubParser = function() {
     this.storeIntoDb = function(categ, obj) {
         if (_db.hasOwnProperty(categ)) {
             this.setAsBase(categ, obj);
+
             if (!obj.hasOwnProperty("dontCreate")) {
                 _db[categ][obj.name] = obj;
                 if (_db_by_name.hasOwnProperty(obj.name)) {
@@ -3705,21 +3703,23 @@ RG.RogueObjectStubParser = function() {
         this.storeRenderingInfo(categ, obj);
     };
 
+    /** Stores char/CSS className for the object for rendering purposes.*/
     this.storeRenderingInfo = function(categ, obj) {
+        //console.log("\tStoring render information for " + obj.name);
         if (obj.hasOwnProperty("char")) {
-            if (obj.hasOwnProperty("type")) {
-                RG.addCharStyle(categ, obj.type, obj["char"]);
+            if (obj.hasOwnProperty("name")) {
+                RG.addCharStyle(categ, obj.name, obj["char"]);
             }
             else {
-                RG.addCharStyle(categ, obj.name, obj["char"]);
+                RG.addCharStyle(categ, obj.type, obj["char"]);
             }
         }
         if (obj.hasOwnProperty("className")) {
-            if (obj.hasOwnProperty("type")) {
-                RG.addCellStyle(categ, obj.type, obj.className);
+            if (obj.hasOwnProperty("name")) {
+                RG.addCellStyle(categ, obj.name, obj.className);
             }
             else {
-                RG.addCellStyle(categ, obj.name, obj.className);
+                RG.addCellStyle(categ, obj.type, obj.className);
             }
         }
     };
@@ -3844,9 +3844,9 @@ RG.RogueObjectStubParser = function() {
     };
 
     /** Returns true if base exists.*/
-    this.baseExists = function(type, baseName) {
-        if (_base.hasOwnProperty(type)) {
-            return _base[type].hasOwnProperty(baseName);
+    this.baseExists = function(categ, baseName) {
+        if (_base.hasOwnProperty(categ)) {
+            return _base[categ].hasOwnProperty(baseName);
         }
         return false;
 
@@ -3857,6 +3857,7 @@ RG.RogueObjectStubParser = function() {
         for (var prop in baseObj) {
             if (!obj.hasOwnProperty(prop)) {
                 if (prop !== "dontCreate") {
+                    //console.log("\textendObj: Added " + prop + " to " + obj.name);
                     obj[prop] = baseObj[prop];
                 }
             }
