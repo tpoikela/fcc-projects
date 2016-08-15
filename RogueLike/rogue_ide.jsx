@@ -50,7 +50,8 @@ var RoguelikeTop = React.createClass({
     gameConf: {
         cols: 80,
         rows: 60,
-        levels : 5,
+        levels : 2,
+        playerLevel: "Medium",
         sqrPerMonster: 40,
         sqrPerItem: 100,
     },
@@ -158,6 +159,7 @@ var RoguelikeTop = React.createClass({
 
     componentDidMount: function() {
       $(document.body).on('keydown', this.handleKeyDown);
+      $("#start-button").trigger("click");
     },
 
     componentWillUnMount: function() {
@@ -180,11 +182,20 @@ var RoguelikeTop = React.createClass({
         return (
             <div id="main-div" className="container main-div">
 
+                <GameStartScreen newGame={this.newGame} 
+                    setGameLength={this.setGameLength}
+                    setLoot={this.setLoot}
+                    setMonsters={this.setMonsters}
+                    setLevelSize={this.setLevelSize}
+                    setPlayerLevel={this.setPlayerLevel}
+                />
+                <GameHelpScreen />
+
                 <GameInventory forceRender={this.forceRender} player={player}/>
 
                 <div className="row">
                     <div className="col-md-2">
-                        <GamePanel newGame={this.newGame} setViewSize={this.setViewSize}/>
+                        <GamePanel  setViewSize={this.setViewSize}/>
                     </div>
                     <div className="col-md-10">
                         <GameMessages message={message}/>
@@ -265,6 +276,180 @@ var RoguelikeTop = React.createClass({
         this.setState({render: true});
     },
 
+    //---------------------------------------------------------------------------
+    // GAME CONFIG RELATED FUNCTIONS
+    //---------------------------------------------------------------------------
+
+    setLoot: function(lootType) {
+        switch(lootType) {
+            case "Sparse": this.gameConf.sqrPerItem = 200; break;
+            case "Medium": this.gameConf.sqrPerItem = 120; break;
+            case "Abundant": this.gameConf.sqrPerItem = 50; break;
+        }
+    },
+
+    setMonsters: function(monstType) {
+        switch(monstType) {
+            case "Sparse": this.gameConf.sqrPerMonster = 200; break;
+            case "Medium": this.gameConf.sqrPerMonster= 120; break;
+            case "Abundant": this.gameConf.sqrPerMonster = 50; break;
+        }
+    },
+
+    setLevelSize: function(levelSize) {
+        switch(levelSize) {
+            case "Small": this.gameConf.cols = 40; this.gameConf.rows = 20; break;
+            case "Medium": this.gameConf.cols = 60; this.gameConf.rows = 30; break;
+            case "Large": this.gameConf.cols = 80; this.gameConf.rows = 40; break;
+            case "Huge": this.gameConf.cols = 100; this.gameConf.rows = 60; break;
+        }
+    },
+
+    setPlayerLevel: function(level) {
+        this.gameConf.playerLevel = level;
+    },
+
+    setGameLength: function(length) {
+        switch(length) {
+            case "Short": this.gameConf.levels = 5; break;
+            case "Medium": this.gameConf.levels = 10; break;
+            case "Long": this.gameConf.levels = 15; break;
+            case "Epic": this.gameConf.levels = 30; break;
+        }
+    },
+
+});
+
+var GameHelpScreen = React.createClass({
+
+    render: function() {
+        return (
+            <div className="modal fade" role="dialog" id="gameHelpModal" tabIndex="-1" role="dialog" aria-labelledby="game-help-modal-label" aria-hidden="true">
+                <div className="modal-dialog modal-lg">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <button type="button" className="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                            <h4 className="modal-title" id="game-help-modal-label">Mountains of Might</h4>
+                        </div>
+
+                        <div className="modal-body row">
+                            <div className="col-md-6">
+                                <p>To move around, use:</p>
+                                <table id="mov-buttons-table">
+                                    <theader></theader>
+                                    <tbody>
+                                        <tr><td>q</td><td>w</td><td>e</td></tr>
+                                        <tr><td>a</td><td>s</td><td>d</td></tr>
+                                        <tr><td>z</td><td>x</td><td>c</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="col-md-6">
+                                <p>Use m to show the map.</p>
+                                <p>To fire a missile, press "t" and click on a square.</p>
+                                <p>To view inventory, press "."</p>
+                                <p>To use stairs, press ","</p>
+                            </div>
+                        </div>
+
+                        <div className="modal-footer row">
+                            <div className="col-md-6">
+                                <button type="button" className="btn btn-secondary" data-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+});
+
+/** Component for the game startup screen Prints game title and gives some
+ * customisation options for the game.
+ */
+var GameStartScreen = React.createClass({
+
+    render: function() {
+        var setLoot = this.props.setLoot;
+        var setMonsters = this.props.setMonsters;
+        var setLevelSize = this.props.setLevelSize;
+        var setPlayerLevel = this.props.setPlayerLevel;
+        var setGameLength = this.props.setGameLength;
+
+        var newGame = this.props.newGame;
+        return (
+            <div className="modal fade" role="dialog" id="gameStartModal" tabIndex="-1" role="dialog" aria-labelledby="game-start-modal-label" aria-hidden="true">
+                <div className="modal-dialog modal-lg">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <button type="button" className="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                            <h4 className="modal-title" id="game-start-modal-label">Mountains of Might</h4>
+                        </div>
+
+                        <div className="modal-body row">
+                            <div id="prologue-box" className="col-md-6">
+                                <p>Winds are ever-blowing. Blowing off the glaciers. Welcome into the wintry realms!
+                                    Are you ready to face the challenges of the icy north? Hunger, coldness, ravenous 
+                                    beasts, glacial chasms and forthcoming eternal winter are waiting for you in the darkness.
+                                </p>
+                            </div>
+                            <div id="game-options-box" className="col-md-6">
+                                <p>Customisation</p>
+                                <RadioButtons buttons={["Short", "Medium", "Long", "Epic"]} callback={setGameLength} titleName="Game length" />
+                                <RadioButtons buttons={["Sparse", "Medium", "Abundant"]} callback={setLoot} titleName="Loot" />
+                                <RadioButtons buttons={["Sparse", "Medium", "Abundant"]} callback={setMonsters} titleName="Monsters" />
+                                <RadioButtons buttons={["Small", "Medium", "Large", "Huge"]} callback={setLevelSize} titleName="Levels" />
+                                <RadioButtons buttons={["Weak", "Medium", "Strong", "Inhuman"]} callback={setPlayerLevel} titleName="Player" />
+                            </div>
+                        </div>
+
+                        <div className="modal-footer row">
+                            <div className="col-md-6">
+                                <button type="button" onClick={newGame} className="btn btn-secondary" data-dismiss="modal">Embark!</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+});
+
+/** Can be used to create radio buttons for different types of selections.
+ * Callback must be given, and the button name is passed into this callback.*/
+var RadioButtons = React.createClass({
+
+    onButtonClick: function(name) {
+        this.props.callback(name);
+    },
+
+    render: function() {
+        var onClick = this.onButtonClick;
+        var buttons = this.props.buttons;
+        var that = this; // For map
+
+        // Generate buttons using map
+        var buttonList = buttons.map(function(name, index) {
+            return (
+                <button onClick={that.onButtonClick.bind(that, name)} className="btn btn-primary" key={index}>{name}</button>
+            );
+        });
+
+        return (
+            <div className="btn-group">
+                <label className="select-label btn text-primary">{this.props.titleName}</label>
+                {buttonList}
+            </div>
+        );
+    }
+
 });
 
 /** This component contains non-game instance specific controls like starting
@@ -280,10 +465,10 @@ var GamePanel = React.createClass({
     },
 
     render: function() {
-        var newGame = this.props.newGame;
         return (
             <div>
-                <button onClick={newGame}>Start</button>
+                <button id="start-button" className="btn btn-info" data-toggle="modal" data-target="#gameStartModal">Start</button>
+                <button id="help-button" className="btn btn-info" data-toggle="modal" data-target="#gameHelpModal">Help</button>
                 <button onClick={this.setViewSizePlus}>+</button>
                 <button onClick={this.setViewSizeNeg}>-</button>
             </div>
