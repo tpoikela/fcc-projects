@@ -132,6 +132,11 @@ body {
     background-color: brown;
 }
 
+.cell-item-potion {
+    background-color: white;
+    color: purple;
+};
+
 .cell-item-armour {
     background-color: green;
     color: white;
@@ -150,6 +155,11 @@ body {
 .cell-item-missile {
     background-color: gray;
     color: red;
+};
+
+.cell-item-magic {
+    background-color: purple;
+    color: white;
 };
 
 //---------------------------------------------------------------------
@@ -214,5 +224,10 @@ body {
     border-radius: 5px;
     margin-bottom: 2px;
     padding: 2px;
+};
+
+#items-box {
+    height: 600px;
+
 };
 
