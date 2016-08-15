@@ -1434,10 +1434,23 @@ RG.LootComponent = function(lootEntity) {
     this.dropLoot = function(cell) {
         if (_lootEntity.hasOwnProperty("getPropType")) {
             var propType = _lootEntity.getPropType();
-            cell.setProp(propType, _lootEntity);
+            if (propType === "elements") {
+                this.setElemToCell(cell);
+            }
+            else {
+                cell.setProp(propType, _lootEntity);
+            }
         }
         else {
             RG.err("LootComponent", "dropLoot", "Loot has no propType!");
+        }
+    };
+
+    this.setElemToCell = function(cell) {
+        var entLevel = this.getEntity().getLevel();
+        if (_lootEntity.hasOwnProperty("useStairs")) {
+            console.log("Added stairs to " + cell.getX() + ", " + cell.getY());
+            entLevel.addStairs(_lootEntity, cell.getX(), cell.getY());
         }
     };
 
@@ -1663,13 +1676,16 @@ RG.DamageSystem = function(type, compTypes) {
                 health.decrHP(totalDmg);
 
                 if (health.isDead()) {
-                    var src = ent.get("Damage").getSource();
+                    console.log("Checking for loot component");
                     if (ent.has("Loot")) {
                         var entX = ent.getX();
                         var entY = ent.getY();
                         var entCell = ent.getLevel().getMap().getCell(entX, entY);
                         ent.get("Loot").dropLoot(entCell);
+                        console.log("Dropped loot to the floor.");
                     }
+
+                    var src = ent.get("Damage").getSource();
                     this.killActor(src, ent);
                 }
                 ent.remove("Damage"); // After dealing damage, remove comp
@@ -2858,6 +2874,8 @@ RG.RogueGameEvent = function(dur, cb) {
 /** Regeneration event. Initialized with an actor. */
 RG.RogueRegenEvent = function(actor, dur) {
 
+    var _dur = dur; // Duration between events
+
     var _regenerate = function() {
         var maxHP = actor.get("Health").getMaxHP();
         var hp = actor.get("Health").getHP();
@@ -2868,7 +2886,7 @@ RG.RogueRegenEvent = function(actor, dur) {
         }
     };
 
-    RG.RogueGameEvent.call(this, 20 * RG.ACTION_DUR, _regenerate);
+    RG.RogueGameEvent.call(this, _dur, _regenerate);
 };
 RG.extend2(RG.RogueGameEvent, RG.RogueRegenEvent);
 
@@ -3388,7 +3406,6 @@ RG.Factory = function() { // {{{2
         var level = new RG.RogueLevel(cols, rows);
         var map = mapgen.getMap();
         level.setMap(map);
-        console.log("Factory createLevel: type: " + levelType);
         return level;
     };
 
@@ -3397,7 +3414,6 @@ RG.Factory = function() { // {{{2
     this.createRandLevel = function(cols, rows, danger) {
         var levelType = RG.RogueMapGen.getRandType();
         var level = this.createLevel(levelType, cols, rows);
-
     };
 
     this.createWorld = function(nlevels) {
@@ -3412,6 +3428,7 @@ RG.Factory = function() { // {{{2
         Inhuman: {att: 10, def: 10, prot: 4, hp: 80, Weapon: "Magic sword"},
     },
 
+    /** Creates a player actor and starting inventory.*/
     this.createFCCPlayer = function(parser, game, obj) {
         var pLevel = obj.playerLevel;
         var pConf = this.playerStats[pLevel];
@@ -3426,7 +3443,7 @@ RG.Factory = function() { // {{{2
         player.getInvEq().addItem(startingWeapon);
         player.getInvEq().equipItem(startingWeapon);
 
-        var regenPlayer = new RG.RogueRegenEvent(player);
+        var regenPlayer = new RG.RogueRegenEvent(player, 20 * RG.ACTION_DUR);
         game.addEvent(regenPlayer);
         return player;
     },
@@ -3443,7 +3460,7 @@ RG.Factory = function() { // {{{2
         var game = new RG.RogueGame();
         var player = this.createFCCPlayer(parser, game, obj);
 
-        var levels = ["rooms", "dungeon", "digger", "icey"];
+        var levels = ["rooms", "rogue", "digger", "icey"];
         var maxLevelType = levels.length;
 
         // For storing stairs and levels
