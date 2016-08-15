@@ -188,6 +188,7 @@ var RGObjects = {
             name: "ArmourBase", type: "armour", className: "cell-item-armour",
             "char": "[", dontCreate: true, attack: 0, defense: 0, protection: 0,
         },
+
         // ARMOUR LEATHER
         {
             name: "Leather helmet", base: "ArmourBase",
@@ -209,6 +210,7 @@ var RGObjects = {
             weight: 2.0, defense: 2, material: "leather", protection: 2,
             armourType: "chest", value: 30,
         },
+
         // ARMOUR IRON
         {
             name: "Iron helmet", base: "ArmourBase",
@@ -230,6 +232,18 @@ var RGObjects = {
             weight: 4.0, defense: 1, protection: 3, material: "iron",
             armourType: "chest", value: 90,
         },
+
+        // ARMOUR ICE
+        {
+            name: "IceArmourBase", base: "ArmourBase", dontCreate: true,
+            material: "permaice", className: "cell-item-ice",
+        },
+        {
+            name: "Ice helmet", base: "IceArmourBase",
+            weight: 1.0, defense: 1, protection: 3, 
+            armourType: "head", value: 200,
+        },
+
         // ARMOUR MAGIC
         {
             name: "MagicArmourBase", base: "ArmourBase", dontCreate: true,
@@ -237,22 +251,22 @@ var RGObjects = {
         },
         {
             name: "Magic helmet", base: "MagicArmourBase",
-            weight: 0.3, defense: 3, protection: 4, material: "forium",
+            weight: 0.3, defense: 3, protection: 4,
             armourType: "head", value: 200,
         },
         {
             name: "Magic collar", base: "MagicArmourBase",
-            weight: 0.1, defense: 3, protection: 2, material: "forium",
+            weight: 0.1, defense: 3, protection: 2,
             armourType: "neck", value: 200,
         },
         {
             name: "Magic boots", base: "MagicArmourBase",
-            weight: 0.5, defense: 3, protection: 2, material: "forium",
+            weight: 0.5, defense: 3, protection: 2,
             armourType: "feet", value: 200,
         },
         {
             name: "Magic armour", base: "MagicArmourBase",
-            weight: 2.0, defense: 10, protection: 10, material: "forium",
+            weight: 2.0, defense: 10, protection: 10,
             armourType: "chest", value: 500,
         },
 
