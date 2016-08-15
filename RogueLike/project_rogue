@@ -8,10 +8,12 @@ roguelike=/home/tpoikela/git/freecodecamp/RogueLike/ /home/tpoikela/git/freecode
  style.scss
  notes.md
  tests=tests {
+  ecs.js
   events.js
   game.js
   gameobjects.js
   map.js
+  missiles.js
   roguetest.js
   scheduler.js
  }
