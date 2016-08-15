@@ -113,8 +113,10 @@ XXXBrain = function(actor) {
 
 TODO-list
 ---------
-    1. Implement ranged combat.
-    2. Add "Spirit" feature.
+    1. Add proper ending after Summoner's been defeated.
+    2. Add "Spirit" feature for enhancements. Add willpower.
+    3. Create friendly NPCs, their brains and behaviour.
+    4. Implement combat between NPCs and monsters.
     N. Create a highscore system.
     N+1. Create a saving system.
 
@@ -132,4 +134,7 @@ DONE-list
     10. Created a summoner to act as a final boss.
     11. Added support for armour and other defensive equipment.
     12. Added a hunger system.
+    13. Implemented ranged combat.
+    14. Added optional configuration to the beginning of the game.
+    15. Added some iron, ice and magic armour to the game.
 
