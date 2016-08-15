@@ -60,6 +60,17 @@ body {
     }
 };
 
+#mov-buttons-table {
+    border: 1px solid black;
+    font-size: 16px;
+    padding: 5px;
+
+};
+
+.select-label {
+    width: 100px;
+};
+
 //------------------------------------------------------------------
 // CELL StyleS
 //------------------------------------------------------------------
@@ -125,6 +136,11 @@ body {
     color: blue;
 };
 
+.cell-element-ice-wall {
+    background-color: blue;
+    color: white;
+};
+
 //----------
 // ITEMS
 //----------
@@ -155,6 +171,11 @@ body {
 .cell-item-missile {
     background-color: gray;
     color: red;
+};
+
+.cell-item-ice {
+    background-color: white;
+    color: blue;
 };
 
 .cell-item-magic {
