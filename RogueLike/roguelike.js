@@ -144,6 +144,7 @@ var RG = { // {{{2
         elements: {
             "default": ".",
             "wall": "#",
+            "ice wall": "#",
             "floor": ".",
             "stairsUp": "<",
             "stairsDown": ">",
@@ -170,6 +171,7 @@ var RG = { // {{{2
             "default": "cell-element-default",
             wall: "cell-element-wall",
             floor: "cell-element-floor",
+            "ice wall": "cell-element-ice-wall",
         },
         actors: {
             "default": "cell-actor-default",
@@ -1422,6 +1424,25 @@ RG.MissileComponent = function(source) {
 };
 RG.extend2(RG.MissileComponent, RG.Component);
 
+/** This component holds loot that is dropped when given entity is destroyed.*/
+RG.LootComponent = function(lootEntity) {
+    RG.Component.call(this, "Loot");
+
+    var _lootEntity = lootEntity;
+
+    /** Drops the loot to the given cell.*/
+    this.dropLoot = function(cell) {
+        if (_lootEntity.hasOwnProperty("getPropType")) {
+            var propType = _lootEntity.getPropType();
+            cell.setProp(propType, _lootEntity);
+        }
+        else {
+            RG.err("LootComponent", "dropLoot", "Loot has no propType!");
+        }
+    };
+
+};
+RG.extend2(RG.LootComponent, RG.Component);
 //---------------------------------------------------------------------------
 // ECS SYSTEMS
 //---------------------------------------------------------------------------
@@ -1643,6 +1664,12 @@ RG.DamageSystem = function(type, compTypes) {
 
                 if (health.isDead()) {
                     var src = ent.get("Damage").getSource();
+                    if (ent.has("Loot")) {
+                        var entX = ent.getX();
+                        var entY = ent.getY();
+                        var entCell = ent.getLevel().getMap().getCell(entX, entY);
+                        ent.get("Loot").dropLoot(entCell);
+                    }
                     this.killActor(src, ent);
                 }
                 ent.remove("Damage"); // After dealing damage, remove comp
@@ -2900,7 +2927,7 @@ RG.RogueMapGen = function() { // {{{2
     var _mapGen = new ROT.Map.Arena(50, 30);
 
     var _types = ["arena", "cellular", "digger", "divided", "dungeon",
-        "eller", "icey", "uniform", "rogue"];
+        "eller", "icey", "uniform", "rogue", "ruins", "rooms"];
 
     var _wall = 1;
 
@@ -2910,6 +2937,7 @@ RG.RogueMapGen = function() { // {{{2
         return _types[nrand];
     };
 
+    /** Sets the generator for room generation.*/
     this.setGen = function(type, cols, rows) {
         this.cols = cols;
         this.rows = rows;
@@ -3257,10 +3285,19 @@ RG.Map = function(cols, rows) { //{{{2
 /** Factory object for creating some commonly used objects.*/
 RG.Factory = function() { // {{{2
 
+    var zeroIfNull = function(val) {
+        if (!RG.isNullOrUndef[val]) {
+            return val;
+        }
+        return 0;
+    };
+
     var _initCombatant = function(comb, obj) {
         var hp = obj.hp;
         var att = obj.att;
         var def = obj.def;
+        var prot = obj.prot;
+
         if (!RG.isNullOrUndef([hp])) {
             comb.add("Health", new RG.HealthComponent(hp));
         }
@@ -3268,6 +3305,7 @@ RG.Factory = function() { // {{{2
 
         if (!RG.isNullOrUndef([att])) combatComp.setAttack(att);
         if (!RG.isNullOrUndef([def])) combatComp.setDefense(def);
+        if (!RG.isNullOrUndef([prot])) combatComp.setProtection(prot);
 
         comb.add("Combat", combatComp);
     };
@@ -3350,6 +3388,7 @@ RG.Factory = function() { // {{{2
         var level = new RG.RogueLevel(cols, rows);
         var map = mapgen.getMap();
         level.setMap(map);
+        console.log("Factory createLevel: type: " + levelType);
         return level;
     };
 
@@ -3365,6 +3404,33 @@ RG.Factory = function() { // {{{2
 
     };
 
+    /** Player stats based on selection.*/
+    this.playerStats = {
+        Weak: {att: 1, def: 1, prot: 1, hp: 15, Weapon: "Dagger"},
+        Medium: {att: 2, def: 4, prot: 2, hp: 25, Weapon: "Short sword"},
+        Strong: {att: 5, def: 6, prot: 3, hp: 40, Weapon: "Tomahawk"},
+        Inhuman: {att: 10, def: 10, prot: 4, hp: 80, Weapon: "Magic sword"},
+    },
+
+    this.createFCCPlayer = function(parser, game, obj) {
+        var pLevel = obj.playerLevel;
+        var pConf = this.playerStats[pLevel];
+
+        var player = this.createPlayer("Player", {
+            att: pConf.att, def: pConf.def
+        });
+
+        player.setType("player");
+        player.add("Health", new RG.HealthComponent(pConf.hp));
+        var startingWeapon = parser.createActualObj("items", pConf.Weapon);
+        player.getInvEq().addItem(startingWeapon);
+        player.getInvEq().equipItem(startingWeapon);
+
+        var regenPlayer = new RG.RogueRegenEvent(player);
+        game.addEvent(regenPlayer);
+        return player;
+    },
+
     this.createFCCGame = function(obj) {
         var parser = new RG.RogueObjectStubParser();
         parser.parseStubData(RGObjects);
@@ -3375,20 +3441,9 @@ RG.Factory = function() { // {{{2
         var sqrPerItem = obj.sqrPerItem;
 
         var game = new RG.RogueGame();
+        var player = this.createFCCPlayer(parser, game, obj);
 
-        var player = this.createPlayer("Player", {
-            att: 2, def: 4
-        });
-        player.setType("player");
-        player.add("Health", new RG.HealthComponent(25));
-        var sword = parser.createActualObj("items", "Short sword");
-        player.getInvEq().addItem(sword);
-        player.getInvEq().equipItem(sword);
-
-        var regenPlayer = new RG.RogueRegenEvent(player);
-        game.addEvent(regenPlayer);
-
-        var levels = ["rooms", "dungeon", "digger", "icey", "cellular"];
+        var levels = ["rooms", "dungeon", "digger", "icey"];
         var maxLevelType = levels.length;
 
         // For storing stairs and levels
@@ -3453,13 +3508,6 @@ RG.Factory = function() { // {{{2
         lastLevel.addActor(summoner, bossCell.getX(), bossCell.getY());
 
         var extraLevel = this.createLevel("arena", cols, rows);
-/*
-        var magicSword = new RG.RogueItemWeapon("Magic Sword");
-        magicSword.setDamage("10d10 + 10");
-        magicSword.setAttack(20);
-        magicSword.setDefense(20);
-        allLevels[0].addItem(magicSword);
-*/
 
         // Connect levels with stairs
         for (nl = 0; nl < nLevels; nl++) {
@@ -3475,8 +3523,10 @@ RG.Factory = function() { // {{{2
             }
             else {
                 var finalStairs = new RG.RogueStairsElement(true, src, extraLevel);
-                stairCell = this.getFreeRandCell(src);
-                src.addStairs(finalStairs, stairCell.getX(), stairCell.getY());
+                //stairCell = this.getFreeRandCell(src);
+                //src.addStairs(finalStairs, stairCell.getX(), stairCell.getY());
+                var stairsLoot = new RG.LootComponent(finalStairs);
+                summoner.add("Loot", stairsLoot);
                 allStairsDown.push(finalStairs);
             }
 
