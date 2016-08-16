@@ -54,6 +54,7 @@ var RoguelikeTop = React.createClass({
         playerLevel: "Medium",
         sqrPerMonster: 40,
         sqrPerItem: 100,
+        debugMode: false,
     },
 
     forceRender: function() {
@@ -182,12 +183,13 @@ var RoguelikeTop = React.createClass({
         return (
             <div id="main-div" className="container main-div">
 
-                <GameStartScreen newGame={this.newGame} 
+                <GameStartScreen newGame={this.newGame}
                     setGameLength={this.setGameLength}
                     setLoot={this.setLoot}
                     setMonsters={this.setMonsters}
                     setLevelSize={this.setLevelSize}
                     setPlayerLevel={this.setPlayerLevel}
+                    setDebugMode={this.setDebugMode}
                 />
                 <GameHelpScreen />
 
@@ -207,8 +209,8 @@ var RoguelikeTop = React.createClass({
                         <ViewZoom player={player} map={map}/>
                     </div>
                     <div className="col-md-10">
-                        <GameBoard player={player} map={map} 
-                            visibleCells={this.visibleCells} 
+                        <GameBoard player={player} map={map}
+                            visibleCells={this.visibleCells}
                             onCellClick={this.onCellClick}
                             renderFullScreen={fullScreen}
                             viewportX={this.viewportX}
@@ -318,6 +320,13 @@ var RoguelikeTop = React.createClass({
         }
     },
 
+    setDebugMode: function(mode) {
+        switch(mode) {
+            case "Off": this.gameConf.debugMode = false; break;
+            case "Arena": this.gameConf.debugMode = "Arena"; break;
+        }
+    },
+
 });
 
 var GameHelpScreen = React.createClass({
@@ -379,6 +388,7 @@ var GameStartScreen = React.createClass({
         var setLevelSize = this.props.setLevelSize;
         var setPlayerLevel = this.props.setPlayerLevel;
         var setGameLength = this.props.setGameLength;
+        var setDebugMode = this.props.setDebugMode;
 
         var newGame = this.props.newGame;
         return (
@@ -394,11 +404,32 @@ var GameStartScreen = React.createClass({
 
                         <div className="modal-body row">
                             <div id="prologue-box" className="col-md-6">
-                                <p>Winds are ever-blowing. Blowing off the glaciers. Welcome into the wintry realms!
-                                    Are you ready to face the challenges of the icy north? Hunger, coldness, ravenous 
-                                    beasts, glacial chasms and forthcoming eternal winter are waiting for you in the darkness.
+
+                                <p>
+                                    Welcome to the wintry realms!
+                                    Winds are ever-blowing. Blowing off the
+                                    glaciers.
+                                    Are you ready to face the challenges of the
+                                    icy north? Hunger, coldness, ravenous
+                                    beasts, glacial chasms and forthcoming
+                                    eternal winter are waiting for you in the
+                                    darkness.
                                 </p>
-                            </div>
+
+                                <p>
+                                    From all heroes, you have been chosen to
+                                    defeat the Summoner lurking in his Fortress
+                                    of Ice, under the pale light of the
+                                    wintermoon. You must fight freezing battles in
+                                    the north against hordes of winter demons
+                                    and blizzard beasts. Will you bring back the peace
+                                    to the grim and frostbitten kingdom. Or will you 
+                                    bring the Winter of Ages upon its lands, reigning 
+                                    your kingdom cold?
+                                </p>
+
+                        </div>
+
                             <div id="game-options-box" className="col-md-6">
                                 <p>Customisation</p>
                                 <RadioButtons buttons={["Short", "Medium", "Long", "Epic"]} callback={setGameLength} titleName="Game length" />
@@ -406,6 +437,7 @@ var GameStartScreen = React.createClass({
                                 <RadioButtons buttons={["Sparse", "Medium", "Abundant"]} callback={setMonsters} titleName="Monsters" />
                                 <RadioButtons buttons={["Small", "Medium", "Large", "Huge"]} callback={setLevelSize} titleName="Levels" />
                                 <RadioButtons buttons={["Weak", "Medium", "Strong", "Inhuman"]} callback={setPlayerLevel} titleName="Player" />
+                                <RadioButtons buttons={["Off", "Arena"]} callback={setDebugMode} titleName="Debug" />
                             </div>
                         </div>
 
@@ -426,8 +458,15 @@ var GameStartScreen = React.createClass({
  * Callback must be given, and the button name is passed into this callback.*/
 var RadioButtons = React.createClass({
 
+    getInitialState: function() {
+        return {
+            activeButton: ""
+        };
+    },
+
     onButtonClick: function(name) {
         this.props.callback(name);
+        this.setState({activeButton: name});
     },
 
     render: function() {
@@ -437,8 +476,10 @@ var RadioButtons = React.createClass({
 
         // Generate buttons using map
         var buttonList = buttons.map(function(name, index) {
+            var classes = "btn btn-primary";
+            if (that.state.activeButton === name) classes += " active";
             return (
-                <button onClick={that.onButtonClick.bind(that, name)} className="btn btn-primary" key={index}>{name}</button>
+                <button onClick={that.onButtonClick.bind(that, name)} className={classes} key={index}>{name}</button>
             );
         });
 
@@ -725,7 +766,7 @@ var GameEquipSlot = React.createClass({
         if (this.props.item !== null) {
             var selection = {
                 slotName: this.props.slotName,
-                slotNumber: this.props.slotNumber, 
+                slotNumber: this.props.slotNumber,
                 item: this.props.item
             };
             this.props.setEquipSelected(selection);
@@ -917,9 +958,9 @@ var GameBoard = React.createClass({
 
         for (var i = shownCells.startY; i <= shownCells.endY; ++i) {
             var rowCellData = shownCells.getCellRow(i);
-            rows.push(<GameRow 
+            rows.push(<GameRow
                 y={i} onCellClick={onCellClick} renderFullScreen={renderFullScreen}
-                visibleCells={visibleCells} rowCellData={rowCellData} key={i} 
+                visibleCells={visibleCells} rowCellData={rowCellData} key={i}
                     mapShown={mapShown}/>);
         }
 
