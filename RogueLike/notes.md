@@ -113,9 +113,9 @@ XXXBrain = function(actor) {
 
 TODO-list
 ---------
-    1. Add proper ending after Summoner's been defeated.
-    2. Add "Spirit" feature for enhancements. Add willpower.
-    3. Create friendly NPCs, their brains and behaviour.
+    1. Create friendly NPCs, their brains and behaviour.
+    2. Add proper ending after Summoner's been defeated.
+    3. Add "Spirit" feature for enhancements. Add willpower.
     4. Implement combat between NPCs and monsters.
     N. Create a highscore system.
     N+1. Create a saving system.
