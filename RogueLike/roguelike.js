@@ -1291,7 +1291,7 @@ RG.CombatComponent = function() {
 };
 RG.extend2(RG.CombatComponent, RG.Component);
 
-
+/** This component stores entity stats like speed, agility etc.*/
 RG.StatsComponent = function() {
     RG.Component.call(this, "Stats");
 
@@ -1461,8 +1461,24 @@ RG.LootComponent = function(lootEntity) {
 };
 RG.extend2(RG.LootComponent, RG.Component);
 
+/** This component is added to entities receiving communication. Communication
+ * is used to point out enemies and locations of items, for example.*/
+RG.CommunicationComponent = function() {
+    RG.Component.call(this, "Communication");
+
+    var _messages = [];
+
+    this.getMsg = function() {return _messages;};
+
+    this.addMsg = function(obj) {
+        _messages.push(obj);
+    };
+
+};
+RG.extend2(RG.CommunicationComponent, RG.Component);
+
 //---------------------------------------------------------------------------
-// ECS SYSTEMS
+// ECS SYSTEMS {{{1
 //---------------------------------------------------------------------------
 
 /** Base class for all systems in ECS framework.*/
@@ -1849,6 +1865,52 @@ RG.HungerSystem = function(type, compTypes) {
 
 };
 RG.extend2(RG.HungerSystem, RG.System);
+
+/** Processes entities with hunger component.*/
+RG.CommunicationSystem = function(type, compTypes) {
+    RG.System.call(this, type, compTypes);
+
+
+    // Each entity here has received communication and must capture its
+    // information contents
+    this.update = function() {
+        for (var e in this.entities) {
+            var ent = this.entities[e];
+            var comComp = ent.get("Communication");
+            var messages = comComp.getMsg();
+            for (var i = 0; i < messages.length; i++) {
+                this.processMessage(ent, messages[i]);
+            }
+            ent.remove("Communication");
+        }
+    };
+
+    this.processMessage = function(ent, msg) {
+        if (_msgFunc.hasOwnProperty(msg.type)) {
+            _msgFunc[msg.type](ent, msg);
+        }
+        else {
+            RG.err("CommunicationSystem", "processMessage",
+                "No function for msg type |" + msg.type + "| in dtable.");
+        }
+    };
+
+    this.processEnemies = function(ent, msg) {
+        var enemies = msg.enemies;
+        for (var i = 0; i < enemies.length; i++) {
+            ent.addEnemy(enemies[i]);
+        }
+    };
+
+    // Dispatch table for different messages
+    var _msgFunc = {
+        Enemies: this.processEnemies,
+    };
+
+}
+RG.extend2(RG.CommunicationSystem, RG.System);
+// }}} SYSTEMS
+
 //---------------------------------------------------------------------------
 // ITEMS
 //---------------------------------------------------------------------------
@@ -2587,18 +2649,41 @@ RG.PlayerBrain = function(actor) { // {{{2
 RG.RogueBrainMemory = function(brain) {
 
     var _enemies = []; // List of enemies for this actor
+    var _enemyTypes = []; // List of enemy types for this actor
+    var _communications = [];
+
+    this.addEnemyType = function(type) {_enemyTypes.push(type);};
 
     /** Checks if given actor is an enemy. */
     this.isEnemy = function(actor) {
         var index = _enemies.indexOf(actor);
-        return index !== -1;
+        if (index !== -1) return true;
+        var type = actor.getType();
+        index = _enemyTypes.indexOf(type);
+        if (index !== -1) return true;
+        return false;
     };
 
-    /** Adds given actor as enemy.*/
+    /** Adds given actor as (personal) enemy.*/
     this.addEnemy = function(actor) {
         if (!this.isEnemy(actor)) {
             _enemies.push(actor);
         }
+    };
+
+    this.getEnemies = function() {return _enemies;};
+
+    /** Adds a communication with given actor. */
+    this.addCommunicationWith = function(actor) {
+        if (!this.hasCommunicatedWith(actor)) {
+            _communications.push(actor);
+        }
+    };
+
+    /** Returns true if has communicated with given actor.*/
+    this.hasCommunicatedWith = function(actor) {
+        var index = _communications.indexOf(actor);
+        return index !== -1;
     };
 
 };
@@ -2611,6 +2696,8 @@ RG.RogueBrain = function(actor) { // {{{2
     var _explored = {}; // Memory of explored cells
 
     var _memory = new RG.RogueBrainMemory(this);
+
+    this.getMemory = function() {return _memory;};
 
     this.setActor = function(actor) {_actor = actor;};
     this.getActor = function() {return _actor;};
@@ -2681,7 +2768,7 @@ RG.RogueBrain = function(actor) { // {{{2
 
     this.exploreLevel = function(seenCells) {
         var level = _actor.getLevel();
-        // If player not seen, wander around exploring
+        // Wander around exploring
         var index = -1;
         for (var i = 0, ll = seenCells.length; i < ll; i++) {
             if (seenCells[i].isFree()) {
@@ -2857,6 +2944,65 @@ RG.SummonerBrain = function(actor) {
     };
 
 };
+RG.extend2(RG.SummonerBrain, RG.RogueBrain);
+
+/** This brain is used by humans who are not hostile to the player.*/
+RG.HumanBrain = function(actor) {
+    RG.RogueBrain.call(this, actor);
+    var _actor = actor;
+
+    this.decideNextAction = function(obj) {
+        var level = _actor.getLevel();
+        var seenCells = this.getSeenCells();
+        var enemyCell = this.findEnemyCell(seenCells);
+        var friendCell = this.findFriendCell(seenCells);
+        var friendActor = null;
+        var memory = this.getMemory();
+
+        var comOrAttack = Math.random();
+        if (RG.isNullOrUndef([friendCell])) {
+            comOrAttack = 1.0;
+        }
+        else {
+            var friendActor = friendCell.getProp("actors")[0];
+            if (memory.hasCommunicatedWith(friendActor)) {
+                comOrAttack = 1.0;
+            }
+        }
+
+        // We have found the enemy
+        if (!RG.isNullOrUndef([enemyCell]) && comOrAttack > 0.5) { // Move or attack
+            return this.actionTowardsEnemy(enemyCell);
+        }
+        else {
+            if (friendActor !== null) { // Communicate enemies
+                var comComp = new RG.CommunicationComponent();
+                var enemies = memory.getEnemies();
+                var msg = {type: "Enemies", enemies: enemies};
+                comComp.addMsg(msg);
+                if (!friendActor.has("Communication")) {
+                    friendActor.add("Communication", comComp);
+                }
+                memory.addCommunicationWith(friendActor);
+            }
+        }
+        return this.exploreLevel(seenCells);
+
+    };
+
+    /** Finds a friend cell among seen cells.*/
+    this.findFriendCell = function(seenCells) {
+        for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
+            if (seenCells[i].hasProp("actors")) {
+                var actors = seenCells[i].getProp("actors");
+                if (!_memory.isEnemy(actors[0])) return seenCells[i];
+            }
+        }
+        return null;
+    };
+
+};
+
 RG.extend2(RG.SummonerBrain, RG.RogueBrain);
 
 // }}} BRAINS
@@ -3375,6 +3521,8 @@ RG.Factory = function() { // {{{2
     /** Factory method for monsters.*/
     this.createMonster = function(name, obj) {
         var monster = new RG.RogueActor(name);
+        if (RG.isNullOrUndef([obj])) obj = {};
+
         var brain = obj.brain;
         _initCombatant(monster, obj);
         if (!RG.isNullOrUndef([brain])) {
@@ -3441,7 +3589,7 @@ RG.Factory = function() { // {{{2
         var pConf = this.playerStats[pLevel];
 
         var player = this.createPlayer("Player", {
-            att: pConf.att, def: pConf.def
+            att: pConf.att, def: pConf.def, prot: pConf.prot
         });
 
         player.setType("player");
@@ -3466,6 +3614,10 @@ RG.Factory = function() { // {{{2
 
         var game = new RG.RogueGame();
         var player = this.createFCCPlayer(parser, game, obj);
+
+        if (obj.debugMode === "Arena") {
+            return this.createFCCDebugGame(obj, parser, game, player);
+        }
 
         var levels = ["rooms", "rogue", "digger", "icey"];
         var maxLevelType = levels.length;
@@ -3499,25 +3651,8 @@ RG.Factory = function() { // {{{2
             var missile = parser.createActualObj("items", "Shuriken");
             level.addItem(missile);
 
-            // Generate the items randomly for this level
-            for (var j = 0; j < itemsPerLevel; j++) {
-                var maxVal = 20 * (nl + 1);
-                var item = parser.createRandomItem({
-                    func: function(item) {return item.value <= maxVal;}
-                });
-                var itemCell = this.getFreeRandCell(level);
-                level.addItem(item, itemCell.getX(), itemCell.getY());
-            }
-
-            // Generate the monsters randomly for this level
-            for (var i = 0; i < monstersPerLevel; i++) {
-                var cell = this.getFreeRandCell(level);
-                var monster = parser.createRandomActor({
-                    func: function(actor){return actor.danger <= nl + 1;}
-                });
-                monster.get("Experience").setExpLevel(nl + 1);
-                level.addActor(monster, cell.getX(), cell.getY());
-            }
+            this.addNRandItems(parser, itemsPerLevel, level, 20*(nl +1));
+            this.addNRandMonsters(parser, monstersPerLevel, level, nl + 1);
 
             allLevels.push(level);
         }
@@ -3547,8 +3682,6 @@ RG.Factory = function() { // {{{2
             }
             else {
                 var finalStairs = new RG.RogueStairsElement(true, src, extraLevel);
-                //stairCell = this.getFreeRandCell(src);
-                //src.addStairs(finalStairs, stairCell.getX(), stairCell.getY());
                 var stairsLoot = new RG.LootComponent(finalStairs);
                 summoner.add("Loot", stairsLoot);
                 allStairsDown.push(finalStairs);
@@ -3585,6 +3718,31 @@ RG.Factory = function() { // {{{2
 
     };
 
+    /** Adds N random items to the level based on maximum value.*/
+    this.addNRandItems = function(parser, itemsPerLevel, level, maxVal) {
+        // Generate the items randomly for this level
+        for (var j = 0; j < itemsPerLevel; j++) {
+            var item = parser.createRandomItem({
+                func: function(item) {return item.value <= maxVal;}
+            });
+            var itemCell = this.getFreeRandCell(level);
+            level.addItem(item, itemCell.getX(), itemCell.getY());
+        }
+    };
+
+    /** Adds N random monsters to the level based on given danger level.*/
+    this.addNRandMonsters = function(parser, monstersPerLevel, level, maxDanger) {
+        // Generate the monsters randomly for this level
+        for (var i = 0; i < monstersPerLevel; i++) {
+            var cell = this.getFreeRandCell(level);
+            var monster = parser.createRandomActor({
+                func: function(actor){return actor.danger <= maxDanger;}
+            });
+            monster.get("Experience").setExpLevel(maxDanger);
+            level.addActor(monster, cell.getX(), cell.getY());
+        }
+    };
+
     /** Return random free cell on a given level.*/
     this.getFreeRandCell = function(level) {
         var freeCells = level.getMap().getFree();
@@ -3595,6 +3753,25 @@ RG.Factory = function() { // {{{2
             return cell;
         }
         return null;
+    };
+
+
+    /** Can be used to create a short debugging game for testing.*/
+    this.createFCCDebugGame = function(obj, parser, game, player) {
+        var sqrPerMonster = obj.sqrPerMonster;
+        var sqrPerItem = obj.sqrPerItem;
+        var level = this.createLevel("Arena", obj.cols, obj.rows);
+
+        var numFree = level.getMap().getFree().length;
+        var monstersPerLevel = Math.round(numFree / sqrPerMonster);
+        var itemsPerLevel = Math.round(numFree / sqrPerItem);
+
+        game.addLevel(level);
+        game.addPlayer(player);
+        player.setFOVRange(30);
+        this.addNRandItems(parser, itemsPerLevel, level, 1000);
+        this.addNRandMonsters(parser, monstersPerLevel, level, 10);
+        return game;
     };
 
 };
