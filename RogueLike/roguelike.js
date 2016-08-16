@@ -745,7 +745,6 @@ RG.RogueGame = function() { // {{{2
                 RG.err("Game", "notify - ACT_COMP_ADDED",
                     "No actor specified for the event.");
             }
-
         }
         /*
         else if (evtName === RG.EVT_ACTOR_CREATED) {
@@ -1217,12 +1216,17 @@ RG.ExperienceComponent = function() {
     var _exp      = 0;
     var _expLevel = 1;
 
+    var _danger = 1;
+
     /** Experience-level methods.*/
     this.setExp = function(exp) {_exp = exp;};
     this.getExp = function() {return _exp;};
     this.addExp = function(nExp) {_exp += nExp;};
     this.setExpLevel = function(expLevel) {_expLevel = expLevel;};
     this.getExpLevel = function() {return _expLevel;};
+
+    this.setDanger = function(danger) {_danger = danger;};
+    this.getDanger = function() {return _danger;};
 
 };
 RG.extend2(RG.ExperienceComponent, RG.Component);
@@ -1456,6 +1460,7 @@ RG.LootComponent = function(lootEntity) {
 
 };
 RG.extend2(RG.LootComponent, RG.Component);
+
 //---------------------------------------------------------------------------
 // ECS SYSTEMS
 //---------------------------------------------------------------------------
@@ -1537,7 +1542,6 @@ RG.AttackSystem = function(type, compTypes) {
             var hitChange = totalAttack / (totalAttack + totalDefense);
 
             RG.gameMsg(_att.getName() + " attacks " + _def.getName());
-            _def.addEnemy(_att);
             if (hitChange > Math.random()) {
                 var totalDamage = damage;
                 if (totalDamage > 0)
@@ -1548,6 +1552,7 @@ RG.AttackSystem = function(type, compTypes) {
             else {
                 RG.gameMsg(_att.getName() + " misses " + _def.getName());
             }
+            _def.addEnemy(_att);
             ent.remove("Attack");
         }
     }
@@ -1710,7 +1715,8 @@ RG.DamageSystem = function(type, compTypes) {
     /** When an actor is killed, gives experience to damage's source.*/
     this.giveExpToSource = function(att, def) {
         var defLevel = def.get("Experience").getExpLevel();
-        var expPoints = new RG.ExpPointsComponent(defLevel);
+        var defDanger = def.get("Experience").getDanger();
+        var expPoints = new RG.ExpPointsComponent(defLevel + defDanger);
         att.add("ExpPoints", expPoints);
     };
 
@@ -2576,7 +2582,8 @@ RG.PlayerBrain = function(actor) { // {{{2
 }; // }}} PlayerBrain
 
 
-/** Memory is used by the actor to hold information about enemies, items etc.*/
+/** Memory is used by the actor to hold information about enemies, items etc.
+ * It's a separate object from decision-making brain.*/
 RG.RogueBrainMemory = function(brain) {
 
     var _enemies = []; // List of enemies for this actor
@@ -3629,6 +3636,7 @@ RG.RogueObjectStubParser = function() {
             damage: {comp: "Combat", func:"setDamage"},
             speed: {comp: "Stats", func: "setSpeed"},
             hp: {comp: "Health"},
+            danger: {comp: "Experience", func: "setDanger"},
         },
         items: {
             // Generic item functions
@@ -3728,6 +3736,7 @@ RG.RogueObjectStubParser = function() {
         return _db[categ][name];
     };
 
+    /** Return specified base stub.*/
     this.getBase = function(categ, name) {
         return _base[categ][name];
     };
@@ -3791,9 +3800,14 @@ RG.RogueObjectStubParser = function() {
         }
     };
 
+    /** Creates a component of specified type.*/
     this.createComponent = function(type, val) {
         switch(type) {
+            case "Combat": return new RG.CombatComponent();
             case "Health": return new RG.HealthComponent(val);
+            case "Stats": return new RG.StatsComponent();
+            default: RG.err("ObjectParser", "createComponent",
+                "Unknown component " + type + " for the factory method.");
         }
     };
 
