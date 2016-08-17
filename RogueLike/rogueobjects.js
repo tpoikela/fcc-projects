@@ -30,7 +30,7 @@ var RGObjects = {
             name: "animal", dontCreate: true,
             className: "cell-actor-animal",
             attack: 1, defense: 1, hp: 5,
-            range: 1, danger: 1, speed: 100
+            range: 1, danger: 1, speed: 100, brain: "Animal",
         },
         {
             name: "bat", type: "bat", "char": "b", base: "animal",
@@ -74,7 +74,7 @@ var RGObjects = {
         {
             name: "human", "char": "@", type: "human",
             attack: 2, defense: 2, damage: "1d4",
-            range: 1, hp: 20, danger: 3,
+            range: 1, hp: 20, danger: 3, brain: "Human",
         },
         {
             name: "miner", base: "human",
