@@ -514,7 +514,7 @@ RG.RogueGame = function() { // {{{2
     var _msg = new RG.Messages();
 
     // These systems updated after each action
-    this.systemOrder = ["Attack", "Missile", "Movement", "Damage", "ExpPoints"];
+    this.systemOrder = ["Attack", "Missile", "Movement", "Damage", "ExpPoints", "Communication"];
     this.systems = {};
     this.systems["Attack"] = new RG.AttackSystem("Attack", ["Attack"]);
     this.systems["Missile"] = new RG.MissileSystem("Missile", ["Missile"]);
@@ -522,6 +522,8 @@ RG.RogueGame = function() { // {{{2
     this.systems["Damage"] = new RG.DamageSystem("Damage", ["Damage", "Health"]);
     this.systems["ExpPoints"] = new RG.ExpPointsSystem("ExpPoints", 
         ["ExpPoints", "Experience"]);
+    this.systems["Communication"] = new RG.CommunicationSystem("Communication",
+        ["Communication"]);
 
     // Systems updated once each game loop
     this.loopSystems = {};
@@ -1870,7 +1872,6 @@ RG.extend2(RG.HungerSystem, RG.System);
 RG.CommunicationSystem = function(type, compTypes) {
     RG.System.call(this, type, compTypes);
 
-
     // Each entity here has received communication and must capture its
     // information contents
     this.update = function() {
@@ -2668,6 +2669,7 @@ RG.RogueBrainMemory = function(brain) {
     this.addEnemy = function(actor) {
         if (!this.isEnemy(actor)) {
             _enemies.push(actor);
+            _communications = []; // Invalidate communications
         }
     };
 
@@ -2845,12 +2847,16 @@ RG.RogueBrain = function(actor) { // {{{2
 RG.AnimalBrain = function(actor) {
     RG.RogueBrain.call(this, actor);
 
+    var _memory = this.getMemory();
+    _memory.addEnemyType("player");
+    _memory.addEnemyType("human");
+
     this.findEnemyCell = function(seenCells) {
+        var memory = this.getMemory();
         for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
             if (seenCells[i].hasProp("actors")) {
                 var actors = seenCells[i].getProp("actors");
-                if (actors[0].isPlayer() || actors[0].getType() === "human" ||
-                _memory.isEnemy(actors[0]))
+                if (memory.isEnemy(actors[0]))
                     return seenCells[i];
             }
         }
@@ -2964,8 +2970,9 @@ RG.HumanBrain = function(actor) {
             comOrAttack = 1.0;
         }
         else {
-            var friendActor = friendCell.getProp("actors")[0];
+            friendActor = friendCell.getProp("actors")[0];
             if (memory.hasCommunicatedWith(friendActor)) {
+                console.log("Human already communicated.");
                 comOrAttack = 1.0;
             }
         }
@@ -2975,7 +2982,9 @@ RG.HumanBrain = function(actor) {
             return this.actionTowardsEnemy(enemyCell);
         }
         else {
+            console.log(_actor.getName() + " trying to communicate.");
             if (friendActor !== null) { // Communicate enemies
+                console.log("Found a friend: " + friendActor.getName());
                 var comComp = new RG.CommunicationComponent();
                 var enemies = memory.getEnemies();
                 var msg = {type: "Enemies", enemies: enemies};
@@ -2990,12 +2999,27 @@ RG.HumanBrain = function(actor) {
 
     };
 
-    /** Finds a friend cell among seen cells.*/
-    this.findFriendCell = function(seenCells) {
+    this.findEnemyCell = function(seenCells) {
+        var memory = this.getMemory();
         for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
             if (seenCells[i].hasProp("actors")) {
                 var actors = seenCells[i].getProp("actors");
-                if (!_memory.isEnemy(actors[0])) return seenCells[i];
+                if (memory.isEnemy(actors[0]))
+                    return seenCells[i];
+            }
+        }
+        return null;
+    };
+
+    /** Finds a friend cell among seen cells.*/
+    this.findFriendCell = function(seenCells) {
+        var memory = this.getMemory();
+        for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
+            if (seenCells[i].hasProp("actors")) {
+                var actors = seenCells[i].getProp("actors");
+                if (actors[0] !== _actor) {
+                    if (!memory.isEnemy(actors[0])) return seenCells[i];
+                }
             }
         }
         return null;
@@ -3003,7 +3027,7 @@ RG.HumanBrain = function(actor) {
 
 };
 
-RG.extend2(RG.SummonerBrain, RG.RogueBrain);
+RG.extend2(RG.HumanBrain, RG.RogueBrain);
 
 // }}} BRAINS
 
@@ -3530,17 +3554,20 @@ RG.Factory = function() { // {{{2
                 monster.setBrain(brain);
             }
             else { // If brain is string, use factory to create a new one
-                var newBrain = this.createBrain(brain);
+                var newBrain = this.createBrain(monster, brain);
                 monster.setBrain(newBrain);
             }
         }
         return monster;
     };
 
-    this.createBrain = function(brainName) {
+    this.createBrain = function(actor, brainName) {
         switch(brainName) {
-            case "Zombie": return new RG.ZombieBrain(null);
-            default: return new RG.RogueBrain(null);
+            case "Animal": return new RG.AnimalBrain(actor);
+            case "Human": return new RG.HumanBrain(actor);
+            case "Summoner": return new RG.SummonerBrain(actor);
+            case "Zombie": return new RG.ZombieBrain(actor);
+            default: return new RG.RogueBrain(actor);
         }
     };
 
@@ -3769,8 +3796,21 @@ RG.Factory = function() { // {{{2
         game.addLevel(level);
         game.addPlayer(player);
         player.setFOVRange(30);
+
+        //var human = parser.createActualObj("actors", "human");
+        //var wolf = parser.createActualObj("actors", "wolf");
+
+        for (var i = 0; i < 4; i++) {
+            var human = this.createMonster("human" + i, {brain: "Human"});
+            human.setType("human");
+            level.addActor(human, 2*i + 1, 4);
+        }
+
+        var wolf = this.createMonster("wolf", {brain: "Animal"});
         this.addNRandItems(parser, itemsPerLevel, level, 1000);
-        this.addNRandMonsters(parser, monstersPerLevel, level, 10);
+        level.addActor(wolf, 6, 6);
+
+        //this.addNRandMonsters(parser, monstersPerLevel, level, 10);
         return game;
     };
 
