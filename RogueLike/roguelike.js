@@ -1297,8 +1297,10 @@ RG.extend2(RG.CombatComponent, RG.Component);
 RG.StatsComponent = function() {
     RG.Component.call(this, "Stats");
 
-    var _accuracy = 10;
+    var _accuracy = 5;
     var _agility  = 5;
+    var _willpower = 5;
+
     var _speed = 100;
 
     /** These determine the chance of hitting. */
@@ -1306,6 +1308,9 @@ RG.StatsComponent = function() {
     this.getAccuracy = function() {return _accuracy;};
     this.setAgility = function(agil) {_agility = agil;};
     this.getAgility = function() {return _agility;};
+    this.setWillpower = function(_wp) {_willpower = wp;};
+    this.getWillpower = function() {return _willpower;};
+
     this.setSpeed = function(speed) {_speed = speed;};
     this.getSpeed = function() {return _speed;};
 
@@ -1325,13 +1330,13 @@ RG.AttackComponent = function(target) {
 };
 RG.extend2(RG.AttackComponent, RG.Component);
 
+/** Transient component added to a moving entity.*/
 RG.MovementComponent = function(x, y, level) {
     RG.Locatable.call(this);
     RG.Component.call(this, "Movement");
 
     this.setXY(x, y);
     this.setLevel(level);
-
 
 };
 RG.extend2(RG.MovementComponent, RG.Locatable);
@@ -2127,6 +2132,21 @@ RG.RogueItemContainer = function(owner) {
 };
 RG.extend2(RG.RogueItemContainer, RG.RogueItem);
 
+/** Spirit items are wearables which can have powerful use abilities as well.*/
+RG.RogueItemSpirit = function(name) {
+    RG.RogueItem.call(this, name);
+    RG.Entity.call(this);
+    this.setType("spirit");
+
+    this.getArmourType = function() {return "spirit";};
+
+    var stats = new RG.StatsComponent();
+    this.add("Stats", stats);
+
+};
+RG.extend2(RG.RogueItemSpirit, RG.RogueItem);
+RG.extend2(RG.RogueItemSpirit, RG.Entity);
+
 //---------------------------------------------------------------------------
 // EQUIPMENT AND INVENTORY
 //---------------------------------------------------------------------------
@@ -2182,6 +2202,7 @@ RG.RogueEquipment = function(actor) {
         neck: new RG.RogueEquipSlot(this, "neck", 1),
         feet: new RG.RogueEquipSlot(this, "feet", 1),
         missile: new RG.RogueEquipSlot(this, "missile", 1),
+        spirit: new RG.RogueEquipSlot(this, "spirit", 1),
     };
 
     this.getSlotTypes = function() {return Object.keys(_slots);};
@@ -2264,9 +2285,19 @@ RG.RogueEquipment = function(actor) {
         return result;
     };
 
+    // Dynamically generated accessors for different stats 
+    var _mods = ["getDefense", "getAttack", "getProtection", "getSpeed", "getWillpower",
+        "getAccuracy", "getAgility"];
+
+    for (var i = 0; i < _mods.length; i++) {
+        this[_mods[i]] = function() {return this.propertySum(_mods[i]);};
+    }
+
+    /*
     this.getDefense = function() {return this.propertySum("getDefense");};
     this.getAttack = function() {return this.propertySum("getAttack");};
     this.getProtection = function() {return this.propertySum("getProtection");};
+    */
 
 };
 RG.extend2(RG.RogueEquipment, RG.Ownable);
@@ -2972,7 +3003,6 @@ RG.HumanBrain = function(actor) {
         else {
             friendActor = friendCell.getProp("actors")[0];
             if (memory.hasCommunicatedWith(friendActor)) {
-                console.log("Human already communicated.");
                 comOrAttack = 1.0;
             }
         }
@@ -2982,9 +3012,7 @@ RG.HumanBrain = function(actor) {
             return this.actionTowardsEnemy(enemyCell);
         }
         else {
-            console.log(_actor.getName() + " trying to communicate.");
             if (friendActor !== null) { // Communicate enemies
-                console.log("Found a friend: " + friendActor.getName());
                 var comComp = new RG.CommunicationComponent();
                 var enemies = memory.getEnemies();
                 var msg = {type: "Enemies", enemies: enemies};
@@ -3017,7 +3045,7 @@ RG.HumanBrain = function(actor) {
         for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
             if (seenCells[i].hasProp("actors")) {
                 var actors = seenCells[i].getProp("actors");
-                if (actors[0] !== _actor) {
+                if (actors[0] !== _actor) { // Exclude itself
                     if (!memory.isEnemy(actors[0])) return seenCells[i];
                 }
             }
@@ -3073,20 +3101,23 @@ RG.RogueScheduler = function() { // {{{2
     // Internally use ROT scheduler
     var _scheduler = new ROT.Scheduler.Action();
 
+    /** Adds an actor or event to the scheduler.*/
     this.add = function(actor, repeat, offset) {
         _scheduler.add(actor, repeat, offset);
     };
 
-    // Returns null if no next actor exists.
+    // Returns next actor/event or null if no next actor exists.
     this.next = function() {
         return _scheduler.next();
     };
 
+    /** Must be called after next() to re-schedule next slot for the
+     * actor/event.*/
     this.setAction = function(action) {
         _scheduler.setDuration(action.getDuration());
     };
 
-    /** Tries to remove an actor, Return true if success.*/
+    /** Tries to remove an actor/event, Return true if success.*/
     this.remove = function(actor) {
         return _scheduler.remove(actor);
     };
@@ -3095,7 +3126,7 @@ RG.RogueScheduler = function() { // {{{2
         return _scheduler.getTime();
     };
 
-    /** Hooks to the event system. When actor is killed, removes it from the
+    /** Hooks to the event system. When an actor is killed, removes it from the
      * scheduler.*/
     this.notify = function(evtName, args) {
         if (evtName === RG.EVT_ACTOR_KILLED) {
@@ -3800,7 +3831,7 @@ RG.Factory = function() { // {{{2
         //var human = parser.createActualObj("actors", "human");
         //var wolf = parser.createActualObj("actors", "wolf");
 
-        for (var i = 0; i < 4; i++) {
+        for (var i = 0; i < 10; i++) {
             var human = this.createMonster("human" + i, {brain: "Human"});
             human.setType("human");
             level.addActor(human, 2*i + 1, 4);
