@@ -1568,7 +1568,9 @@ RG.AttackSystem = function(type, compTypes) {
             var totalDefense = defPoints + agility/2 + defEquip;
             var hitChange = totalAttack / (totalAttack + totalDefense);
 
-            RG.gameMsg(_att.getName() + " attacks " + _def.getName());
+            console.log("Hit change is " + hitChange);
+
+            //RG.gameMsg(_att.getName() + " attacks " + _def.getName());
             if (hitChange > Math.random()) {
                 var totalDamage = damage;
                 if (totalDamage > 0)
@@ -1588,6 +1590,7 @@ RG.AttackSystem = function(type, compTypes) {
         var dmgComp = new RG.DamageComponent(dmg, "cut");
         dmgComp.setSource(att);
         def.add("Damage", dmgComp);
+        RG.gameMsg(att.getName() + " hits " + def.getName());
     };
 };
 RG.extend2(RG.AttackSystem, RG.System);
@@ -1704,7 +1707,10 @@ RG.DamageSystem = function(type, compTypes) {
                 var protTotal = protEquip + protStats;
                 var totalDmg = dmg - protTotal;
 
-                if (totalDmg < 0) totalDmg = 0;
+                if (totalDmg <= 0) {
+                    totalDmg = 0;
+                    RG.gameMsg("Attack doesn't penetrate protection of " + ent.getName()); 
+                }
                 health.decrHP(totalDmg);
 
                 if (health.isDead()) {
@@ -3224,6 +3230,9 @@ RG.RogueMapGen = function() { // {{{2
         return _types[nrand];
     };
 
+    var _nHouses = 5;
+    this.setNHouses = function(nHouses) {_nHouses = nHouses;};
+
     /** Sets the generator for room generation.*/
     this.setGen = function(type, cols, rows) {
         this.cols = cols;
@@ -3241,6 +3250,7 @@ RG.RogueMapGen = function() { // {{{2
             case "uniform":  _mapGen = new ROT.Map.Uniform(cols, rows); break;
             case "ruins": _mapGen = this.createRuins(cols, rows); break;
             case "rooms": _mapGen = this.createRooms(cols, rows); break;
+            //case "town": _mapGen = this.createTown(cols, rows, _nHouses); break;
             default: RG.err("MapGen", "setGen", "_mapGen type " + type + " is unknown");
         }
     };
@@ -3288,7 +3298,138 @@ RG.RogueMapGen = function() { // {{{2
         return map;
     };
 
+    /** Creates a town level of size cols X rows. */
+    this.createTown = function(cols, rows, conf) {
+        var maxTriesHouse = 100;
+        var doors = {};
+        var wallsHalos = {};
+
+        var nHouses = 5;
+        var minX = 5;
+        var maxX = 5;
+        var minY = 5;
+        var maxY = 5;
+
+        if (conf.hasOwnProperty("nHouses")) nHouses = conf.nHouses;
+        if (conf.hasOwnProperty("minHouseX")) minX = conf.minHouseX;
+        if (conf.hasOwnProperty("minHouseY")) minY = conf.minHouseY;
+        if (conf.hasOwnProperty("maxHouseX")) maxX = conf.maxHouseX;
+        if (conf.hasOwnProperty("maxHouseY")) maxY = conf.maxHouseY;
+
+        this.setGen("arena", cols, rows);
+        var map = this.getMap();
+        for (var i = 0; i < nHouses; i++) {
+
+            var houseCreated = false;
+            var tries = 0;
+            var xSize = Math.floor(Math.random() * (maxX - minX)) + minX;
+            var ySize = Math.floor(Math.random() * (maxY - minY)) + minY;
+
+            while (!houseCreated && tries < maxTriesHouse) {
+                var x0 = Math.floor(Math.random() * cols);
+                var y0 = Math.floor(Math.random() * rows);
+                houseCreated = this.createHouse(map, x0, y0, xSize, ySize, doors, wallsHalos);
+                ++tries;
+            }
+
+        }
+        return map;
+    };
+
+    /** Creates a house into a given map to a location x0,y0 with given
+     * dimensions. Existing doors and walls must be passed to prevent
+     * overlapping.*/
+    this.createHouse = function(map, x0, y0, xDim, yDim, doors, wallsHalos) {
+        var maxX = x0 + xDim;
+        var maxY = y0 + yDim;
+        var wallCoords = [];
+
+        // House doesn't fit on the map
+        if (maxX >= map.cols) return false;
+        if (maxY >= map.rows) return false;
+
+        var possibleRoom = [];
+        var wallXY = RG.Geometry.getHollowBox(x0, y0, maxX, maxY);
+
+        // Store x,y for house until failed
+        for (var i = 0; i < wallXY.length; i++) {
+            var x = wallXY[i][0];
+            var y = wallXY[i][1];
+            if (map.hasXY(x, y)) {
+                if (wallsHalos.hasOwnProperty(x + "," + y)) {
+                    return false;
+                }
+                else {
+                    if (!doors.hasOwnProperty(x + "," + y)) {
+                        possibleRoom.push([x, y]);
+                        // Exclude map border from door generation
+                        if (!map.isBorderXY(x, y)) wallCoords.push([x, y]);
+                    }
+                }
+            }
+        }
+
+        // House generation has succeeded at this point, true will be returned
+
+        // Didn't fail, now we can build the actual walls
+        for (var i = 0; i < possibleRoom.length; i++) {
+            var roomX = possibleRoom[i][0];
+            var roomY = possibleRoom[i][1];
+            map.setBaseElemXY(roomX, roomY, new RG.RogueElement("wall"));
+        }
+
+        // Create the halo, prevents houses being too close to each other
+        var haloX0 = x0 - 1;
+        var haloY0 = y0 - 1;
+        var haloMaxX = maxX + 1;
+        var haloMaxY = maxY + 1;
+        var haloBox = RG.Geometry.getHollowBox(haloX0, haloY0, haloMaxX, haloMaxY);
+        for (var i = 0; i < haloBox.length; i++) {
+            var haloX = haloBox[i][0];
+            var haloY = haloBox[i][1];
+            wallsHalos[haloX + "," + haloY] = true;
+        }
+
+        // Finally randomly insert the door for the house
+        var coordLength = wallCoords.length - 1;
+        var doorIndex = Math.floor(Math.random() * coordLength);
+        var doorX = wallCoords[doorIndex][0];
+        var doorY = wallCoords[doorIndex][1];
+
+        // At the moment, "door" is a hole in the wall
+        map.setBaseElemXY(doorX, doorY, new RG.RogueElement("floor"));
+        doors[doorX + "," + doorY] = true;
+
+        for (var i = 0; i < wallCoords.length; i++) {
+            var x = wallCoords[i][0];
+            var y = wallCoords[i][1];
+            wallsHalos[x + "," + y] = true;
+        }
+        return true;
+    };
+
 }; // }}} RogueMapGen
+
+
+/** Contains generic 2D geometric functions for square/rectangle/etc
+ * generation.*/
+RG.Geometry = {
+
+    /** Given start x,y and end x,y coordinates, returns all x,y coordinates in
+     * the border of the rectangle.*/
+    getHollowBox: function(x0, y0, maxX, maxY) {
+        var res = [];
+        for (var x = x0; x <= maxX; x++) {
+            for (var y = y0; y <= maxY; y++) {
+                if ((y === y0 || y === maxY || x === x0 || x === maxX) ) {
+                    res.push([x, y]);
+                }
+            }
+        }
+        return res;
+    },
+
+};
 
 /** Object representing one game cell. It can hold actors, items, traps or
  * elements. */
@@ -3565,6 +3706,14 @@ RG.Map = function(cols, rows) { //{{{2
         }
     };
 
+    this.isBorderXY = function(x, y) {
+        if (x === 0) return true;
+        if (y === 0) return true;
+        if (x === this.cols-1) return true;
+        if (y === this.rows-1) return true;
+
+    };
+
 }; // }}} Map
 
 // }}} MAP GENERATION
@@ -3675,11 +3824,13 @@ RG.Factory = function() { // {{{2
     };
 
     /** Factory method for creating levels.*/
-    this.createLevel = function(levelType, cols, rows) {
+    this.createLevel = function(levelType, cols, rows, conf) {
         var mapgen = new RG.RogueMapGen();
         mapgen.setGen(levelType, cols, rows);
-        var level = new RG.RogueLevel(cols, rows);
         var map = mapgen.getMap();
+        if (levelType === "town") map = mapgen.createTown(cols, rows, conf);
+
+        var level = new RG.RogueLevel(cols, rows);
         level.setMap(map);
         return level;
     };
@@ -3890,7 +4041,11 @@ RG.Factory = function() { // {{{2
     this.createFCCDebugGame = function(obj, parser, game, player) {
         var sqrPerMonster = obj.sqrPerMonster;
         var sqrPerItem = obj.sqrPerItem;
-        var level = this.createLevel("Arena", obj.cols, obj.rows);
+        //var level = this.createLevel("Arena", obj.cols, obj.rows);
+        //var level = this.createLevel("town", obj.cols, obj.rows);
+
+        var level = this.createLevel("town", obj.cols, obj.rows, 
+            {nHouses: 10, minHouseX: 5, maxHouseX: 10, minHouseY: 5, maxHouseY: 10});
 
         var numFree = level.getMap().getFree().length;
         var monstersPerLevel = Math.round(numFree / sqrPerMonster);
@@ -3900,29 +4055,45 @@ RG.Factory = function() { // {{{2
         game.addPlayer(player);
         player.setFOVRange(30);
 
-        for (var i = 0; i < 10; i++) {
-            var human = this.createMonster("human" + i, {brain: "Human"});
-            human.setType("human");
-            level.addActor(human, 2*i + 1, 4);
-        }
+        this.createHumanArmy(level);
 
         var wolf = this.createMonster("wolf", {brain: "Animal"});
         this.addNRandItems(parser, itemsPerLevel, level, 1000);
         level.addActor(wolf, 6, 6);
 
         var demonEvent = new RG.RogueOneShotEvent(this.spawnDemons.bind(this,level), 
-            100 * 20, "Demon hordes are unleashed!");
+            100 * 20, "Demon hordes are unleashed from the unsilent abyss!");
         game.addEvent(demonEvent);
 
         //this.addNRandMonsters(parser, monstersPerLevel, level, 10);
         return game;
     };
 
+    this.createHumanArmy = function(level) {
+        for (var y = 0; y < 2; y++) {
+            for (var i = 0; i < 20; i++) {
+                var human = this.createMonster("human" + i, {brain: "Human"});
+                human.setType("human");
+                human.get("Combat").setDamage("1d7");
+                human.get("Combat").setAttack(4);
+                human.get("Combat").setDefense(4);
+                human.get("Combat").setProtection(1);
+                level.addActor(human, i + 1, 4+y);
+            }
+        }
+    };
+
     this.spawnDemons = function(level) {
-        for (var i = 0; i < 10; i++) {
-            var demon = this.createMonster("demon", {brain: "Demon"});
-            demon.setType("demon");
-            level.addActor(demon, 2*i + 5, 14);
+        for (var y = 0; y < 2; y++) {
+            for (var i = 0; i < 10; i++) {
+                var demon = this.createMonster("demon", {brain: "Demon"});
+                demon.setType("demon");
+                demon.get("Combat").setDamage("3d4");
+                demon.get("Combat").setAttack(6);
+                demon.get("Combat").setDefense(6);
+                demon.get("Combat").setProtection(2);
+                level.addActor(demon, i + 10, 14+y);
+            }
         }
     };
 
