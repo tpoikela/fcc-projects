@@ -279,7 +279,9 @@ var RG = { // {{{2
     EVT_ACTOR_KILLED: "EVT_ACTOR_KILLED",
     EVT_DESTROY_ITEM: "EVT_DESTROY_ITEM",
     EVT_MSG: "EVT_MSG",
+
     EVT_LEVEL_CHANGED: "EVT_LEVEL_CHANGED",
+    EVT_LEVEL_ENTERED: "EVT_LEVEL_ENTERED",
 
     EVT_ACT_COMP_ADDED: "EVT_ACT_COMP_ADDED",
     EVT_ACT_COMP_REMOVED: "EVT_ACT_COMP_REMOVED",
@@ -601,7 +603,9 @@ RG.RogueGame = function() { // {{{2
 
     /** Adds an event to the scheduler.*/
     this.addEvent = function(gameEvent) {
-        _scheduler.add(gameEvent, true, 0);
+        var repeat = gameEvent.getRepeat();
+        var offset = gameEvent.getOffset();
+        _scheduler.add(gameEvent, repeat, offset);
     };
 
     /** Performs one game action.*/
@@ -2535,6 +2539,8 @@ RG.RogueStairsElement = function(down, srcLevel, targetLevel) {
                 if (_targetLevel.addActor(actor, newX, newY)) {
                     RG.POOL.emitEvent(RG.EVT_LEVEL_CHANGED,
                         {target: _targetLevel, src: _srcLevel, actor: actor});
+                    RG.POOL.emitEvent(RG.EVT_LEVEL_ENTERED, {actor: actor, target:
+                        targetLevel});
                     return true;
                 }
             }
@@ -2897,6 +2903,30 @@ RG.AnimalBrain = function(actor) {
 };
 RG.extend2(RG.AnimalBrain, RG.RogueBrain);
 
+/** Brain used by most of the animals. TODO: Add some corpse eating behaviour. */
+RG.DemonBrain = function(actor) {
+    RG.RogueBrain.call(this, actor);
+
+    var _memory = this.getMemory();
+    _memory.addEnemyType("player");
+    _memory.addEnemyType("human");
+
+    this.findEnemyCell = function(seenCells) {
+        var memory = this.getMemory();
+        for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
+            if (seenCells[i].hasProp("actors")) {
+                var actors = seenCells[i].getProp("actors");
+                if (memory.isEnemy(actors[0]))
+                    return seenCells[i];
+            }
+        }
+        return null;
+    };
+
+};
+RG.extend2(RG.DemonBrain, RG.RogueBrain);
+
+
 RG.ZombieBrain = function(actor) {
     RG.RogueBrain.call(this, actor);
 };
@@ -2988,6 +3018,8 @@ RG.HumanBrain = function(actor) {
     RG.RogueBrain.call(this, actor);
     var _actor = actor;
 
+    this.getMemory().addEnemyType("demon");
+
     this.decideNextAction = function(obj) {
         var level = _actor.getLevel();
         var seenCells = this.getSeenCells();
@@ -3059,13 +3091,20 @@ RG.extend2(RG.HumanBrain, RG.RogueBrain);
 
 // }}} BRAINS
 
+//---------------------------------------------------------------------------
+// GAME EVENTS
+//---------------------------------------------------------------------------
+
 /** Event is something that is scheduled and takes place but it's not an actor.
  * An example is regeneration or poison effect.*/
-RG.RogueGameEvent = function(dur, cb) {
+RG.RogueGameEvent = function(dur, cb, repeat, offset) {
 
     var _cb = cb;
+    var _repeat = repeat;
+    var _nTimes = 1;
+    var _offset = offset;
 
-    this.isEvent = true;
+    this.isEvent = true; // Needed for the scheduler
 
     /** Clunky for events, but must implement for the scheduler.*/
     this.isPlayer = function(){return false;};
@@ -3073,6 +3112,12 @@ RG.RogueGameEvent = function(dur, cb) {
     this.nextAction = function() {
         return new RG.RogueAction(dur, cb, {});
     };
+
+    this.getRepeat = function() {return _repeat;};
+    this.setRepeat = function(repeat) {_repeat = repeat;};
+
+    this.getOffset = function() {return _offset;};
+    this.setOffset = function(offset) {_offset = offset;};
 
 };
 
@@ -3091,9 +3136,25 @@ RG.RogueRegenEvent = function(actor, dur) {
         }
     };
 
-    RG.RogueGameEvent.call(this, _dur, _regenerate);
+    RG.RogueGameEvent.call(this, _dur, _regenerate, true);
 };
-RG.extend2(RG.RogueGameEvent, RG.RogueRegenEvent);
+RG.extend2(RG.RogueRegenEvent, RG.RogueGameEvent);
+
+/** Event that is executed once after an offset.*/
+RG.RogueOneShotEvent = function(cb, offset, msg) {
+
+    // Wraps the callback into function and emits a message
+    var _cb = function() {
+        if (!RG.isNullOrUndef([msg])) {
+            RG.gameMsg(msg);
+        }
+        cb();
+    };
+
+    RG.RogueGameEvent.call(this, 0, _cb, false, offset);
+};
+RG.extend2(RG.RogueOneShotEvent, RG.RogueGameEvent);
+
 
 /** Scheduler for the game actions.  */
 RG.RogueScheduler = function() { // {{{2
@@ -3595,6 +3656,7 @@ RG.Factory = function() { // {{{2
     this.createBrain = function(actor, brainName) {
         switch(brainName) {
             case "Animal": return new RG.AnimalBrain(actor);
+            case "Demon": return new RG.DemonBrain(actor);
             case "Human": return new RG.HumanBrain(actor);
             case "Summoner": return new RG.SummonerBrain(actor);
             case "Zombie": return new RG.ZombieBrain(actor);
@@ -3764,6 +3826,16 @@ RG.Factory = function() { // {{{2
         extraStairsUp.setTargetStairs(lastStairsDown);
         lastStairsDown.setTargetStairs(extraStairsUp);
 
+        // Create NPCs for the extra level
+        var humansPerLevel = 2 * monstersPerLevel; 
+        for (var i = 0; i < 10; i++) {
+            var name = "Townsman";
+            var human = this.createMonster(name, {brain: "Human"});
+            human.setType("human");
+            var cell = this.getFreeRandCell(extraLevel);
+            extraLevel.addActor(human, cell.getX(), cell.getY());
+        }
+
         // Finally connect the stairs together
         for (nl = 0; nl < nLevels; nl++) {
             if (nl < nLevels-1)
@@ -3828,9 +3900,6 @@ RG.Factory = function() { // {{{2
         game.addPlayer(player);
         player.setFOVRange(30);
 
-        //var human = parser.createActualObj("actors", "human");
-        //var wolf = parser.createActualObj("actors", "wolf");
-
         for (var i = 0; i < 10; i++) {
             var human = this.createMonster("human" + i, {brain: "Human"});
             human.setType("human");
@@ -3841,8 +3910,20 @@ RG.Factory = function() { // {{{2
         this.addNRandItems(parser, itemsPerLevel, level, 1000);
         level.addActor(wolf, 6, 6);
 
+        var demonEvent = new RG.RogueOneShotEvent(this.spawnDemons.bind(this,level), 
+            100 * 20, "Demon hordes are unleashed!");
+        game.addEvent(demonEvent);
+
         //this.addNRandMonsters(parser, monstersPerLevel, level, 10);
         return game;
+    };
+
+    this.spawnDemons = function(level) {
+        for (var i = 0; i < 10; i++) {
+            var demon = this.createMonster("demon", {brain: "Demon"});
+            demon.setType("demon");
+            level.addActor(demon, 2*i + 5, 14);
+        }
     };
 
 };
