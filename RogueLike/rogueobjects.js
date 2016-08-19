@@ -65,9 +65,23 @@ var RGObjects = {
         },
         // DEMONS AND WINTRY BEINGS
         {
-            name: "Winter demon", type: "demon", "char": "d",
-            attack: 5, defense: 5, damage: "3d3", range: 1, hp: 30,
-            danger: 6
+            name: "WinterBeingBase", className: "cell-actor-winter",
+            dontCreate: true,
+        },
+        {
+            name: "Mighty raven", base: "WinterBeingBase",
+            attack: 4, defense: 8, damage: "2d4 + 2", range: 1, hp: 20,
+            danger: 5, brain: "Animal"
+        },
+        {
+            name: "Winter demon", type: "demon", "char": "D",
+            attack: 5, defense: 5, protection: 2, damage: "3d3", range: 1, hp: 30,
+            danger: 6, brain: "Demon", base: "WinterBeingBase",
+        },
+        {
+            name: "Blizzard beast", type: "demon", "char": "B",
+            attack: 7, defense: 6, protection: 4, damage: "3d4", range: 1, hp: 50,
+            danger: 8, brain: "Demon", base: "WinterBeingBase",
         },
 
         // HUMANS
@@ -90,7 +104,7 @@ var RGObjects = {
             danger: 5,
         },
         {
-            name: "warlord", base: "human", hp: 35,
+            name: "warlord", "char": "W", base: "human", hp: 35,
             attack: 5, defense: 6, damage: "3d3",
             danger: 6
         },
