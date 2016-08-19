@@ -25,7 +25,6 @@ describe('How dice are cast and what values they give', function() {
         var factDie = RG.FACT.createDie("2d4 + 2");
         for (i = 0; i < 100; i++) {
             val = factDie.roll();
-            console.log("XXX Value is " + val);
             expect(val >= 4).to.equal(true);
             expect(val <= 10).to.equal(true);
         }
