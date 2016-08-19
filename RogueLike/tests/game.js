@@ -53,6 +53,10 @@ function getLevelWithNActors(cols, rows, nactors) {
 }
 
 describe('How game should proceed', function() {
+
+
+    var movSystem = new RG.MovementSystem("Movement", ["Movement"]);
+
     it('Initializes the game and adds player', function() {
         var cols = 50;
         var rows = 30;
@@ -72,7 +76,11 @@ describe('How game should proceed', function() {
         var newMap = level.getMap();
         checkMap(newMap, cols, rows);
 
-        expect(level.moveActorTo(actor, 10, 12)).to.equal(true);
+        var movComp = new RG.MovementComponent(12, 13, level);
+        actor.add("Movement", movComp);
+        movSystem.update();
+        expect(actor.getX()).to.equal(12);
+        expect(actor.getY()).to.equal(13);
 
         var explCells = level.exploreCells(actor);
         expect(explCells.length).to.equal(11*11);
@@ -87,7 +95,7 @@ var KillListener = function(actor) {
 
     var _actor = actor;
 
-    this.isAlive = actor.isAlive();
+    this.isAlive = actor.get("Health").isAlive();
 
     this.notify = function(evtName, obj) {
         if (evtName === RG.EVT_ACTOR_KILLED) {
@@ -100,48 +108,72 @@ var KillListener = function(actor) {
 };
 
 describe('How combat should evolve', function() {
+
+    var comSystem = new RG.AttackSystem("Attack", ["Attack"]);
+    var dmgSystem = new RG.DamageSystem("Damage", ["Damage"]);
+
     it('Deals damage from attacker to defender', function() {
         var cols = 50;
         var rows = 30;
         var level = getNewLevel(cols, rows);
 
         var attacker = new Actor("Attacker");
-        expect(attacker.isAlive()).to.equal(true);
+        expect(attacker.get("Health").isAlive()).to.equal(true);
         var defender = new Actor("Defender");
-        expect(defender.isAlive()).to.equal(true);
-        attacker.setAttack(10);
-        defender.setHP(1);
-        defender.setDefense(0);
-        defender.setAgility(0);
+        expect(defender.get("Health").isAlive()).to.equal(true);
+        attacker.get("Combat").setAttack(10);
+        attacker.get("Combat").setDamage("1d4");
+        defender.get("Health").setHP(1);
+        defender.get("Combat").setDefense(0);
+        defender.get("Combat").setProtection(0);
+        defender.get("Stats").setAgility(0);
 
         level.addActor(attacker, 1, 1);
         level.addActor(defender, 2, 2);
 
-        var combat = new RG.RogueCombat(attacker, defender);
-        combat.fight();
-        expect(defender.isAlive()).to.equal(false);
+        var attackComp = new RG.AttackComponent(defender);
+        attacker.add("Attack", attackComp);
+        comSystem.update();
+        expect(defender.has("Damage")).to.equal(true);
+        dmgSystem.update();
+        expect(attacker.has("Attack")).to.equal(false);
+        expect(defender.has("Damage")).to.equal(false);
 
-        var def2 = new Actor(false);
+        expect(defender.get("Health").isAlive()).to.equal(false);
+
+        var def2 = new Actor("defender2");
         level.addActor(def2, 2, 2);
-        combat = new RG.RogueCombat(attacker, def2);
-        def2.setHP(20);
-        def2.setDefense(0);
-        def2.setAgility(0);
-        expect(def2.isAlive()).to.equal(true);
-        combat.fight();
 
-        expect(def2.getHP() < 20).to.equal(true);
+        var attComp2 = new RG.AttackComponent(def2);
+        attacker.add("Attack", attComp2);
 
-        //expect(def2.getHP()).to.equal(20 - (10-2));
-        expect(def2.isAlive()).to.equal(true);
-        combat.fight();
-        expect(def2.isAlive()).to.equal(true);
+        def2.get("Health").setHP(20);
+        def2.get("Combat").setDefense(0);
+        def2.get("Stats").setAgility(0);
+        expect(def2.get("Health").isAlive()).to.equal(true);
+
+        comSystem.update();
+        expect(def2.has("Damage")).to.equal(true);
+        dmgSystem.update();
+        expect(def2.has("Damage")).to.equal(false);
+
+        expect(def2.get("Health").getHP() < 20).to.equal(true);
+
+        expect(def2.get("Health").isAlive()).to.equal(true);
+
+        attacker.add("Attack", attComp2);
+        comSystem.update();
+        dmgSystem.update();
+
+        expect(def2.get("Health").isAlive()).to.equal(true);
 
         var killListen = new KillListener(def2);
         while (killListen.isAlive) {
-            combat.fight();
+            attacker.add("Attack", attComp2);
+            comSystem.update();
+            dmgSystem.update();
         }
-        expect(def2.isAlive()).to.equal(false);
+        expect(def2.get("Health").isAlive()).to.equal(false);
 
     });
 });
@@ -172,13 +204,15 @@ describe('How AI brain works', function() {
         expect(pathCells.length).to.not.equal(0);
     });
 
-    it('description', function() {
+    var movSystem = new RG.MovementSystem("Movement", ["Movement"]);
+
+    it('Moves towards player when seen.', function() {
         expect(level.addActor(player, 2, 2)).to.equal(true);
         expect(level.addActor(mons1, 2, 4)).to.equal(true);
         var action = mons1.nextAction();
         action.doAction();
+        movSystem.update();
         checkXY(mons1, 2, 3);
-
     });
 
 });
@@ -190,7 +224,6 @@ var ItemDestroyer = function() {
             var item = obj.item;
             var owner = item.getOwner().getOwner();
             owner.getInvEq().removeItem(item);
-            console.log("Removed the item " + item.getName());
         }
     };
     RG.POOL.listenEvent(RG.EVT_DESTROY_ITEM, this);
@@ -205,13 +238,13 @@ describe('How one-shot items are removed after their use', function() {
         invEq.addItem(potion);
 
         // Do some damage
-        var hp = player.getHP();
-        player.setHP(hp - 5);
-        var currHP = player.getHP();
+        var hp = player.get("Health").getHP();
+        player.get("Health").setHP(hp - 5);
+        var currHP = player.get("Health").getHP();
 
         expect(invEq.hasItem(potion)).to.equal(true);
         expect(player.getInvEq().useItem(potion, {target: player})).to.equal(true);
-        expect(player.getHP() != currHP).to.equal(true);
+        expect(player.get("Health").getHP() != currHP).to.equal(true);
         expect(invEq.hasItem(potion)).to.equal(false);
 
     });
