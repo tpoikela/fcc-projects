@@ -106,7 +106,8 @@ var RoguelikeTop = React.createClass({
     },
 
     createNewGame: function() {
-        this.game = RG.FACT.createFCCGame(this.gameConf);
+        var fccGame = new RG.FCCGame();
+        this.game = fccGame.createFCCGame(this.gameConf);
         RG.game = this.game;
         this.game.doGUICommand = this.doGUICommand;
         this.game.isGUICommand = this.isGUICommand;

@@ -2954,12 +2954,13 @@ RG.Map = function(cols, rows) { //{{{2
         }
     };
 
+    /** Returns true if x,y is located at map border cells.*/
     this.isBorderXY = function(x, y) {
         if (x === 0) return true;
         if (y === 0) return true;
         if (x === this.cols-1) return true;
         if (y === this.rows-1) return true;
-
+        return false;
     };
 
 }; // }}} Map
@@ -2969,6 +2970,7 @@ RG.Map = function(cols, rows) { //{{{2
 /** Factory object for creating some commonly used objects.*/
 RG.Factory = function() { // {{{2
 
+    /** Return zero int if given value is null or undef.*/
     var zeroIfNull = function(val) {
         if (!RG.isNullOrUndef[val]) {
             return val;
@@ -2994,7 +2996,9 @@ RG.Factory = function() { // {{{2
         comb.add("Combat", combatComp);
     };
 
+    // Regexp for parsing dice like "3d3 + 2".
     var _dmgRe = /\s*(\d+)d(\d+)\s*(\+|-)?\s*(\d+)?/;
+
     this.createDie = function(strOrArray) {
         if (typeof strOrArray === "object") {
             if (strOrArray.length >= 3) {
@@ -3050,6 +3054,7 @@ RG.Factory = function() { // {{{2
         return monster;
     };
 
+    /** Factory method for AI brain creation.*/
     this.createBrain = function(actor, brainName) {
         switch(brainName) {
             case "Animal": return new RG.AnimalBrain(actor);
@@ -3094,13 +3099,95 @@ RG.Factory = function() { // {{{2
 
     };
 
-    /** Player stats based on selection.*/
+    /** Player stats based on user selection.*/
     this.playerStats = {
         Weak: {att: 1, def: 1, prot: 1, hp: 15, Weapon: "Dagger"},
         Medium: {att: 2, def: 4, prot: 2, hp: 25, Weapon: "Short sword"},
         Strong: {att: 5, def: 6, prot: 3, hp: 40, Weapon: "Tomahawk"},
         Inhuman: {att: 10, def: 10, prot: 4, hp: 80, Weapon: "Magic sword"},
     },
+
+
+    /** Return random free cell on a given level.*/
+    this.getFreeRandCell = function(level) {
+        var freeCells = level.getMap().getFree();
+        if (freeCells.length > 0) {
+            var maxFree = freeCells.length;
+            var randCell = Math.floor(Math.random() * maxFree);
+            var cell = freeCells[randCell];
+            return cell;
+        }
+        return null;
+    };
+
+    /** Adds N random items to the level based on maximum value.*/
+    this.addNRandItems = function(parser, itemsPerLevel, level, maxVal) {
+        // Generate the items randomly for this level
+        for (var j = 0; j < itemsPerLevel; j++) {
+            var item = parser.createRandomItem({
+                func: function(item) {return item.value <= maxVal;}
+            });
+            var itemCell = this.getFreeRandCell(level);
+            level.addItem(item, itemCell.getX(), itemCell.getY());
+        }
+    };
+
+    /** Adds N random monsters to the level based on given danger level.*/
+    this.addNRandMonsters = function(parser, monstersPerLevel, level, maxDanger) {
+        // Generate the monsters randomly for this level
+        for (var i = 0; i < monstersPerLevel; i++) {
+            var cell = this.getFreeRandCell(level);
+            var monster = parser.createRandomActor({
+                func: function(actor){return actor.danger <= maxDanger;}
+            });
+            monster.get("Experience").setExpLevel(maxDanger);
+            level.addActor(monster, cell.getX(), cell.getY());
+        }
+    };
+
+
+
+
+    this.createHumanArmy = function(level, parser) {
+        for (var y = 0; y < 2; y++) {
+            for (var x = 0; x < 20; x++) {
+                var human = parser.createActualObj("actors", "fighter");
+                level.addActor(human, x + 1, 4+y);
+            }
+
+            var warlord = parser.createActualObj("actors", "warlord");
+            level.addActor(warlord, 10, y + 7);
+        }
+
+    };
+
+    this.spawnDemonArmy = function(level, parser) {
+        for (var y = 0; y < 2; y++) {
+            for (var i = 0; i < 10; i++) {
+                var demon = parser.createActualObj("actors", "Winter demon");
+                level.addActor(demon, i + 10, 14+y);
+            }
+        }
+    };
+
+    this.spawnBeastArmy = function(level, parser) {
+        var x0 = level.getMap().cols / 2;
+        var y0 = level.getMap().rows / 2;
+        for (var y = y0; y < y0+2; y++) {
+            for (var x = x0; x < x0+10; x++) {
+                var beast = parser.createActualObj("actors", "Blizzard beast");
+                level.addActor(beast, x + 10, 14+y);
+            }
+        }
+    };
+
+};
+
+RG.FACT = new RG.Factory();
+// }}}
+
+RG.FCCGame = function() {
+    RG.Factory.call(this);
 
     /** Creates a player actor and starting inventory.*/
     this.createFCCPlayer = function(parser, game, obj) {
@@ -3122,6 +3209,7 @@ RG.Factory = function() { // {{{2
         return player;
     },
 
+    /** Creates the game for the FCC project.*/
     this.createFCCGame = function(obj) {
         var parser = new RG.RogueObjectStubParser();
         parser.parseStubData(RGObjects);
@@ -3247,44 +3335,6 @@ RG.Factory = function() { // {{{2
 
     };
 
-    /** Adds N random items to the level based on maximum value.*/
-    this.addNRandItems = function(parser, itemsPerLevel, level, maxVal) {
-        // Generate the items randomly for this level
-        for (var j = 0; j < itemsPerLevel; j++) {
-            var item = parser.createRandomItem({
-                func: function(item) {return item.value <= maxVal;}
-            });
-            var itemCell = this.getFreeRandCell(level);
-            level.addItem(item, itemCell.getX(), itemCell.getY());
-        }
-    };
-
-    /** Adds N random monsters to the level based on given danger level.*/
-    this.addNRandMonsters = function(parser, monstersPerLevel, level, maxDanger) {
-        // Generate the monsters randomly for this level
-        for (var i = 0; i < monstersPerLevel; i++) {
-            var cell = this.getFreeRandCell(level);
-            var monster = parser.createRandomActor({
-                func: function(actor){return actor.danger <= maxDanger;}
-            });
-            monster.get("Experience").setExpLevel(maxDanger);
-            level.addActor(monster, cell.getX(), cell.getY());
-        }
-    };
-
-    /** Return random free cell on a given level.*/
-    this.getFreeRandCell = function(level) {
-        var freeCells = level.getMap().getFree();
-        if (freeCells.length > 0) {
-            var maxFree = freeCells.length;
-            var randCell = Math.floor(Math.random() * maxFree);
-            var cell = freeCells[randCell];
-            return cell;
-        }
-        return null;
-    };
-
-
     /** Can be used to create a short debugging game for testing.*/
     this.createFCCDebugGame = function(obj, parser, game, player) {
         var sqrPerMonster = obj.sqrPerMonster;
@@ -3303,52 +3353,26 @@ RG.Factory = function() { // {{{2
         game.addPlayer(player);
         player.setFOVRange(30);
 
-        this.createHumanArmy(level);
+        this.createHumanArmy(level, parser);
 
         var wolf = this.createMonster("wolf", {brain: "Animal"});
         this.addNRandItems(parser, itemsPerLevel, level, 1000);
         level.addActor(wolf, 6, 6);
 
-        var demonEvent = new RG.RogueOneShotEvent(this.spawnDemons.bind(this,level), 
-            100 * 20, "Demon hordes are unleashed from the unsilent abyss!");
+        var demonEvent = new RG.RogueOneShotEvent(this.spawnDemonArmy.bind(this,level,
+            parser), 100 * 20, "Demon hordes are unleashed from the unsilent abyss!");
         game.addEvent(demonEvent);
+
+        var beastEvent = new RG.RogueOneShotEvent(this.spawnBeastArmy.bind(this,level,
+            parser, 100 * 100, "Winter spread by Blizzard Beasts!"));
+        game.addEvent(beastEvent);
 
         //this.addNRandMonsters(parser, monstersPerLevel, level, 10);
         return game;
     };
 
-    this.createHumanArmy = function(level) {
-        for (var y = 0; y < 2; y++) {
-            for (var i = 0; i < 20; i++) {
-                var human = this.createMonster("human" + i, {brain: "Human"});
-                human.setType("human");
-                human.get("Combat").setDamage("1d7");
-                human.get("Combat").setAttack(4);
-                human.get("Combat").setDefense(4);
-                human.get("Combat").setProtection(1);
-                level.addActor(human, i + 1, 4+y);
-            }
-        }
-    };
-
-    this.spawnDemons = function(level) {
-        for (var y = 0; y < 2; y++) {
-            for (var i = 0; i < 10; i++) {
-                var demon = this.createMonster("demon", {brain: "Demon"});
-                demon.setType("demon");
-                demon.get("Combat").setDamage("3d4");
-                demon.get("Combat").setAttack(6);
-                demon.get("Combat").setDefense(6);
-                demon.get("Combat").setProtection(2);
-                level.addActor(demon, i + 10, 14+y);
-            }
-        }
-    };
-
 };
-
-RG.FACT = new RG.Factory();
-// }}}
+RG.extend2(RG.FCCGame, RG.Factory);
 
 /** Object parser for reading game data. Game data is contained within stubs
  * which are simply object literals without functions etc. */
@@ -3375,7 +3399,23 @@ RG.RogueObjectStubParser = function() {
     var _db_by_name = {}; // All entries indexed by name
 
     /** Maps obj props to function calls. Essentially this maps bunch of setters
-     * to different names. */
+     * to different names. Following formats supported:
+     *
+     * 1. {factory: funcObj, func: "setter"}
+     *  Call obj["setter"]( funcObj(stub.field) )
+     *
+     * 2. {comp: "CompName", func: "setter"}
+     *  Create component comp of type "CompName".
+     *  Call comp["setter"]( stub.field)
+     *  Call obj.add("CompName", comp)
+     *
+     * 3. {comp: "CompName"}
+     *  Create component comp of type "CompName" with new CompName(stub.field)
+     *  Call obj.add("CompName", comp)
+     *
+     * 4. "setter"
+     *   Call setter obj["setter"](stub.field)
+     * */
     var _propToCall = {
         actors: {
             type: "setType",
@@ -3385,6 +3425,7 @@ RG.RogueObjectStubParser = function() {
             speed: {comp: "Stats", func: "setSpeed"},
             hp: {comp: "Health"},
             danger: {comp: "Experience", func: "setDanger"},
+            brain: {func: "setBrain", factory: RG.FACT.createBrain},
         },
         items: {
             // Generic item functions
@@ -3569,50 +3610,57 @@ RG.RogueObjectStubParser = function() {
             return null;
         }
 
-        var obj = this.get(categ, name);
+        var stub = this.get(categ, name);
         var propCalls = _propToCall[categ];
-        var newObj = this.createNewObject(categ, obj);
+        var newObj = this.createNewObject(categ, stub);
 
-        // If propToCall table has the same key as obj property, call corresponding
+        // If propToCall table has the same key as stub property, call corresponding
         // function in _propToCall using the newly created object.
-        for (var p in obj) {
+        for (var p in stub) {
 
             // Called for basic type: actors, items...
             if (propCalls.hasOwnProperty(p)) {
                 var funcName = propCalls[p];
                 if (typeof funcName === "object") {
                     if (funcName.hasOwnProperty("comp")) {
-                        this.addCompToObj(newObj, funcName, obj[p]);
+                        this.addCompToObj(newObj, funcName, stub[p]);
+                    }
+                    else if (funcName.hasOwnProperty("factory")) {
+                        if (p === "brain") {
+                            var createdObj = funcName.factory(newObj, stub[p]);
+                            console.log("Creatin brain: " + stub[p]);
+                            newObj[funcName.func](createdObj);
+                        }
                     }
                     else {
                         for (var f in funcName) {
                             var fName = funcName[f];
                             if (newObj.hasOwnProperty(fName)) {
-                                newObj[fName](obj[p]);
+                                newObj[fName](stub[p]);
                             }
                         }
                     }
                 }
                 else {
-                    newObj[funcName](obj[p]);
+                    newObj[funcName](stub[p]);
                 }
             }
             else { // Check for subtypes
-                if (obj.hasOwnProperty("type")) {
-                    if (propCalls.hasOwnProperty(obj.type)) {
-                        var propTypeCalls = propCalls[obj.type];
+                if (stub.hasOwnProperty("type")) {
+                    if (propCalls.hasOwnProperty(stub.type)) {
+                        var propTypeCalls = propCalls[stub.type];
                         if (propTypeCalls.hasOwnProperty(p)) {
                             var funcName2 = propTypeCalls[p];
                             if (typeof funcName2 === "object") {
                                 for (var f2 in funcName2) {
                                     var fName2 = funcName2[f2];
                                     if (newObj.hasOwnProperty(fName)) {
-                                        newObj[funcName2[f2]](obj[p]);
+                                        newObj[funcName2[f2]](stub[p]);
                                     }
                                 }
                             }
                             else {
-                                newObj[funcName2](obj[p]);
+                                newObj[funcName2](stub[p]);
                             }
                         }
                     }

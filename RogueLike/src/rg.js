@@ -1,4 +1,23 @@
 
+function getSource(key, fname) {
+    var has_require = typeof require !== 'undefined';
+
+    if (typeof window !== 'undefined') {
+        var src = window[key];
+    }
+
+    if (typeof src === 'undefined' ) {
+        if (has_require) {
+          src = require(fname);
+        }
+        else throw new Error('Module ' + key + ' not found');
+    }
+
+    return src;
+};
+
+var ROT = getSource("ROT", "../rot.js");
+
 /** Main object of the package for encapsulating all other objects. */
 var RG = { // {{{2
 
