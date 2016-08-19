@@ -356,9 +356,10 @@ var GameHelpScreen = React.createClass({
                                 </table>
                             </div>
                             <div className="col-md-6">
-                                <p>Use m to show the map.</p>
+                                <p>Use m to toggle the map/char view.</p>
                                 <p>To fire a missile, press "t" and click on a square.</p>
-                                <p>To view inventory, press "."</p>
+                                <p>To view inventory, press "i"</p>
+                                <p>To pick up an item, press "."</p>
                                 <p>To use stairs, press ","</p>
                             </div>
                         </div>
@@ -477,7 +478,7 @@ var RadioButtons = React.createClass({
         // Generate buttons using map
         var buttonList = buttons.map(function(name, index) {
             var classes = "btn btn-primary";
-            if (that.state.activeButton === name) classes += " active";
+            if (that.state.activeButton === name) classes = "btn btn-success active";
             return (
                 <button onClick={that.onButtonClick.bind(that, name)} className={classes} key={index}>{name}</button>
             );
