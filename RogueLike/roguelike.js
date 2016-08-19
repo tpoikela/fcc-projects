@@ -816,8 +816,6 @@ RG.AttackSystem = function(type, compTypes) {
             var totalDefense = defPoints + agility/2 + defEquip;
             var hitChange = totalAttack / (totalAttack + totalDefense);
 
-            console.log("Hit change is " + hitChange);
-
             //RG.gameMsg(_att.getName() + " attacks " + _def.getName());
             if (hitChange > Math.random()) {
                 var totalDamage = damage;
@@ -962,13 +960,11 @@ RG.DamageSystem = function(type, compTypes) {
                 health.decrHP(totalDmg);
 
                 if (health.isDead()) {
-                    console.log("Checking for loot component");
                     if (ent.has("Loot")) {
                         var entX = ent.getX();
                         var entY = ent.getY();
                         var entCell = ent.getLevel().getMap().getCell(entX, entY);
                         ent.get("Loot").dropLoot(entCell);
-                        console.log("Dropped loot to the floor.");
                     }
 
                     var src = ent.get("Damage").getSource();
@@ -1357,7 +1353,7 @@ RG.RogueItemContainer = function(owner) {
 
     this.removeItem = function(item) {
         var index = _items.indexOf(item);
-        console.log("removeItem Index is " + index);
+        //console.log("removeItem Index is " + index);
         if (index !== -1) {
             _items.splice(index, 1);
             return true;
@@ -2358,6 +2354,8 @@ RG.RogueGameEvent = function(dur, cb, repeat, offset) {
     var _nTimes = 1;
     var _offset = offset;
 
+    var _level = null; // Level associated with the event, if null, global
+
     this.isEvent = true; // Needed for the scheduler
 
     /** Clunky for events, but must implement for the scheduler.*/
@@ -2372,6 +2370,9 @@ RG.RogueGameEvent = function(dur, cb, repeat, offset) {
 
     this.getOffset = function() {return _offset;};
     this.setOffset = function(offset) {_offset = offset;};
+
+    this.setLevel = function(level) {_level = level;};
+    this.getLevel = function() {return _level;};
 
 };
 
@@ -2416,9 +2417,20 @@ RG.RogueScheduler = function() { // {{{2
     // Internally use ROT scheduler
     var _scheduler = new ROT.Scheduler.Action();
 
+    // Store the scheduled events
+    var _events = [];
+    var _actors = [];
+
     /** Adds an actor or event to the scheduler.*/
-    this.add = function(actor, repeat, offset) {
-        _scheduler.add(actor, repeat, offset);
+    this.add = function(actOrEvent, repeat, offset) {
+        _scheduler.add(actOrEvent, repeat, offset);
+        if (actOrEvent.hasOwnProperty("isEvent")) {
+            _events.push(actOrEvent);
+
+        }
+        else {
+            _actors.push(actOrEvent);
+        }
     };
 
     // Returns next actor/event or null if no next actor exists.
@@ -2433,8 +2445,26 @@ RG.RogueScheduler = function() { // {{{2
     };
 
     /** Tries to remove an actor/event, Return true if success.*/
-    this.remove = function(actor) {
-        return _scheduler.remove(actor);
+    this.remove = function(actOrEvent) {
+        if (actOrEvent.hasOwnProperty("isEvent")) {
+            return this.removeEvent(actOrEvent);
+        }
+        else {
+            var index = _actors.indexOf(actOrEvent);
+            if (index !== -1) _events.splice(index, 1);
+        }
+        return _scheduler.remove(actOrEvent);
+    };
+
+    /** Removes an event from the scheduler. Returns true on success.*/
+    this.removeEvent = function(evt) {
+        var index = - 1;
+        if (actOrEvent.hasOwnProperty("isEvent")) {
+            index = _events.indexOf(actor);
+            if (index !== -1) _events.splice(index, 1);
+        }
+        return _scheduler.remove(evt);
+
     };
 
     this.getTime = function() {
