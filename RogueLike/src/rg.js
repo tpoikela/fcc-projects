@@ -631,25 +631,29 @@ RG.RogueGame = function() { // {{{2
         }
     };
 
+    var _levelMap = {};
     /** Adds one level to the game.*/
     this.addLevel = function(level) {
         _levels.push(level);
+        if (!_levelMap.hasOwnProperty(level.getID())) {
+            _levelMap[level.getID()] = level;
+        }
+        else {
+            RG.err("Game", "addLevel", "Duplicate level ID " + level.getID());
+        }
         if (_activeLevels.length === 0) this.addActiveLevel(level);
-    };
-
-    /** Returns all active (simulated) levels. */
-    this.getActiveLevels = function() {
-        return _activeLevels;
     };
 
     /** Sets which levels are actively simulated.*/
     this.addActiveLevel = function(level) {
-        var index = _activeLevels.indexOf(level);
+        var levelID = level.getID();
+        var index = _activeLevels.indexOf(levelID);
 
         // Check if a level must be removed
         if (_activeLevels.length === (RG.MAX_ACTIVE_LEVELS)) {
             if (index === -1) { // No room for new level, pop one
-                var removedLevel = _activeLevels.pop();
+                var removedLevelID = _activeLevels.pop();
+                var removedLevel = _levelMap[removedLevelID];
                 var rmvActors = removedLevel.getActors();
                 for (var i = 0; i < rmvActors.length; i++) {
                     rmvActors[i].get("Action").disable();
@@ -658,14 +662,14 @@ RG.RogueGame = function() { // {{{2
             }
             else { // Level already in actives, move to the front only
                 _activeLevels.splice(index, 1);
-                _activeLevels.unshift(level);
+                _activeLevels.unshift(levelID);
                 console.log("Moved level to the front of active levels.");
             }
         }
 
         // This is a new level, enable all actors
         if (index === -1) {
-            _activeLevels.unshift(level);
+            _activeLevels.unshift(levelID);
             console.log("Adding active level to the game...");
             console.log("There are now " + _activeLevels.length + " active levels");
             var actActors = level.getActors();
@@ -750,7 +754,7 @@ RG.RogueGame = function() { // {{{2
     };
 
     this.isActiveLevel = function(level) {
-        var index = _activeLevels.indexOf(level);
+        var index = _activeLevels.indexOf(level.getID());
         return index >= 0;
 
     };
