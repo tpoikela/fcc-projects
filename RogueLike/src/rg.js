@@ -277,6 +277,9 @@ var RG = { // {{{2
     BASE_SPEED: 100,
     DEFAULT_HP: 50,
 
+    // How many levels are simulated at once
+    MAX_ACTIVE_LEVELS: 3,
+
     // Different game events
     EVT_ACTOR_CREATED: "EVT_ACTOR_CREATED",
     EVT_ACTOR_KILLED: "EVT_ACTOR_KILLED",
@@ -286,8 +289,12 @@ var RG = { // {{{2
     EVT_LEVEL_CHANGED: "EVT_LEVEL_CHANGED",
     EVT_LEVEL_ENTERED: "EVT_LEVEL_ENTERED",
 
+    EVT_LEVEL_PROP_ADDED: "EVT_LEVEL_PROP_ADDED",
+
     EVT_ACT_COMP_ADDED: "EVT_ACT_COMP_ADDED",
     EVT_ACT_COMP_REMOVED: "EVT_ACT_COMP_REMOVED",
+    EVT_ACT_COMP_ENABLED: "EVT_ACT_COMP_ENABLED",
+    EVT_ACT_COMP_DISABLED: "EVT_ACT_COMP_DISABLED",
 
     // Different types
     TYPE_ITEM: "items",
@@ -627,12 +634,45 @@ RG.RogueGame = function() { // {{{2
     /** Adds one level to the game.*/
     this.addLevel = function(level) {
         _levels.push(level);
-        _activeLevels.push(level);
+        if (_activeLevels.length === 0) this.addActiveLevel(level);
     };
 
     /** Returns all active (simulated) levels. */
     this.getActiveLevels = function() {
         return _activeLevels;
+    };
+
+    /** Sets which levels are actively simulated.*/
+    this.addActiveLevel = function(level) {
+        var index = _activeLevels.indexOf(level);
+
+        // Check if a level must be removed
+        if (_activeLevels.length === (RG.MAX_ACTIVE_LEVELS)) {
+            if (index === -1) { // No room for new level, pop one
+                var removedLevel = _activeLevels.pop();
+                var rmvActors = removedLevel.getActors();
+                for (var i = 0; i < rmvActors.length; i++) {
+                    rmvActors[i].get("Action").disable();
+                }
+                console.log("Removed active level to make space...");
+            }
+            else { // Level already in actives, move to the front only
+                _activeLevels.splice(index, 1);
+                _activeLevels.unshift(level);
+                console.log("Moved level to the front of active levels.");
+            }
+        }
+
+        // This is a new level, enable all actors
+        if (index === -1) {
+            _activeLevels.unshift(level);
+            console.log("Adding active level to the game...");
+            console.log("There are now " + _activeLevels.length + " active levels");
+            var actActors = level.getActors();
+            for (var j = 0; j < actActors.length; j++) {
+                actActors[j].get("Action").enable();
+            }
+        }
     };
 
     /* Returns the visible map to be rendered by GUI. */
@@ -642,11 +682,8 @@ RG.RogueGame = function() { // {{{2
         return map;
     };
 
-    this.moveActorTo = function(actor, x, y) {
-        var level = actor.getLevel();
-        return level.moveActorTo(actor, x, y);
-    };
-
+    /** Must be called to advance the game by one player action. Non-player
+     * actions are executed after the player action.*/
     this.update = function(obj) {
         if (!this.isGameOver()) {
             this.clearMessages();
@@ -712,6 +749,12 @@ RG.RogueGame = function() { // {{{2
         this.visibleCells = this.shownLevel().exploreCells(this.nextActor);
     };
 
+    this.isActiveLevel = function(level) {
+        var index = _activeLevels.indexOf(level);
+        return index >= 0;
+
+    };
+
     /** Used by the event pool. Game receives notifications about different
      * game events from child components. */
     this.notify = function(evtName, args) {
@@ -727,6 +770,7 @@ RG.RogueGame = function() { // {{{2
             var actor = args.actor;
             if (actor.isPlayer()) {
                 _shownLevel = actor.getLevel();
+                this.addActiveLevel(_shownLevel);
             }
         }
         else if (evtName === RG.EVT_DESTROY_ITEM) {
@@ -755,6 +799,32 @@ RG.RogueGame = function() { // {{{2
                     "No actor specified for the event.");
             }
         }
+        else if (evtName === RG.EVT_ACT_COMP_ENABLED) {
+            if (args.hasOwnProperty("actor")) {
+                this.addActor(args.actor);
+            }
+            else {
+                RG.err("Game", "notify - ACT_COMP_ENABLED",
+                    "No actor specified for the event.");
+            }
+        }
+        else if (evtName === RG.EVT_ACT_COMP_DISABLED) {
+            if (args.hasOwnProperty("actor")) {
+                this.removeActor(args.actor);
+            }
+            else {
+                RG.err("Game", "notify - ACT_COMP_DISABLED",
+                    "No actor specified for the event.");
+            }
+        }
+        else if (evtName === RG.EVT_LEVEL_PROP_ADDED) {
+            if (args.propType === "actors") {
+                if (this.isActiveLevel(args.level)) {
+                    var actor = args.obj;
+                    actor.get("Action").enable();
+                }
+            }
+        }
         /*
         else if (evtName === RG.EVT_ACTOR_CREATED) {
             if (args.hasOwnProperty("actor")) {
@@ -773,7 +843,9 @@ RG.RogueGame = function() { // {{{2
     RG.POOL.listenEvent(RG.EVT_DESTROY_ITEM, this);
     RG.POOL.listenEvent(RG.EVT_ACT_COMP_ADDED, this);
     RG.POOL.listenEvent(RG.EVT_ACT_COMP_REMOVED, this);
-
+    RG.POOL.listenEvent(RG.EVT_ACT_COMP_ENABLED, this);
+    RG.POOL.listenEvent(RG.EVT_ACT_COMP_DISABLED, this);
+    RG.POOL.listenEvent(RG.EVT_LEVEL_PROP_ADDED, this);
 }; // }}} Game
 
 
