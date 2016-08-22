@@ -34,6 +34,11 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         stairs: [],
     };
 
+    var _id = RG.RogueLevel.prototype.idCount++;
+    console.log("Created level with ID " + _id);
+
+    this.getID = function() {return _id;};
+
     this.getActors = function() {
         return _p.actors;
     };
@@ -230,6 +235,7 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     };
 
 }; // }}} Level
+RG.RogueLevel.prototype.idCount = 0;
 
 RG.DefenseObject = function() {
 
