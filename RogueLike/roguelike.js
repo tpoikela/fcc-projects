@@ -34,6 +34,10 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         stairs: [],
     };
 
+    this.getActors = function() {
+        return _p.actors;
+    };
+
     this.setMap = function(map) {
         _map = map;
     };
@@ -174,6 +178,8 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         return false;
     };
 
+    /** Adds a prop to level to location x,y. Returns true on success, false on
+     * failure.*/
     this._addPropToLevelXY = function(propType, obj, x, y) {
         if (_p.hasOwnProperty(propType)) {
             _p[propType].push(obj);
@@ -182,6 +188,8 @@ RG.RogueLevel = function(cols, rows) { // {{{2
                 obj.setLevel(this);
             }
             _map.setProp(x, y, propType, obj);
+            RG.POOL.emitEvent(RG.EVT_LEVEL_PROP_ADDED, {level: this, obj: obj,
+                propType: propType});
             return true;
         }
         else {
@@ -354,12 +362,12 @@ RG.Component.prototype.removeCallback = function(entity) {
     RG.POOL.emitEvent(this.getType(), {remove:true, entity: entity});
 };
 
-
 /** Action component is added to all schedulable acting entities.*/
 RG.ActionComponent = function() {
     RG.Component.call(this, "Action");
 
     var _energy = 0;
+    var _active = false;
     this.getEnergy = function() {return _energy;};
 
     this.addEnergy = function(energy) {
@@ -368,17 +376,33 @@ RG.ActionComponent = function() {
 
     this.resetEnergy = function() {_energy = 0;};
 
+    this.enable = function() {
+        if (_active === false) {
+            RG.POOL.emitEvent(RG.EVT_ACT_COMP_ENABLED, 
+                {actor: this.getEntity()});
+            _active = true;
+        }
+    };
+
+    this.disable = function() {
+        if (_active === true) {
+            RG.POOL.emitEvent(RG.EVT_ACT_COMP_DISABLED, 
+                {actor: this.getEntity()});
+            _active = false;
+        }
+    };
+
 };
 RG.extend2(RG.ActionComponent, RG.Component);
 
 RG.ActionComponent.prototype.addCallback = function(entity) {
     RG.Component.prototype.addCallback.call(this, entity);
-    RG.POOL.emitEvent(RG.EVT_ACT_COMP_ADDED, {actor: entity});
+    //RG.POOL.emitEvent(RG.EVT_ACT_COMP_ADDED, {actor: entity});
 };
 
 RG.ActionComponent.prototype.removeCallback = function(entity) {
     RG.Component.prototype.removeCallback.call(this, entity);
-    RG.POOL.emitEvent(RG.EVT_ACT_COMP_REMOVED, {actor: entity});
+    //RG.POOL.emitEvent(RG.EVT_ACT_COMP_REMOVED, {actor: entity});
 };
 
 /** Component which takes care of hunger and satiation. */
@@ -3658,7 +3682,7 @@ RG.RogueObjectStubParser = function() {
                     else if (funcName.hasOwnProperty("factory")) {
                         if (p === "brain") {
                             var createdObj = funcName.factory(newObj, stub[p]);
-                            console.log("Creatin brain: " + stub[p]);
+                            //console.log("Creatin brain: " + stub[p]);
                             newObj[funcName.func](createdObj);
                         }
                     }
