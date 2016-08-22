@@ -7,7 +7,11 @@ roguelike=/home/tpoikela/git/freecodecamp/RogueLike/ /home/tpoikela/git/freecode
  index.html
  style.scss
  notes.md
+ src=src {
+  rg.js
+ }
  tests=tests {
+  communication.js
   ecs.js
   events.js
   game.js
