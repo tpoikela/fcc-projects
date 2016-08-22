@@ -2325,14 +2325,17 @@ RG.HumanBrain = function(actor) {
         }
         else {
             if (friendActor !== null) { // Communicate enemies
-                var comComp = new RG.CommunicationComponent();
-                var enemies = memory.getEnemies();
-                var msg = {type: "Enemies", enemies: enemies};
-                comComp.addMsg(msg);
-                if (!friendActor.has("Communication")) {
-                    friendActor.add("Communication", comComp);
+                if (!memory.hasCommunicatedWith(friendActor)) {
+                    var comComp = new RG.CommunicationComponent();
+                    var enemies = memory.getEnemies();
+                    var msg = {type: "Enemies", enemies: enemies};
+                    comComp.addMsg(msg);
+                    if (!friendActor.has("Communication")) {
+                        friendActor.add("Communication", comComp);
+                        memory.addCommunicationWith(friendActor);
+                        return function() {};
+                    }
                 }
-                memory.addCommunicationWith(friendActor);
             }
         }
         return this.exploreLevel(seenCells);
@@ -3210,7 +3213,7 @@ RG.Factory = function() { // {{{2
 
     this.createHumanArmy = function(level, parser) {
         for (var y = 0; y < 2; y++) {
-            for (var x = 0; x < 20; x++) {
+            for (var x = 0; x < 1; x++) {
                 var human = parser.createActualObj("actors", "fighter");
                 level.addActor(human, x + 1, 4+y);
             }
@@ -3421,11 +3424,11 @@ RG.FCCGame = function() {
 
         var demonEvent = new RG.RogueOneShotEvent(this.spawnDemonArmy.bind(this,level,
             parser), 100 * 20, "Demon hordes are unleashed from the unsilent abyss!");
-        game.addEvent(demonEvent);
+        //game.addEvent(demonEvent);
 
         var beastEvent = new RG.RogueOneShotEvent(this.spawnBeastArmy.bind(this,level,
             parser, 100 * 100, "Winter spread by Blizzard Beasts!"));
-        game.addEvent(beastEvent);
+        //game.addEvent(beastEvent);
 
         //this.addNRandMonsters(parser, monstersPerLevel, level, 10);
         return game;
