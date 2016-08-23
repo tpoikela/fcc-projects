@@ -241,9 +241,25 @@ var RG = { // {{{2
         return false;
     },
 
+
+    gameDanger: function(msg) {
+        msg = msg[0].toUpperCase() + msg.substring(1);
+        this.POOL.emitEvent(this.EVT_MSG, {msg: msg, style: "danger"});
+    },
+
     gameMsg: function(msg) {
         msg = msg[0].toUpperCase() + msg.substring(1);
-        this.POOL.emitEvent(this.EVT_MSG, {msg: msg});
+        this.POOL.emitEvent(this.EVT_MSG, {msg: msg, style: "prim"});
+    },
+
+    gameSuccess: function(msg) {
+        msg = msg[0].toUpperCase() + msg.substring(1);
+        this.POOL.emitEvent(this.EVT_MSG, {msg: msg, style: "success"});
+    },
+
+    gameWarn: function(msg) {
+        msg = msg[0].toUpperCase() + msg.substring(1);
+        this.POOL.emitEvent(this.EVT_MSG, {msg: msg, style: "warn"});
     },
 
     /** Checks if actor's experience level can be increased.*/
@@ -489,7 +505,7 @@ RG.EventPool = function() { // {{{2
 RG.POOL = new RG.EventPool(); // Global event pool for the game }}}
 
 /** Handle the game message listening and storing of the messages.  */
-RG.Messages = function() { // {{{2
+RG.MessageHandler = function() { // {{{2
 
     var _message = [];
     var _prevMessage = [];
@@ -497,7 +513,12 @@ RG.Messages = function() { // {{{2
     this.notify = function(evtName, msg) {
         if (evtName === RG.EVT_MSG) {
             if (msg.hasOwnProperty("msg")) {
-                _message.push(msg.msg);
+                if (msg.hasOwnProperty("style")) {
+                    _message.push({msg: msg.msg, style: msg.style});
+                }
+                else {
+                    _message.push({msg: msg.msg, style: "prim"});
+                }
             }
         }
     };
@@ -505,11 +526,11 @@ RG.Messages = function() { // {{{2
 
     this.getMessages = function() {
         if (_message.length > 0)
-            return _message.join(". ");
+            return _message;
         else if (_prevMessage.length > 0)
-            return _prevMessage.join(". ");
+            return _prevMessage;
         else
-            return "";
+            return [];
     };
 
     this.clear = function() {
@@ -534,7 +555,7 @@ RG.RogueGame = function() { // {{{2
 
     var _mapGen = new RG.RogueMapGen();
     var _scheduler = new RG.RogueScheduler();
-    var _msg = new RG.Messages();
+    var _msg = new RG.MessageHandler();
 
     // These systems updated after each action
     this.systemOrder = ["Attack", "Missile", "Movement", "Damage", "ExpPoints", "Communication"];
@@ -669,20 +690,18 @@ RG.RogueGame = function() { // {{{2
                 for (var i = 0; i < rmvActors.length; i++) {
                     rmvActors[i].get("Action").disable();
                 }
-                console.log("Removed active level to make space...");
+                RG.debug(this, "Removed active level to make space...");
             }
             else { // Level already in actives, move to the front only
                 _activeLevels.splice(index, 1);
                 _activeLevels.unshift(levelID);
-                console.log("Moved level to the front of active levels.");
+                RG.debug(this, "Moved level to the front of active levels.");
             }
         }
 
         // This is a new level, enable all actors
         if (index === -1) {
             _activeLevels.unshift(levelID);
-            console.log("Adding active level to the game...");
-            console.log("There are now " + _activeLevels.length + " active levels");
             var actActors = level.getActors();
             for (var j = 0; j < actActors.length; j++) {
                 actActors[j].get("Action").enable();
