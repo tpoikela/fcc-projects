@@ -35,7 +35,6 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     };
 
     var _id = RG.RogueLevel.prototype.idCount++;
-    console.log("Created level with ID " + _id);
 
     this.getID = function() {return _id;};
 
@@ -742,7 +741,7 @@ RG.LootComponent = function(lootEntity) {
     this.setElemToCell = function(cell) {
         var entLevel = this.getEntity().getLevel();
         if (_lootEntity.hasOwnProperty("useStairs")) {
-            console.log("Added stairs to " + cell.getX() + ", " + cell.getY());
+            RG.debug(this, "Added stairs to " + cell.getX() + ", " + cell.getY());
             entLevel.addStairs(_lootEntity, cell.getX(), cell.getY());
         }
     };
@@ -866,7 +865,7 @@ RG.AttackSystem = function(type, compTypes) {
         var dmgComp = new RG.DamageComponent(dmg, "cut");
         dmgComp.setSource(att);
         def.add("Damage", dmgComp);
-        RG.gameMsg(att.getName() + " hits " + def.getName());
+        RG.gameWarn(att.getName() + " hits " + def.getName());
     };
 };
 RG.extend2(RG.AttackSystem, RG.System);
@@ -887,7 +886,6 @@ RG.MissileSystem = function(type, compTypes) {
             var level = mComp.getLevel();
             var map   = level.getMap();
             var mSrc = mComp.getSource();
-            //mSrc.getInvEq().unequipAndGetItem("missile", 0);
 
             while (mComp.isFlying() && !mComp.inTarget() && mComp.hasRange()) {
 
@@ -905,7 +903,7 @@ RG.MissileSystem = function(type, compTypes) {
                     var prevCell = map.getCell(prevX, prevY);
 
                     this.finishMissileFlight(ent, mComp, prevCell);
-                    console.log("Stopped missile to wall");
+                    RG.debug(this, "Stopped missile to wall");
                 }
                 else if (currCell.hasProp("actors")) {
                     var actor = currCell.getProp("actors")[0];
@@ -917,24 +915,24 @@ RG.MissileSystem = function(type, compTypes) {
                         damageComp.setSource(mComp.getSource());
                         damageComp.setDamage(mComp.getDamage());
                         actor.add("Damage", damageComp);
-                        console.log("Hit an actor");
+                        RG.debug(this, "Hit an actor");
                     }
                     else if (mComp.inTarget()) {
                         this.finishMissileFlight(ent, mComp, currCell);
-                        console.log("In target cell, and missed an entity");
+                        RG.debug(this, "In target cell, and missed an entity");
                     }
                     else if (!mComp.hasRange()) {
                         this.finishMissileFlight(ent, mComp, currCell);
-                        console.log("Missile out of range. Missed entity.");
+                        RG.debug(this, "Missile out of range. Missed entity.");
                     }
                 }
                 else if (mComp.inTarget()) {
                     this.finishMissileFlight(ent, mComp, currCell);
-                    console.log("In target cell but no hits");
+                    RG.debug(this, "In target cell but no hits");
                 }
                 else if (!mComp.hasRange()) {
                     this.finishMissileFlight(ent, mComp, currCell);
-                    console.log("Missile out of range. Hit nothing.");
+                    RG.debug(this, "Missile out of range. Hit nothing.");
                 }
             }
 
@@ -1011,7 +1009,7 @@ RG.DamageSystem = function(type, compTypes) {
             if (actor.has("Experience")) {
                 this.giveExpToSource(src, actor);
             }
-            RG.gameMsg(actor.getName() + " was killed");
+            RG.gameDanger(actor.getName() + " was killed");
             RG.POOL.emitEvent(RG.EVT_ACTOR_KILLED, {actor: actor});
         }
         else {
@@ -1072,7 +1070,7 @@ RG.ExpPointsSystem = function(type, compTypes) {
                     }
                     // TODO add something to damage roll
                 }
-                RG.gameMsg(ent.getName() + " advanced to level " + nextLevel);
+                RG.gameSuccess(ent.getName() + " advanced to level " + nextLevel);
             }
             ent.remove("ExpPoints");
         }
@@ -1149,7 +1147,7 @@ RG.HungerSystem = function(type, compTypes) {
             actionComp.resetEnergy();
             if (hungerComp.isStarving()) {
                 if (ent.has("Health")) ent.get("Health").decrHP(1);
-
+                RG.gameWarn(ent.getName() + " is starving!");
             }
         }
     };
@@ -1356,20 +1354,32 @@ RG.RogueItemContainer = function(owner) {
     var _items = [];
     var _iter  = 0;
 
+    this._addItem = function(item) {
+        item.setOwner(this);
+        _items.push(item);
+    };
+
+    /** Returns the total weight of the container.*/
+    this.getWeight = function() {
+        var sum = 0;
+        for (var i = 0; i < _items.length; i++) {
+            sum += _items[i].getWeight();
+        }
+        return sum;
+    };
+
     /** Adds an item. Container becomes item's owner.*/
     this.addItem = function(item) {
         if (item.getType() === "container") {
             if (this.getOwner() !== item) {
-                item.setOwner(this);
-                _items.push(item);
+                this._addItem(item);
             }
             else {
                 RG.err("Item", "addItem", "Added item is container's owner. Impossible.");
             }
         }
         else {
-            item.setOwner(this);
-            _items.push(item);
+            this._addItem(item);
         }
     };
 
@@ -1381,9 +1391,9 @@ RG.RogueItemContainer = function(owner) {
         return false;
     };
 
+    /** Tries to remove an item. Returns true on success, false otherwise.*/
     this.removeItem = function(item) {
         var index = _items.indexOf(item);
-        //console.log("removeItem Index is " + index);
         if (index !== -1) {
             _items.splice(index, 1);
             return true;
@@ -1684,6 +1694,8 @@ RG.RogueActor = function(name) { // {{{2
 
     // Member vars
     var _brain = new RG.RogueBrain(this);
+    _brain.getMemory().addEnemyType("player");
+
     var _isPlayer = false;
     var _fovRange = RG.FOV_RANGE;
     var _name = name;
@@ -2188,11 +2200,10 @@ RG.AnimalBrain = function(actor) {
     _memory.addEnemyType("human");
 
     this.findEnemyCell = function(seenCells) {
-        var memory = this.getMemory();
         for (var i = 0, iMax=seenCells.length; i < iMax; i++) {
             if (seenCells[i].hasProp("actors")) {
                 var actors = seenCells[i].getProp("actors");
-                if (memory.isEnemy(actors[0]))
+                if (_memory.isEnemy(actors[0]))
                     return seenCells[i];
             }
         }
@@ -2439,7 +2450,7 @@ RG.RogueRegenEvent = function(actor, dur) {
         hp += 1;
         if (hp <= maxHP) {
             actor.get("Health").setHP(hp);
-            RG.gameMsg(actor.getName() + " regenerates 1 HP");
+            RG.gameSuccess(actor.getName() + " regenerates 1 HP");
         }
     };
 
@@ -2580,7 +2591,6 @@ RG.RogueMapGen = function() { // {{{2
             case "uniform":  _mapGen = new ROT.Map.Uniform(cols, rows); break;
             case "ruins": _mapGen = this.createRuins(cols, rows); break;
             case "rooms": _mapGen = this.createRooms(cols, rows); break;
-            //case "town": _mapGen = this.createTown(cols, rows, _nHouses); break;
             default: RG.err("MapGen", "setGen", "_mapGen type " + type + " is unknown");
         }
     };
@@ -3161,9 +3171,13 @@ RG.Factory = function() { // {{{2
     /** Factory method for creating levels.*/
     this.createLevel = function(levelType, cols, rows, conf) {
         var mapgen = new RG.RogueMapGen();
-        mapgen.setGen(levelType, cols, rows);
-        var map = mapgen.getMap();
+        var map = null;
+
         if (levelType === "town") map = mapgen.createTown(cols, rows, conf);
+        else {
+            mapgen.setGen(levelType, cols, rows);
+            map = mapgen.getMap();
+        }
 
         var level = new RG.RogueLevel(cols, rows);
         level.setMap(map);
@@ -3265,7 +3279,7 @@ RG.Factory = function() { // {{{2
                     level: level, msg: "DemonSpawn"});
             }
         }
-        console.log("Blizzard beasts should now appear.");
+        RG.debug(this, "Blizzard beasts should now appear.");
     };
 
 };
@@ -3328,8 +3342,8 @@ RG.FCCGame = function() {
                 if (actor.getName() === "Winter demon") {
                     ++_demonsKilled;
                     if (_demonsKilled === _maxDemons) this.allDemonsKilled();
-                    console.log("A winter demon was slain! Count:" + _demonsKilled);
-                    console.log("Max demons: " + _maxDemons);
+                    RG.debug(this, "A winter demon was slain! Count:" + _demonsKilled);
+                    RG.debug(this, "Max demons: " + _maxDemons);
                 }
                 else if (actor.getName() === "Blizzard beast") {
                     ++_beastsKilled;
