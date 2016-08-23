@@ -1240,7 +1240,16 @@ RG.RogueItem = function(name) {
 RG.RogueItem.prototype.toString = function() {
     var txt = this.getName() + ", " + this.getType() + ", ";
     txt += this.getWeight() + "kg";
+    if (this.hasOwnProperty("count")) {
+        txt = this.count + " x " + txt;
+    }
     return txt;
+};
+
+RG.RogueItem.prototype.equals = function(item) {
+    var res = this.getName() === item.getName();
+    res &= this.getType() === item.getType();
+    return res;
 };
 RG.extend2(RG.RogueItem, RG.Ownable);
 
@@ -1355,8 +1364,24 @@ RG.RogueItemContainer = function(owner) {
     var _iter  = 0;
 
     this._addItem = function(item) {
-        item.setOwner(this);
-        _items.push(item);
+        var matchFound = false;
+        for (var i = 0; i < _items.length; i++) {
+            if (_items[i].equals(item)) {
+                if (_items[i].hasOwnProperty("count")) {
+                    ++_items[i].count;
+                }
+                else {
+                    _items[i].count = 2;
+                }
+                matchFound = true;
+                break;
+            }
+        }
+
+        if (!matchFound) {
+            item.setOwner(this);
+            _items.push(item);
+        }
     };
 
     /** Returns the total weight of the container.*/
@@ -1386,13 +1411,35 @@ RG.RogueItemContainer = function(owner) {
     this.getItems = function() {return _items;};
 
     this.hasItem = function(item) {
-        var index = _items.indexOf(item);
-        if (index !== -1) return true;
+        //var index = _items.indexOf(item);
+        //if (index !== -1) return true;
+        for (var i = 0; i < _items.length; i++) {
+            if (_items[i].equals(item)) {
+                return true;
+            }
+        }
         return false;
     };
 
     /** Tries to remove an item. Returns true on success, false otherwise.*/
     this.removeItem = function(item) {
+        var matchFound = false;
+        for (var i = 0; i < _items.length; i++) {
+            if (_items[i].equals(item)) {
+                if (_items[i].hasOwnProperty("count")) {
+                    --_items[i].count;
+                    if (_items[i].count === 0) _items.splice(i, 1);
+                }
+                else {
+                    _items.splice(index, 1);
+                }
+
+                matchFound = true;
+                break;
+            }
+        }
+        return matchFound;
+
         var index = _items.indexOf(item);
         if (index !== -1) {
             _items.splice(index, 1);
