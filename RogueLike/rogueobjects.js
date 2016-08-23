@@ -3,10 +3,10 @@
 /**
  * THis file contains definitions for in-game objects, monsters and levels. It's
  * rather human-readable so it should be easy to add new stuff in. All contents
- * are used for procedural generation. 
+ * are used for procedural generation.
  */
 
-// Some info on attributes: 
+// Some info on attributes:
 //      dontCreate: true - Use with base classes
 //      base: xxx        - Use xxx as a base for the object
 //      danger           - Used for rand generation, higher values means less often
@@ -34,9 +34,6 @@ var RGObjects = {
         },
         {
             name: "bat", type: "bat", "char": "b", base: "animal",
-        },
-        {
-            name: "Ice bat", base: "bat", danger: 2, hp: 8, speed: 110,
         },
         {
             name: "rat", type: "rat", "char": "r", base: "animal",
@@ -69,6 +66,26 @@ var RGObjects = {
             dontCreate: true,
         },
         {
+            name: "Crevasse worm", "char": "w", base: "WinterBeingBase",
+            attack: 1, defense: 1, damage: "1d4", speed: 110,
+            danger: 1, hp: 5
+        },
+        {
+            name: "Ice bat", "char": "b", base: "WinterBeingBase",
+            attack: 1, defense: 1, damage: "1d6", speed: 110,
+            danger: 2, hp: 8, brain: "Animal",
+        },
+        {
+            name: "Frost goblin", "char": "g", base: "WinterBeingBase",
+            attack: 3, defense: 3, protection: 1, damage: "1d7", hp: 12,
+            danger: 3,
+        },
+        {
+            name: "Glacial golem", "char": "G", base: "WinterBeingBase",
+            attack: 4, defense: 4, protection: 3, damage: "2d4", speed: 90,
+            danger: 4,
+        },
+        {
             name: "Mighty raven", base: "WinterBeingBase",
             attack: 4, defense: 8, damage: "2d4 + 2", range: 1, hp: 20,
             danger: 5, brain: "Animal"
@@ -80,7 +97,7 @@ var RGObjects = {
         },
         {
             name: "Blizzard beast", type: "demon", "char": "B",
-            attack: 7, defense: 6, protection: 4, damage: "3d4", range: 1, hp: 50,
+            attack: 7, defense: 6, protection: 4, damage: "3d4", range: 1, hp: 10,
             danger: 8, brain: "Demon", base: "WinterBeingBase",
         },
 
@@ -188,6 +205,11 @@ var RGObjects = {
             material: "forium", dontCreate: true,
         },
         {
+            name: "Magic dagger", base: "MagicWeaponBase",
+            damage: "2d5 + 3",
+            attack: 2, defense: 1, weight: 0.7, value: 100,
+        },
+        {
             name: "Magic short sword", base: "MagicWeaponBase",
             damage: "3d5 + 3",
             attack: 3, defense: 2, weight: 0.7, value: 300
@@ -197,6 +219,16 @@ var RGObjects = {
             damage: "5d5 + 3",
             attack: 5, defense: 2, weight: 1.0, value: 500
         },
+        {
+            name: "Magic runesword", base: "MagicWeaponBase",
+            damage: "3d10 + 1",
+            attack: 5, defense: 5, weight: 0.5, value: 750,
+        },
+        {
+            name: "Wintersbane", base: "MagicWeaponBase",
+            damage: "3d8 + 4",
+            attack: 6, defense: 3, weight: 1.0, value: 1000,
+        },
         // ARMOUR
         {
             name: "ArmourBase", type: "armour", className: "cell-item-armour",
@@ -205,45 +237,49 @@ var RGObjects = {
 
         // ARMOUR LEATHER
         {
-            name: "Leather helmet", base: "ArmourBase",
-            weight: 0.3, defense: 1, material: "leather",
-            armourType: "head", value: 15,
+            name: "LeatherArmourBase", base: "ArmourBase", dontCreate: true,
+            material: "leather", className: "cell-item-leather",
         },
         {
-            name: "Leather collar", base: "ArmourBase",
-            weight: 0.2, protection: 1, material: "leather",
-            armourType: "neck", value: 15,
+            name: "Leather helmet", base: "LeatherArmourBase",
+            weight: 0.3, defense: 1, armourType: "head", value: 15,
         },
         {
-            name: "Leather boots", base: "ArmourBase",
-            weight: 0.5, defense: 1, material: "leather",
-            armourType: "feet", value: 15,
+            name: "Leather collar", base: "LeatherArmourBase",
+            weight: 0.2, protection: 1, armourType: "neck", value: 15,
         },
         {
-            name: "Leather armour", base: "ArmourBase",
-            weight: 2.0, defense: 2, material: "leather", protection: 2,
+            name: "Leather boots", base: "LeatherArmourBase",
+            weight: 0.5, defense: 1, armourType: "feet", value: 15,
+        },
+        {
+            name: "Leather armour", base: "LeatherArmourBase",
+            weight: 2.0, defense: 2, protection: 2,
             armourType: "chest", value: 30,
         },
-
         // ARMOUR IRON
         {
-            name: "Iron helmet", base: "ArmourBase",
-            weight: 0.6, defense: 1, protection: 1, material: "iron",
+            name: "IronArmourBase", base: "ArmourBase", dontCreate: true,
+            material: "iron", className: "cell-item-iron",
+        },
+        {
+            name: "Iron helmet", base: "IronArmourBase",
+            weight: 0.6, defense: 1, protection: 1,
             armourType: "head", value: 45,
         },
         {
-            name: "Iron collar", base: "ArmourBase",
-            weight: 0.6, protection: 2, material: "iron",
+            name: "Iron collar", base: "IronArmourBase",
+            weight: 0.6, protection: 2,
             armourType: "neck", value: 45,
         },
         {
-            name: "Iron boots", base: "ArmourBase",
-            weight: 1.2, defense: 1, protection: 1, material: "iron",
+            name: "Iron boots", base: "IronArmourBase",
+            weight: 1.2, defense: 1, protection: 1,
             armourType: "feet", value: 45,
         },
         {
-            name: "Iron armour", base: "ArmourBase",
-            weight: 4.0, defense: 1, protection: 3, material: "iron",
+            name: "Iron armour", base: "IronArmourBase",
+            weight: 4.0, defense: 1, protection: 3,
             armourType: "chest", value: 90,
         },
 
@@ -254,7 +290,7 @@ var RGObjects = {
         },
         {
             name: "Ice helmet", base: "IceArmourBase",
-            weight: 1.0, defense: 1, protection: 3, 
+            weight: 1.0, defense: 1, protection: 3,
             armourType: "head", value: 200,
         },
 
@@ -292,19 +328,20 @@ var RGObjects = {
         },
         {
             name: "Shuriken", base: "MissileBase",
-            damage: "1d4", range: 3, value: 10,
+            damage: "1d6", range: 3, value: 20,
         },
         {
             name: "Dart", base: "MissileBase",
-            damage: "1d4 + 1", range: 4, value: 30,
+            damage: "1d6 + 1", range: 4, value: 40,
         },
         {
             name: "Magic Shuriken", base: "MissileBase",
+            attack: 3,
             damage: "3d4 + 2", range: 5, value: 100, weight: 0.1
         },
         {
             name: "Throwing axe of death", base: "MissileBase",
-            attack: 2, damage: "2d10 + 3", range: 3, value: 200, weight: 0.5,
+            attack: 5, damage: "2d10 + 3", range: 3, value: 200, weight: 0.5,
         },
 
         // POTIONS
@@ -345,7 +382,7 @@ var RGObjects = {
 
     ],
 
-    // 
+    //
     /*
     levels: [
         {
