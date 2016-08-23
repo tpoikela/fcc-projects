@@ -384,7 +384,7 @@ RG.ActionComponent = function() {
 
     this.enable = function() {
         if (_active === false) {
-            RG.POOL.emitEvent(RG.EVT_ACT_COMP_ENABLED, 
+            RG.POOL.emitEvent(RG.EVT_ACT_COMP_ENABLED,
                 {actor: this.getEntity()});
             _active = true;
         }
@@ -392,7 +392,7 @@ RG.ActionComponent = function() {
 
     this.disable = function() {
         if (_active === true) {
-            RG.POOL.emitEvent(RG.EVT_ACT_COMP_DISABLED, 
+            RG.POOL.emitEvent(RG.EVT_ACT_COMP_DISABLED,
                 {actor: this.getEntity()});
             _active = false;
         }
@@ -985,7 +985,7 @@ RG.DamageSystem = function(type, compTypes) {
 
                 if (totalDmg <= 0) {
                     totalDmg = 0;
-                    RG.gameMsg("Attack doesn't penetrate protection of " + ent.getName()); 
+                    RG.gameMsg("Attack doesn't penetrate protection of " + ent.getName());
                 }
                 health.decrHP(totalDmg);
 
@@ -1569,7 +1569,7 @@ RG.RogueEquipment = function(actor) {
         return result;
     };
 
-    // Dynamically generated accessors for different stats 
+    // Dynamically generated accessors for different stats
     var _mods = ["getDefense", "getAttack", "getProtection", "getSpeed", "getWillpower",
         "getAccuracy", "getAgility"];
 
@@ -1706,6 +1706,8 @@ RG.RogueActor = function(name) { // {{{2
     };
 
     this.addEnemy = function(actor) {_brain.addEnemy(actor);};
+    this.isEnemy = function(actor) {return _brain.getMemory().isEnemy(actor);};
+
     this.setBrain = function(brain) {
         _brain = brain;
         _brain.setActor(this);
@@ -1881,6 +1883,9 @@ RG.PlayerBrain = function(actor) { // {{{2
 
     this.energy = 1;
 
+    var _confirmCallback = null;
+    var _wantConfirm = false;
+
     this.decideNextAction = function(obj) {
         if (obj.hasOwnProperty("cmd")) {
             return function() {};
@@ -1888,6 +1893,12 @@ RG.PlayerBrain = function(actor) { // {{{2
 
         var code = obj.code;
         var level = _actor.getLevel();
+        if (_wantConfirm && _confirmCallback !== null) {
+            // Want y/n answer
+            _wantConfirm = false;
+            if (code === ROT.VK_Y) return _confirmCallback;
+            else return null;
+        }
 
         // Invoke GUI callback with given code
         if (_guiCallbacks.hasOwnProperty(code)) {
@@ -1942,11 +1953,19 @@ RG.PlayerBrain = function(actor) { // {{{2
                     };
                 }
                 else if (level.getMap().getCell(x,y).hasProp("actors")) {
-                    return function() {
-                        var target = level.getMap().getCell(x, y).getProp("actors")[0];
+                    var target = level.getMap().getCell(x, y).getProp("actors")[0];
+                    var callback = function() {
                         var attackComp = new RG.AttackComponent(target);
                         _actor.add("Attack", attackComp);
                     };
+
+                    if (target.isEnemy(_actor)) return callback;
+                    else {
+                        _wantConfirm = true;
+                        _confirmCallback = callback;
+                        RG.gameMsg("Press y to attack non-hostile actor.");
+                        return null;
+                    }
                 }
             }
         }
@@ -2604,7 +2623,7 @@ RG.RogueMapGen = function() { // {{{2
     };
 
     this.createRooms = function(cols, rows) {
-        var map = new ROT.Map.Digger(cols, rows, 
+        var map = new ROT.Map.Digger(cols, rows,
             {roomWidth: [5, 20], dugPercentage: 0.7});
         return map;
     };
@@ -3213,7 +3232,7 @@ RG.Factory = function() { // {{{2
 
     this.createHumanArmy = function(level, parser) {
         for (var y = 0; y < 2; y++) {
-            for (var x = 0; x < 1; x++) {
+            for (var x = 0; x < 20; x++) {
                 var human = parser.createActualObj("actors", "fighter");
                 level.addActor(human, x + 1, 4+y);
             }
@@ -3229,6 +3248,8 @@ RG.Factory = function() { // {{{2
             for (var i = 0; i < 10; i++) {
                 var demon = parser.createActualObj("actors", "Winter demon");
                 level.addActor(demon, i + 10, 14+y);
+                RG.POOL.emitEvent(RG.EVT_ACTOR_CREATED, {actor: demon,
+                    level: level, msg: "DemonSpawn"});
             }
         }
     };
@@ -3240,8 +3261,11 @@ RG.Factory = function() { // {{{2
             for (var x = x0; x < x0+10; x++) {
                 var beast = parser.createActualObj("actors", "Blizzard beast");
                 level.addActor(beast, x + 10, 14+y);
+                RG.POOL.emitEvent(RG.EVT_ACTOR_CREATED, {actor: beast,
+                    level: level, msg: "DemonSpawn"});
             }
         }
+        console.log("Blizzard beasts should now appear.");
     };
 
 };
@@ -3252,8 +3276,10 @@ RG.FACT = new RG.Factory();
 RG.FCCGame = function() {
     RG.Factory.call(this);
 
+    var _parser = new RG.RogueObjectStubParser();
+
     /** Creates a player actor and starting inventory.*/
-    this.createFCCPlayer = function(parser, game, obj) {
+    this.createFCCPlayer = function(game, obj) {
         var pLevel = obj.playerLevel;
         var pConf = this.playerStats[pLevel];
 
@@ -3263,19 +3289,82 @@ RG.FCCGame = function() {
 
         player.setType("player");
         player.add("Health", new RG.HealthComponent(pConf.hp));
-        var startingWeapon = parser.createActualObj("items", pConf.Weapon);
+        var startingWeapon = _parser.createActualObj("items", pConf.Weapon);
         player.getInvEq().addItem(startingWeapon);
         player.getInvEq().equipItem(startingWeapon);
 
         var regenPlayer = new RG.RogueRegenEvent(player, 20 * RG.ACTION_DUR);
         game.addEvent(regenPlayer);
         return player;
-    },
+    };
+
+
+    var that = this;
+
+    // Private object for checking when battle is done
+    var DemonKillListener = function(game, level) {
+
+        // Needed for adding monsters and events
+        var _game = game;
+        var _level = level;
+
+        var _maxBeasts = 0;
+        var _maxDemons = 0;
+
+        var _beastsKilled = 0;
+        var _demonsKilled = 0;
+
+
+        this.notify = function(evtName, obj) {
+            if (evtName === RG.EVT_ACTOR_CREATED) {
+                if (obj.hasOwnProperty("msg") && obj.msg === "DemonSpawn") {
+                    var actor = obj.actor;
+                    if (actor.getName() === "Winter demon") ++_maxDemons;
+                    if (actor.getName() === "Blizzard beast") ++_maxBeasts;
+                }
+            }
+            else if (evtName === RG.EVT_ACTOR_KILLED) {
+                var actor = obj.actor;
+                if (actor.getName() === "Winter demon") {
+                    ++_demonsKilled;
+                    if (_demonsKilled === _maxDemons) this.allDemonsKilled();
+                    console.log("A winter demon was slain! Count:" + _demonsKilled);
+                    console.log("Max demons: " + _maxDemons);
+                }
+                else if (actor.getName() === "Blizzard beast") {
+                    ++_beastsKilled;
+                    if (_beastsKilled === _maxBeasts) this.allBeastsKilled();
+                }
+            }
+        };
+        RG.POOL.listenEvent(RG.EVT_ACTOR_CREATED, this);
+        RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);
+
+        this.allDemonsKilled = function() {
+            RG.gameMsg("Humans have vanquished all demons! But it's not over...");
+            var beastEvent = new RG.RogueOneShotEvent(
+                that.spawnBeastArmy.bind(that,_level, _parser), 50*100,
+                "Winter spread by Blizzard Beasts! Hell seems to freeze.");
+            _game.addEvent(beastEvent);
+        };
+
+
+        this.allBeastsKilled = function() {
+            RG.gameMsg("All beasts have been slain. The blizzard seems to calm down.");
+            // DO a final message of game over
+            // Add random people to celebrate
+            var msgEvent = new RG.RogueOneShotEvent(function() {}, 10*100,
+                "All enemies are dead! You emerge victorious. Congratulations!");
+            _game.addEvent(msgEvent);
+            var msgEvent2 = new RG.RogueOneShotEvent(function() {}, 10*100,
+                "But Battles in North will continue soon in larger scale...");
+            _game.addEvent(msgEvent2);
+        };
+    };
 
     /** Creates the game for the FCC project.*/
     this.createFCCGame = function(obj) {
-        var parser = new RG.RogueObjectStubParser();
-        parser.parseStubData(RGObjects);
+        _parser.parseStubData(RGObjects);
         var cols = obj.cols;
         var rows = obj.rows;
         var nLevels = obj.levels;
@@ -3283,10 +3372,10 @@ RG.FCCGame = function() {
         var sqrPerItem = obj.sqrPerItem;
 
         var game = new RG.RogueGame();
-        var player = this.createFCCPlayer(parser, game, obj);
+        var player = this.createFCCPlayer(game, obj);
 
         if (obj.debugMode === "Arena") {
-            return this.createFCCDebugGame(obj, parser, game, player);
+            return this.createFCCDebugGame(obj, game, player);
         }
 
         var levels = ["rooms", "rogue", "digger", "icey"];
@@ -3318,11 +3407,11 @@ RG.FCCGame = function() {
 
             var potion = new RG.RogueItemPotion("Healing potion");
             level.addItem(potion);
-            var missile = parser.createActualObj("items", "Shuriken");
+            var missile = _parser.createActualObj("items", "Shuriken");
             level.addItem(missile);
 
-            this.addNRandItems(parser, itemsPerLevel, level, 20*(nl +1));
-            this.addNRandMonsters(parser, monstersPerLevel, level, nl + 1);
+            this.addNRandItems(_parser, itemsPerLevel, level, 20*(nl +1));
+            this.addNRandMonsters(_parser, monstersPerLevel, level, nl + 1);
 
             allLevels.push(level);
         }
@@ -3336,7 +3425,8 @@ RG.FCCGame = function() {
         summoner.setBrain(new RG.SummonerBrain(summoner));
         lastLevel.addActor(summoner, bossCell.getX(), bossCell.getY());
 
-        var extraLevel = this.createLevel("arena", cols, rows);
+        //var extraLevel = this.createLevel("arena", cols, rows);
+        var extraLevel = this.createLastBattle(game, obj);
 
         // Connect levels with stairs
         for (nl = 0; nl < nLevels; nl++) {
@@ -3377,7 +3467,7 @@ RG.FCCGame = function() {
         lastStairsDown.setTargetStairs(extraStairsUp);
 
         // Create NPCs for the extra level
-        var humansPerLevel = 2 * monstersPerLevel; 
+        var humansPerLevel = 2 * monstersPerLevel;
         for (var i = 0; i < 10; i++) {
             var name = "Townsman";
             var human = this.createMonster(name, {brain: "Human"});
@@ -3399,39 +3489,33 @@ RG.FCCGame = function() {
     };
 
     /** Can be used to create a short debugging game for testing.*/
-    this.createFCCDebugGame = function(obj, parser, game, player) {
+    this.createFCCDebugGame = function(obj, game, player) {
         var sqrPerMonster = obj.sqrPerMonster;
         var sqrPerItem = obj.sqrPerItem;
-        //var level = this.createLevel("Arena", obj.cols, obj.rows);
-        //var level = this.createLevel("town", obj.cols, obj.rows);
+        var level = this.createLastBattle(game, obj);
+        //var numFree = level.getMap().getFree().length;
+        //var monstersPerLevel = Math.round(numFree / sqrPerMonster);
+        //var itemsPerLevel = Math.round(numFree / sqrPerItem);
+        game.addPlayer(player);
+        player.setFOVRange(50);
+        return game;
+    };
 
-        var level = this.createLevel("town", obj.cols, obj.rows, 
+    var _listener = null;
+
+    this.createLastBattle = function(game, obj) {
+        var level = this.createLevel("town", obj.cols, obj.rows,
             {nHouses: 10, minHouseX: 5, maxHouseX: 10, minHouseY: 5, maxHouseY: 10});
+        _listener = new DemonKillListener(game, level);
 
-        var numFree = level.getMap().getFree().length;
-        var monstersPerLevel = Math.round(numFree / sqrPerMonster);
-        var itemsPerLevel = Math.round(numFree / sqrPerItem);
+        this.createHumanArmy(level, _parser);
+        var demonEvent = new RG.RogueOneShotEvent(
+            this.spawnDemonArmy.bind(this,level, _parser), 100 * 20,
+            "Demon hordes are unleashed from the unsilent abyss!");
+        game.addEvent(demonEvent);
 
         game.addLevel(level);
-        game.addPlayer(player);
-        player.setFOVRange(30);
-
-        this.createHumanArmy(level, parser);
-
-        var wolf = this.createMonster("wolf", {brain: "Animal"});
-        this.addNRandItems(parser, itemsPerLevel, level, 1000);
-        level.addActor(wolf, 6, 6);
-
-        var demonEvent = new RG.RogueOneShotEvent(this.spawnDemonArmy.bind(this,level,
-            parser), 100 * 20, "Demon hordes are unleashed from the unsilent abyss!");
-        //game.addEvent(demonEvent);
-
-        var beastEvent = new RG.RogueOneShotEvent(this.spawnBeastArmy.bind(this,level,
-            parser, 100 * 100, "Winter spread by Blizzard Beasts!"));
-        //game.addEvent(beastEvent);
-
-        //this.addNRandMonsters(parser, monstersPerLevel, level, 10);
-        return game;
+        return level;
     };
 
 };
@@ -3550,7 +3634,7 @@ RG.RogueObjectStubParser = function() {
                     obj = this.extendObj(obj, this.getBase(categ, baseName));
                 }
                 else {
-                    RG.err("ObjectParser", "parseObjStub", 
+                    RG.err("ObjectParser", "parseObjStub",
                         "Unknown base " + baseName + " specified for " + obj);
                 }
             }
@@ -3750,7 +3834,7 @@ RG.RogueObjectStubParser = function() {
             }
         }
         else {
-            newObj.add(compData.comp, 
+            newObj.add(compData.comp,
                 this.createComponent(compData.comp, val));
         }
 
@@ -3789,7 +3873,6 @@ RG.RogueObjectStubParser = function() {
             return _base[categ].hasOwnProperty(baseName);
         }
         return false;
-
     };
 
     /** Extends the given object stub with given base object.*/
