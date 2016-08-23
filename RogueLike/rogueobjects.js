@@ -86,7 +86,7 @@ var RGObjects = {
             danger: 4,
         },
         {
-            name: "Mighty raven", base: "WinterBeingBase",
+            name: "Mighty raven", base: "WinterBeingBase", "char": "R",
             attack: 4, defense: 8, damage: "2d4 + 2", range: 1, hp: 20,
             danger: 5, brain: "Animal"
         },
@@ -97,8 +97,13 @@ var RGObjects = {
         },
         {
             name: "Blizzard beast", type: "demon", "char": "B",
-            attack: 7, defense: 6, protection: 4, damage: "3d4", range: 1, hp: 10,
+            attack: 7, defense: 6, protection: 4, damage: "3d4", range: 1, hp: 50,
             danger: 8, brain: "Demon", base: "WinterBeingBase",
+        },
+        {
+            name: "Frostburn monarch", type: "demon", "char": "M",
+            attack: 7, defense: 6, protection: 4, damage: "3d4", range: 1, hp: 70,
+            danger: 10, brain: "Demon", base: "WinterBeingBase",
         },
 
         // HUMANS
