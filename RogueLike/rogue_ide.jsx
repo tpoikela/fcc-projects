@@ -401,7 +401,7 @@ var GameStartScreen = React.createClass({
                             <button type="button" className="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
-                            <h4 className="modal-title" id="game-start-modal-label">Mountains of Might</h4>
+                            <h4 className="modal-title" id="game-start-modal-label">Battles in North</h4>
                         </div>
 
                         <div className="modal-body row">
@@ -523,14 +523,27 @@ var GamePanel = React.createClass({
 /** Component for displaying in-game messages.*/
 var GameMessages = React.createClass({
 
+    styleToClassName: {
+        prim: "text-primary",
+        info: "text-info",
+        warn: "text-warning",
+        danger: "text-danger",
+        success: "text-success",
+    },
+
     render: function() {
         var message = this.props.message;
+        var styles = this.styleToClassName;
+
+        var msgList = message.map( function(val, index) {
+            var className = styles[val.style];
+            return (<span key={index} className={className}>{val.msg}.</span>);
+        });
+
         return (
-            <div className="game-messages">
-                {message}
-            </div>
+            <div className="game-messages">{msgList}</div>
         );
-    }
+    },
 
 });
 
