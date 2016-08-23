@@ -11,6 +11,9 @@ $main-color-3: darken($main-color-2, 15%);
 
 $ctrl-top-color: darken($main-color, 10%);
 
+$ruby-white: #111111;
+$ruby-red: #EE1111;
+
 @mixin fonts {
     font-family: 'Josefin Sans', sans-serif;
 }
@@ -174,8 +177,23 @@ body {
 };
 
 .cell-item-missile {
-    background-color: gray;
+    background-color: white;
     color: red;
+};
+
+.cell-item-leather {
+    background-color: brown;
+    color: white;
+};
+
+.cell-item-iron {
+    background-color: Silver;
+    color: white;
+};
+
+.cell-item-ruby-glass {
+    background-color: $ruby-white;
+    color: $ruby-red;
 };
 
 .cell-item-ice {
