@@ -467,7 +467,10 @@ RG.EventPool = function() { // {{{2
         if (!RG.isNullOrUndef([evtName])) {
             if (obj.hasOwnProperty("notify")) {
                 if (_listeners.hasOwnProperty(evtName)) {
-                    _listeners[evtName].push(obj);
+                    var index = _listeners[evtName].indexOf(obj);
+                    if (index === -1) {
+                        _listeners[evtName].push(obj);
+                    }
                 }
                 else {
                     _listeners[evtName] = [];
@@ -487,7 +490,9 @@ RG.POOL = new RG.EventPool(); // Global event pool for the game }}}
 
 /** Handle the game message listening and storing of the messages.  */
 RG.Messages = function() { // {{{2
+
     var _message = [];
+    var _prevMessage = [];
 
     this.notify = function(evtName, msg) {
         if (evtName === RG.EVT_MSG) {
@@ -499,10 +504,16 @@ RG.Messages = function() { // {{{2
     RG.POOL.listenEvent(RG.EVT_MSG, this);
 
     this.getMessages = function() {
-        return _message.join(".");
+        if (_message.length > 0)
+            return _message.join(". ");
+        else if (_prevMessage.length > 0)
+            return _prevMessage.join(". ");
+        else
+            return "";
     };
 
     this.clear = function() {
+        if (_message.length > 0) _prevMessage = _message.slice();
         _message = [];
     };
 
