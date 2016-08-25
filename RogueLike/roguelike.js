@@ -149,6 +149,9 @@ RG.RogueLevel = function(cols, rows) { // {{{2
             if (_map.hasXY(x, y)) {
                 this._addPropToLevelXY("actors", actor, x, y);
                 RG.debug(this, "Added actor to map x: " + x + " y: " + y);
+                if (actor.isPlayer()) {
+                    this.onFirstEnter();
+                }
                 return true;
             }
             else {
@@ -232,6 +235,43 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     this.getExploredCells = function() {
         return _map.getExploredCells();
     };
+
+    //---------------------------------------------------------------------------
+    // CALLBACKS
+    //---------------------------------------------------------------------------
+    var _callbacks = {};
+    this.setOnEnter = function(cb) {_callbacks.OnEnter = cb;};
+    this.setOnFirstEnter = function(cb) {_callbacks.OnFirstEnter = cb;};
+    this.setOnExit = function(cb) {_callbacks.OnExit = cb;};
+    this.setOnFirstExit = function(cb) {_callbacks.OnFirstExit = cb;};
+
+    var _onFirstEnterDone = false;
+    var _onFirstExitDone = false;
+
+    this.onEnter = function() {
+        if (_callbacks.hasOwnProperty("OnEnter")) _callbacks.OnEnter(this);
+    };
+
+    this.onFirstEnter = function() {
+        if (!_onFirstEnterDone) {
+            if (_callbacks.hasOwnProperty("OnFirstEnter")) 
+                _callbacks.OnFirstEnter(this);
+            _onFirstEnterDone = true;
+        }
+    };
+
+    this.onExit = function() {
+        if (_callbacks.hasOwnProperty("OnExit")) _callbacks.OnExit(this);
+    };
+
+    this.onFirstExit = function() {
+        if (!_onFirstExitDone) {
+            if (_callbacks.hasOwnProperty("OnFirstExit")) 
+                _callbacks.OnFirstExit(this);
+            _onFirstExitDone = true;
+        }
+    };
+
 
 }; // }}} Level
 RG.RogueLevel.prototype.idCount = 0;
@@ -952,7 +992,7 @@ RG.MissileSystem = function(type, compTypes) {
                         damageComp.setDamage(mComp.getDamage());
                         actor.add("Damage", damageComp);
                         RG.debug(this, "Hit an actor");
-                        RG.gameMsg(ent.getName() + " hits " + actor.getName());
+                        RG.gameWarn(ent.getName() + " hits " + actor.getName());
                     }
                     else if (mComp.inTarget()) {
                         this.finishMissileFlight(ent, mComp, currCell);
@@ -1394,6 +1434,25 @@ RG.RogueItemArmour = function(name) {
     this.getArmourType = function() {return _armourType;};
 
 };
+
+RG.RogueItemArmour.prototype.clone = function() {
+    var armour = new RG.RogueItemArmour(this.getName());
+    armour.copy(this);
+    return armour;
+};
+
+RG.RogueItemArmour.prototype.copy = function(rhs) {
+    RG.RogueItem.prototype.copy.call(this, rhs);
+    RG.DefenseObject.prototype.copy.call(this, rhs);
+    this.setArmourType(rhs.getArmourType());
+};
+
+RG.RogueItemArmour.prototype.equals = function(rhs) {
+    var res = RG.RogueItem.prototype.equals.call(this, rhs);
+    res = res && RG.DefenseObject.prototype.equals.call(this, rhs);
+    return res;
+};
+
 RG.extend2(RG.RogueItemArmour, RG.RogueItem);
 RG.extend2(RG.RogueItemArmour, RG.DefenseObject);
 
@@ -1766,7 +1825,6 @@ RG.RogueEquipment = function(actor) {
     /** Equips given item. Slot is chosen automatically from suitable available
      * ones.*/
     this.equipItem = function(item) {
-        // TODO add proper checks for equipping
         if (item.hasOwnProperty("getArmourType")) {
             if (_slots[item.getArmourType()].equipItem(item)) {
                 _equipped.push(item);
@@ -1950,7 +2008,14 @@ RG.RogueInvAndEquip = function(actor) {
 
     var _getItemToEquip = function(item) {
         var res = _inv.removeItem(item);
-        if (res) return _inv.getRemovedItem();
+        if (res) {
+            var rmvItem = _inv.getRemovedItem();
+            if (rmvItem.getName() === "Collar") {
+                console.log("COLLAR XXX");
+                console.log("Armour type: " + rmvItem.getArmourType());
+            }
+            return rmvItem;
+        }
         return null;
     };
 
@@ -3638,7 +3703,7 @@ RG.FCCGame = function() {
     };
 
 
-    var that = this;
+    var that = this; // For private objects/functions
 
     // Private object for checking when battle is done
     var DemonKillListener = function(game, level) {
@@ -3717,7 +3782,7 @@ RG.FCCGame = function() {
             return this.createFCCDebugGame(obj, game, player);
         }
 
-        var levels = ["rooms", "rogue", "digger", "icey"];
+        var levels = ["rooms", "rogue", "digger"];
         var maxLevelType = levels.length;
 
         // For storing stairs and levels
@@ -3849,10 +3914,13 @@ RG.FCCGame = function() {
         _listener = new DemonKillListener(game, level);
 
         this.createHumanArmy(level, _parser);
-        var demonEvent = new RG.RogueOneShotEvent(
-            this.spawnDemonArmy.bind(this,level, _parser), 100 * 20,
-            "Demon hordes are unleashed from the unsilent abyss!");
-        game.addEvent(demonEvent);
+
+        level.setOnFirstEnter(function() {
+            var demonEvent = new RG.RogueOneShotEvent(
+                that.spawnDemonArmy.bind(that, level, _parser), 100 * 20,
+                "Demon hordes are unleashed from the unsilent abyss!");
+            game.addEvent(demonEvent);
+        });
 
         game.addLevel(level);
         return level;

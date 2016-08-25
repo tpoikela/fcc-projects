@@ -581,13 +581,14 @@ var GameInventory = React.createClass({
         var item = this.selectedItem;
         if (item !== null) {
             var invEq = this.props.player.getInvEq();
+
             if (item.getType() === "missile") {
                 if (invEq.equipNItems(item, item.count)) {
                     this.setState({invMsg:  "Equipping succeeded!",
                         msgStyle: "text-success"});
                 }
             }
-            else if (invEq.equipItem(this.selectedItem)) {
+            else if (invEq.equipItem(item)) {
                 this.setState({invMsg:  "Equipping succeeded!",
                     msgStyle: "text-success"});
             }

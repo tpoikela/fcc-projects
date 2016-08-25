@@ -690,6 +690,8 @@ RG.RogueGame = function() { // {{{2
                 }
                 RG.debug(this, "Added a player to the Game.");
                 if (this.nextActor === null) this.nextActor = player;
+                _levels[0].onEnter();
+                _levels[0].onFirstEnter();
                 return true;
             }
             else {
@@ -875,6 +877,10 @@ RG.RogueGame = function() { // {{{2
             if (actor.isPlayer()) {
                 _shownLevel = actor.getLevel();
                 this.addActiveLevel(_shownLevel);
+                args.src.onExit();
+                args.src.onFirstExit();
+                args.target.onEnter();
+                args.target.onFirstEnter();
             }
         }
         else if (evtName === RG.EVT_DESTROY_ITEM) {
@@ -929,17 +935,6 @@ RG.RogueGame = function() { // {{{2
                 }
             }
         }
-        /*
-        else if (evtName === RG.EVT_ACTOR_CREATED) {
-            if (args.hasOwnProperty("actor")) {
-                this.addActor(args.actor);
-            }
-            else {
-                RG.err("Game", "notify - ACTOR_CREATED",
-                    "No actor specified for the event.");
-            }
-        }
-       */
     };
     RG.POOL.listenEvent(RG.EVT_ACTOR_CREATED, this);
     RG.POOL.listenEvent(RG.EVT_ACTOR_KILLED, this);

@@ -176,6 +176,7 @@ describe('How item stacks work with equipped missiles', function() {
     var inv = invEq.getInventory();
     var eq = invEq.getEquipment();
 
+
     it('description', function() {
         for (var i = 0; i < 10; i++) {
             var arrow = new RG.RogueItemMissile("arrow");
@@ -243,6 +244,19 @@ describe('How item stacks work with equipped missiles', function() {
         expect(invEq.unequipItem("missile", 1)).to.equal(true);
         var nineArrows = eq.getItem("missile");
         expect(nineArrows.count).to.equal(9);
+
+    });
+
+    it('Equips armour correctly', function() {
+        var collar = new RG.RogueItemArmour("Collar");
+        collar.setArmourType("neck");
+        inv.addItem(collar);
+        expect(invEq.equipItem(collar)).to.equal(true);
+
+        var plate = new RG.RogueItemArmour("Plate mail");
+        plate.setArmourType("chest");
+        inv.addItem(plate);
+        expect(invEq.equipItem(plate)).to.equal(true);
 
     });
 
