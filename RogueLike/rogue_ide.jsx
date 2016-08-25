@@ -341,7 +341,7 @@ var GameHelpScreen = React.createClass({
                             <button type="button" className="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
-                            <h4 className="modal-title" id="game-help-modal-label">Battles in North</h4>
+                            <h4 className="modal-title" id="game-help-modal-label">Battles in the North (BitN)</h4>
                         </div>
 
                         <div className="modal-body row">
