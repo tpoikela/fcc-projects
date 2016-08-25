@@ -285,6 +285,55 @@ var RG = { // {{{2
 
     },
 
+
+    /** Tries to add item2 to item1 stack. Returns true on success.*/
+    addStackedItems: function(item1, item2) {
+        if (item1.equals(item2)) {
+            var countToAdd = 1;
+            if (item2.hasOwnProperty("count")) {
+                countToAdd = item2.count;
+            }
+
+            // Check if item1 already stacked
+            if (item1.hasOwnProperty("count")) {
+                item1.count += countToAdd;
+            }
+            else {
+                item1["count"] = 1 + countToAdd;
+            }
+            return true;
+        }
+        return false;
+    },
+
+    /** Removes N items from the stack and returns them. Returns null if the
+     * stack is not changed.*/
+    removeStackedItems: function(itemStack, n) {
+        if (n > 0) {
+            if (itemStack.hasOwnProperty("count")) {
+                if (n <= itemStack.count) {
+                    itemStack.count -= n;
+                    var rmvItem = itemStack.clone();
+                    rmvItem.count = n;
+                    return rmvItem;
+                }
+                else {
+                    var rmvItem = itemStack.clone();
+                    rmvItem.count = itemStack.count;
+                    itemStack.count = 0;
+                    return rmvItem;
+                }
+            }
+            else { // Remove all
+                itemStack.count = 0;
+                var rmvItem = itemStack.clone();
+                rmvItem.count = 1;
+                return rmvItem;
+            }
+        }
+        return null;
+    },
+
     // Default FOV range for actors
     FOV_RANGE: 4,
     ROWS: 30,
@@ -325,6 +374,13 @@ RG.Die = function(num, dice, mod) {
     var _dice = parseInt(dice, 10);
     var _mod = parseInt(mod, 10);
 
+    this.getNum = function() {return _num;};
+    this.setNum = function(num) {_num = num;};
+    this.getDice = function() {return _dice;};
+    this.setDice = function(dice) {_dice = dice;};
+    this.getMod = function() {return _mod;};
+    this.setMod = function(mod) {_mod = mod;};
+
     this.roll = function() {
         var res = 0;
         for (var i = 0; i < _num; i++) {
@@ -337,6 +393,20 @@ RG.Die = function(num, dice, mod) {
         var sign = "+";
         if (mod < 0) sign = "-";
         return _num + "d" + _dice + " " + sign + " " + _mod;
+    };
+
+    this.copy = function(rhs) {
+        _num = rhs.getNum();
+        _dice = rhs.getDice();
+        _mod = rhs.getMod();
+    };
+
+    /** Returns true if dice are equal.*/
+    this.equals = function(rhs) {
+        res = _num === rhs.getNum();
+        res = res && (_dice === rhs.getDice());
+        res = res && (_mod === rhs.getMod());
+        return res;
     };
 };
 
