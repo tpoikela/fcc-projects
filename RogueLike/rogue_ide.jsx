@@ -1,6 +1,6 @@
 
 // Set to 1 for some debug information
-var $DEBUG = 1;
+var $DEBUG = 0;
 
 // Titles for the buttons
 var titles = {
@@ -121,7 +121,7 @@ var RoguelikeTop = React.createClass({
             console.log("<Top> Trying ranged attack to " + x + ", " + y);
             var player = this.game.getPlayer();
             var invEq = player.getInvEq();
-            var missile = invEq.unequipAndGetItem("missile", 0);
+            var missile = invEq.unequipAndGetItem("missile", 1);
 
             if (!RG.isNullOrUndef([missile])) {
                 var mComp = new RG.MissileComponent(player);
@@ -578,9 +578,16 @@ var GameInventory = React.createClass({
     /** When "Equip" is clicked, equips the selected item, if any.*/
     equipItem: function(evt) {
         // Get item somehow
-        if (this.selectedItem !== null) {
+        var item = this.selectedItem;
+        if (item !== null) {
             var invEq = this.props.player.getInvEq();
-            if (invEq.equipItem(this.selectedItem)) {
+            if (item.getType() === "missile") {
+                if (invEq.equipNItems(item, item.count)) {
+                    this.setState({invMsg:  "Equipping succeeded!",
+                        msgStyle: "text-success"});
+                }
+            }
+            else if (invEq.equipItem(this.selectedItem)) {
                 this.setState({invMsg:  "Equipping succeeded!",
                     msgStyle: "text-success"});
             }
@@ -595,14 +602,32 @@ var GameInventory = React.createClass({
     unequipItem: function(evt) {
         if (this.equipSelected !== null) {
             var invEq = this.props.player.getInvEq();
-            var num = this.equipSelected.slotNumber;
             var name = this.equipSelected.slotName;
-            if (invEq.unequipItem(name, num)) {
+            if (name === "missile") {
+                var eqItem = invEq.getEquipment().getItem("missile");
+                var ok = false;
+
+                if (eqItem !== null) {
+                    if (invEq.unequipItem(name, eqItem.count)) {
+                        this.setState({invMsg: "Removing succeeded!",
+                            msgStyle: "text-success"});
+                        ok = true;
+                    }
+                }
+
+                if (!ok) {
+                    this.setState({invMsg: 
+                        "Failed to remove the item from slot '" + name + "'!",
+                        msgStyle: "text-danger"});
+                }
+            }
+            else if (invEq.unequipItem(name)) {
                 this.setState({invMsg:  "Removing succeeded!",
                     msgStyle: "text-success"});
             }
             else {
-                this.setState({invMsg:  "Failed to remove the item!",
+                this.setState({invMsg: 
+                    "Failed to remove the item from slot '" + name + "'!",
                     msgStyle: "text-danger"});
             }
         }
@@ -748,7 +773,10 @@ var GameEquipment = React.createClass({
 
         // Creates the equipment slots based on whether they have items or not.
         for (var i = 0; i < slots.length; i++) {
-            var items = eq.getEquipped(slots[i]);
+            var item = eq.getEquipped(slots[i]);
+            var items = [];
+            if (item !== null) items.push(item);
+
             if (items.length > 0) {
                 for (var j = 0; j < items.length; j++) {
                     var key = i + "," + j;
