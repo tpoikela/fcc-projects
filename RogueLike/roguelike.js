@@ -1367,8 +1367,13 @@ RG.RogueItemFood = function(name) {
             var target = obj.target;
             if (target.has("Hunger")) {
                 target.get("Hunger").addEnergy(_energy);
-                var msg = {item: this};
-                RG.POOL.emitEvent(RG.EVT_DESTROY_ITEM, msg);
+                if (this.count === 1) {
+                    var msg = {item: this};
+                    RG.POOL.emitEvent(RG.EVT_DESTROY_ITEM, msg);
+                }
+                else {
+                    this.count -= 1;
+                }
             }
         }
         else {
@@ -1468,8 +1473,13 @@ RG.RogueItemPotion = function(name) {
             var pt = die.roll();
             if (target.has("Health")) {
                 target.get("Health").addHP(pt);
-                var msg = {item: this};
-                RG.POOL.emitEvent(RG.EVT_DESTROY_ITEM, msg);
+                if (this.count === 1) {
+                    var msg = {item: this};
+                    RG.POOL.emitEvent(RG.EVT_DESTROY_ITEM, msg);
+                }
+                else {
+                    this.count -= 1;
+                }
             }
         }
         else {
