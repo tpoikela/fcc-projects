@@ -254,6 +254,19 @@ RG.DefenseObject = function() {
 
 };
 
+RG.DefenseObject.prototype.copy = function(rhs) {
+    this.setAttack(rhs.getAttack());
+    this.setDefense(rhs.getDefense());
+    this.setProtection(rhs.getProtection());
+};
+
+RG.DefenseObject.prototype.equals = function(rhs) {
+    var res = this.getAttack() === rhs.getAttack() &&
+        this.getDefense() === rhs.getDefense() &&
+        this.getProtection() === rhs.getProtection();
+    return res;
+};
+
 RG.DamageObject = function() {
     RG.DefenseObject.call(this);
 
@@ -265,7 +278,12 @@ RG.DamageObject = function() {
     this.getAttackRange = function() {return _range; };
 
     this.setDamage = function(dStr) {
-        _damage = RG.FACT.createDie(dStr);
+        if (typeof dStr === "string") {
+            _damage = RG.FACT.createDie(dStr);
+        }
+        else if (typeof dStr === "object") {
+            _damage = dStr;
+        }
     };
 
     this.getDamage = function() {
@@ -282,6 +300,23 @@ RG.DamageObject = function() {
         return _damage;
     };
 
+};
+
+RG.DamageObject.prototype.copy = function(rhs) {
+    RG.DefenseObject.prototype.copy.call(this, rhs);
+    this.setAttackRange(rhs.getAttackRange());
+    var die = new RG.Die();
+    die.copy(rhs.getDamageDie());
+    this.setDamage(die);
+};
+
+RG.DamageObject.prototype.equals = function(rhs) {
+    var res = RG.DefenseObject.prototype.equals.call(this, rhs);
+    if (res) {
+        res = this.getDamageDie().equals(rhs.getDamageDie());
+        res = res && this.getAttackRange() === rhs.getAttackRange();
+    }
+    return res;
 };
 
 RG.DamageObject.prototype.toString = function() {
@@ -904,6 +939,7 @@ RG.MissileSystem = function(type, compTypes) {
 
                     this.finishMissileFlight(ent, mComp, prevCell);
                     RG.debug(this, "Stopped missile to wall");
+                    RG.gameMsg(ent.getName() + " thuds to the wall");
                 }
                 else if (currCell.hasProp("actors")) {
                     var actor = currCell.getProp("actors")[0];
@@ -916,23 +952,28 @@ RG.MissileSystem = function(type, compTypes) {
                         damageComp.setDamage(mComp.getDamage());
                         actor.add("Damage", damageComp);
                         RG.debug(this, "Hit an actor");
+                        RG.gameMsg(ent.getName() + " hits " + actor.getName());
                     }
                     else if (mComp.inTarget()) {
                         this.finishMissileFlight(ent, mComp, currCell);
                         RG.debug(this, "In target cell, and missed an entity");
+                        RG.gameMsg(ent.getName() + " misses the target");
                     }
                     else if (!mComp.hasRange()) {
                         this.finishMissileFlight(ent, mComp, currCell);
                         RG.debug(this, "Missile out of range. Missed entity.");
+                        RG.gameMsg(ent.getName() + " misses the target");
                     }
                 }
                 else if (mComp.inTarget()) {
                     this.finishMissileFlight(ent, mComp, currCell);
                     RG.debug(this, "In target cell but no hits");
+                    RG.gameMsg(ent.getName() + " doesn't hit anything");
                 }
                 else if (!mComp.hasRange()) {
                     this.finishMissileFlight(ent, mComp, currCell);
                     RG.debug(this, "Missile out of range. Hit nothing.");
+                    RG.gameMsg(ent.getName() + " doesn't hit anything");
                 }
             }
 
@@ -1214,6 +1255,8 @@ RG.RogueItem = function(name) {
     var _value = 1;
     var _p = {}; // Stores all extra properties
 
+    this.count = 1; // Number of items
+
     this.setName = function(name) {_name = name;};
     this.getName = function() {return _name;};
 
@@ -1248,9 +1291,24 @@ RG.RogueItem.prototype.toString = function() {
 
 RG.RogueItem.prototype.equals = function(item) {
     var res = this.getName() === item.getName();
-    res &= this.getType() === item.getType();
+    res = res && (this.getType() === item.getType());
     return res;
 };
+
+
+RG.RogueItem.prototype.copy = function(rhs) {
+    this.setName(rhs.getName());
+    this.setType(rhs.getType());
+    this.setWeight(rhs.getWeight());
+    this.setValue(rhs.getValue());
+};
+
+RG.RogueItem.prototype.clone = function() {
+    var newItem = new RG.RogueItem(this.getName());
+    newItem.copy(this);
+    return newItem;
+};
+
 RG.extend2(RG.RogueItem, RG.Ownable);
 
 /** Object representing food items in the game.*/
@@ -1301,6 +1359,26 @@ RG.RogueItemWeapon.prototype.toString = function() {
     return msg;
 
 };
+
+RG.RogueItemWeapon.prototype.clone = function() {
+    var weapon = new RG.RogueItemWeapon(this.getName());
+    weapon.copy(this);
+    return weapon;
+};
+
+RG.RogueItemWeapon.prototype.copy = function(rhs) {
+    RG.RogueItem.prototype.copy.call(this, rhs);
+    RG.DamageObject.prototype.copy.call(this, rhs);
+
+};
+
+RG.RogueItemWeapon.prototype.equals = function(rhs) {
+    var res = RG.RogueItem.prototype.equals.call(this, rhs);
+    res = res && RG.DamageObject.prototype.equals.call(this, rhs);
+    return res;
+
+};
+
 RG.extend2(RG.RogueItemWeapon, RG.RogueItem);
 RG.extend2(RG.RogueItemWeapon, RG.DamageObject);
 
@@ -1351,6 +1429,26 @@ RG.RogueItemMissile = function(name) {
     this.setType("missile");
 
 };
+
+RG.RogueItemMissile.prototype.clone = function() {
+    var weapon = new RG.RogueItemMissile(this.getName());
+    weapon.copy(this);
+    return weapon;
+};
+
+RG.RogueItemMissile.prototype.copy = function(rhs) {
+    RG.RogueItem.prototype.copy.call(this, rhs);
+    RG.DamageObject.prototype.copy.call(this, rhs);
+
+};
+
+RG.RogueItemMissile.prototype.equals = function(rhs) {
+    var res = RG.RogueItem.prototype.equals.call(this, rhs);
+    res = res && RG.DamageObject.prototype.equals.call(this, rhs);
+    return res;
+
+};
+
 RG.extend2(RG.RogueItemMissile, RG.RogueItem);
 RG.extend2(RG.RogueItemMissile, RG.DamageObject);
 RG.extend2(RG.RogueItemMissile, RG.Entity);
@@ -1363,15 +1461,27 @@ RG.RogueItemContainer = function(owner) {
     var _items = [];
     var _iter  = 0;
 
+    var _removedItem = null; // Last removed item
+
     this._addItem = function(item) {
         var matchFound = false;
         for (var i = 0; i < _items.length; i++) {
             if (_items[i].equals(item)) {
                 if (_items[i].hasOwnProperty("count")) {
-                    ++_items[i].count;
+                    if (item.hasOwnProperty("count")) {
+                        _items[i].count += item.count;
+                    }
+                    else {
+                        _items[i].count += 1;
+                    }
                 }
                 else {
-                    _items[i].count = 2;
+                    if (item.hasOwnProperty("count")) {
+                        _items[i].count = 1 + item.count;
+                    }
+                    else {
+                        _items[i].count = 2;
+                    }
                 }
                 matchFound = true;
                 break;
@@ -1410,41 +1520,78 @@ RG.RogueItemContainer = function(owner) {
 
     this.getItems = function() {return _items;};
 
-    this.hasItem = function(item) {
-        //var index = _items.indexOf(item);
-        //if (index !== -1) return true;
-        for (var i = 0; i < _items.length; i++) {
-            if (_items[i].equals(item)) {
-                return true;
-            }
-        }
+    /** Check by pure obj ref. Returns true if contains item ref.*/
+    this.hasItemRef = function(item) {
+        var index = _items.indexOf(item);
+        if (index !== -1) return true;
         return false;
+    };
+
+    /** Used for stacking/equip purposes only.*/
+    this.hasItem = function(item) {
+        if (this.hasItemRef(item)) return true;
+        var index = _getMatchingItemIndex(item);
+        return index >= 0;
     };
 
     /** Tries to remove an item. Returns true on success, false otherwise.*/
     this.removeItem = function(item) {
-        var matchFound = false;
+        if (this.hasItem(item)) {
+            return _removeItem(item);
+        }
+        _removedItem = null;
+        return false;
+    };
+
+    var _getMatchingItemIndex = function(item) {
         for (var i = 0; i < _items.length; i++) {
-            if (_items[i].equals(item)) {
-                if (_items[i].hasOwnProperty("count")) {
-                    --_items[i].count;
-                    if (_items[i].count === 0) _items.splice(i, 1);
-                }
-                else {
-                    _items.splice(index, 1);
-                }
-
-                matchFound = true;
-                break;
-            }
+            if (item.equals(_items[i])) return i;
         }
-        return matchFound;
+        return -1;
+    };
 
-        var index = _items.indexOf(item);
-        if (index !== -1) {
-            _items.splice(index, 1);
-            return true;
+    var _removeItem = function(item) {
+        var i = _getMatchingItemIndex(item);
+
+        if (i === -1) {
+            RG.err("ItemContainer", "_removeItem", 
+                "Negative index found. Horribly wrong.") 
+            return false;
         }
+
+        if (_items[i].hasOwnProperty("count")) {
+            _removedItem = RG.removeStackedItems(_items[i], 1);
+            if (_items[i].count === 0) _items.splice(i, 1);
+        }
+        else {
+            _removedItem = item;
+            _items.splice(i, 1);
+        }
+        return true;
+    };
+
+    /** Returns last removed item if removeItem returned true.*/
+    this.getRemovedItem = function() {
+        return _removedItem;
+    };
+
+    /** Removes N items from the inventory of given type.*/
+    this.removeNItems = function(item, n) {
+        var count = 0;
+        while ((count < n) && this.removeItem(item)) {
+            ++count;
+        }
+
+        if (_removedItem !== null) {
+            _removedItem.count = count;
+        }
+        else {
+            RG.err("ItemContainer", "removeNItems",
+                "_removedItem was null. It should be a valid item.");
+            return false;
+        }
+
+        if (count > 0) return true;
         return false;
     };
 
@@ -1463,6 +1610,11 @@ RG.RogueItemContainer = function(owner) {
             return _items[_iter++];
         }
         return null;
+    };
+
+    this.last = function() {
+        return _items[_items.length - 1];
+
     };
 
     /** Returns true for empty container.*/
@@ -1493,38 +1645,77 @@ RG.extend2(RG.RogueItemSpirit, RG.Entity);
 //---------------------------------------------------------------------------
 
 /** Models one slot in the inventory. */
-RG.RogueEquipSlot = function(eq, type, n) {
+RG.RogueEquipSlot = function(eq, type, stacked) {
     RG.Ownable.call(this, eq);
     var _eq = eq;
-    var _nitems = n;
     var _type = type;
-    var _items = [];
+    var _item = null;
 
-    this.getItems = function() {
-        return _items;
+    var _hasItem = false;
+
+    var _unequipped = null;
+
+    var _stacked = false;
+    if (!RG.isNullOrUndef([stacked])) _stacked = stacked;
+
+    this.isStacked = function() {return _stacked;};
+
+    this.getUnequipped = function() {
+        return _unequipped;
+    };
+
+    /** Returns the equipped item for this slot.*/
+    this.getItem = function() {
+        if (_hasItem) return _item;
+        //console.log("Slot: " + _type + " Returning null");
+        return null;
     };
 
     /** Equips given item to first available place in slot.*/
     this.equipItem = function(item) {
         if (this.canEquip(item)) {
-            item.setOwner(this);
-            _items.push(item);
-            return true;
+            if (!_stacked || !_hasItem) {
+                item.setOwner(this);
+                _item = item;
+                _hasItem = true;
+            }
+            else {
+                if (RG.addStackedItems(_item, item)) {
+                    _hasItem = true;
+                }
+            }
+            return _hasItem;
         }
         return false;
     };
 
-    /** Unequips from given slot. */
+    /** Unequips N items from the slot. */
     this.unequipItem = function(n) {
-        if (n < _items.length) {
-            _items.splice(n, 1);
-            return true;
+        if (_hasItem) {
+            if (!_stacked) {
+                _hasItem = false;
+                _unequipped = _item;
+                return true;
+            }
+            else {
+                if (n > 0) {
+                    _unequipped = RG.removeStackedItems(_item, n);
+                    if (_item.count === 0) _hasItem = false;
+                    return true;
+                }
+            }
         }
         return false;
     };
 
     this.canEquip = function(item) {
-        return _items.length < _nitems;
+        if (!_hasItem) {
+            return true;
+        }
+        else if (_stacked) { // Can only equip same items to the stack
+            return item.equals(_item);
+        }
+        return false;
     };
 
 };
@@ -1537,22 +1728,39 @@ RG.RogueEquipment = function(actor) {
     var _equipped = [];
 
     var _slots = {
-        hand: new RG.RogueEquipSlot(this, "hand", 2),
-        head: new RG.RogueEquipSlot(this, "head", 1),
-        chest: new RG.RogueEquipSlot(this, "chest", 1),
-        neck: new RG.RogueEquipSlot(this, "neck", 1),
-        feet: new RG.RogueEquipSlot(this, "feet", 1),
-        missile: new RG.RogueEquipSlot(this, "missile", 1),
-        spirit: new RG.RogueEquipSlot(this, "spirit", 1),
+        hand: new RG.RogueEquipSlot(this, "hand"),
+        head: new RG.RogueEquipSlot(this, "head"),
+        chest: new RG.RogueEquipSlot(this, "chest"),
+        neck: new RG.RogueEquipSlot(this, "neck"),
+        feet: new RG.RogueEquipSlot(this, "feet"),
+        missile: new RG.RogueEquipSlot(this, "missile", true),
+        spirit: new RG.RogueEquipSlot(this, "spirit"),
+    };
+
+    var _hasSlot = function(slotType) {
+        return _slots.hasOwnProperty(slotType);
     };
 
     this.getSlotTypes = function() {return Object.keys(_slots);};
 
-    this.getItems = function(slot) {
-        if (_slots.hasOwnProperty(slot)) {
-            return _slots[slot].getItems();
+    /** Returns last unequipped item for the slot.*/
+    this.getUnequipped = function(slotType) {
+        if (_hasSlot(slotType)) {
+            return _slots[slotType].getUnequipped();
         }
-        return [];
+        else {
+            RG.err("Equipment", "getUnequipped", 
+                "No slot type: " + slotType);
+        }
+        return null;
+    };
+
+    /** Returns an item in the given slot.*/
+    this.getItem = function(slot) {
+        if (_slots.hasOwnProperty(slot)) {
+            return _slots[slot].getItem();
+        }
+        return null;
     };
 
     /** Equips given item. Slot is chosen automatically from suitable available
@@ -1568,7 +1776,7 @@ RG.RogueEquipment = function(actor) {
         else { // No equip property, can only equip to hand
             if (item.getType() === "missile") {
                 if (_slots.missile.equipItem(item)) {
-                    _equipped.push(item);
+                    _addStackedItem(item);
                     return true;
                 }
             }
@@ -1580,6 +1788,41 @@ RG.RogueEquipment = function(actor) {
         return false;
     };
 
+    var _addStackedItem = function(item) {
+        var matchFound = false;
+        for (var i = 0; i < _equipped.length; i++) {
+            if (_equipped[i].equals(item)) {
+                console.log("_addStackedItem1 " + _equipped[i].count);
+                console.log("_addStackedItem2 " + item.count);
+                //RG.addStackedItems(_equipped[i], item);
+                matchFound = true;
+                break;
+            }
+        }
+        if (!matchFound) _equipped.push(item);
+    };
+
+    /** Removes an item, or n items if specified.*/
+    var _removeItem = function(item, n) {
+        var index = _equipped.indexOf(item);
+        if (index >= 0) {
+            if (n > 0) {
+                if (_equipped[index].hasOwnProperty("count")) {
+                    if (_equipped[index].count === 0) _equipped.splice(index, 1);
+                }
+                return true;
+            }
+            else {
+                _equipped.splice(index, 1);
+                return true;
+            }
+        }
+        else {
+            RG.err("Equipment", "unequipItem", "Index < 0. Horribly wrong.");
+        }
+        return false;
+    };
+
     /** Returns true if given item is equipped.*/
     this.isEquipped = function(item) {
         var index = _equipped.indexOf(item);
@@ -1587,23 +1830,15 @@ RG.RogueEquipment = function(actor) {
     };
 
     this.getEquipped = function(slotType) {
-        return _slots[slotType].getItems();
+        return this.getItem(slotType);
     };
 
     /** Unequips given slotType and index. */
     this.unequipItem = function(slotType, n) {
-        if (_slots.hasOwnProperty(slotType)) {
-            var items = _slots[slotType].getItems();
-                var item = items[n];
+        if (_hasSlot(slotType)) {
+            var item = _slots[slotType].getItem();
             if (_slots[slotType].unequipItem(n)) {
-                var index = _equipped.indexOf(item);
-                if (index >= 0) {
-                    _equipped.splice(index, 1);
-                    return true;
-                }
-                else {
-                    RG.err("Equipment", "unequipItem", "Index < 0. Horribly wrong.");
-                }
+                return _removeItem(item, n);
             }
         }
         else {
@@ -1616,10 +1851,10 @@ RG.RogueEquipment = function(actor) {
     this.propertySum = function(funcname) {
         var result = 0;
         for (var slot in _slots) {
-            var items = this.getItems(slot);
-            for (var i = 0; i < items.length; i++) {
-                if (items[i].hasOwnProperty(funcname)) {
-                    result += items[i][funcname]();
+            var item = this.getItem(slot);
+            if (item !== null) {
+                if (item.hasOwnProperty(funcname)) {
+                    result += item[funcname]();
                 }
             }
         }
@@ -1631,14 +1866,10 @@ RG.RogueEquipment = function(actor) {
         "getAccuracy", "getAgility"];
 
     for (var i = 0; i < _mods.length; i++) {
-        this[_mods[i]] = function() {return this.propertySum(_mods[i]);};
+        this[_mods[i]] = function() {
+            return this.propertySum(_mods[i]);
+        };
     }
-
-    /*
-    this.getDefense = function() {return this.propertySum("getDefense");};
-    this.getAttack = function() {return this.propertySum("getAttack");};
-    this.getProtection = function() {return this.propertySum("getProtection");};
-    */
 
 };
 RG.extend2(RG.RogueEquipment, RG.Ownable);
@@ -1656,6 +1887,12 @@ RG.RogueInvAndEquip = function(actor) {
     this.addItem = function(item) {_inv.addItem(item);};
     this.hasItem = function(item) {return _inv.hasItem(item);};
     this.removeItem = function(item) {return _inv.removeItem(item);};
+
+    this.removeNItems = function(item, n) {
+        return _inv.removeNItems(item, n);
+    };
+
+    this.getRemovedItem = function() {return _inv.getRemovedItem();};
 
     this.useItem = function(item, obj) {
         if (_inv.hasItem(item)) {
@@ -1690,8 +1927,19 @@ RG.RogueInvAndEquip = function(actor) {
     /** Removes item from inventory and equips it.*/
     this.equipItem = function(item) {
         if (_inv.hasItem(item)) {
-            if (_eq.equipItem(item)) {
-                return _inv.removeItem(item);
+            // If item has count > 2, can't use the same item ref
+            var eqItem = _getItemToEquip(item);
+            if (RG.isNullOrUndef[eqItem]) {
+                console.log("SEEMS TO BE NULL. KOSH!");
+                return false;
+            }
+
+            if (_eq.equipItem(eqItem)) {
+                return true;
+            }
+            else {
+                console.log("FAILED. Add back to inv.");
+                _inv.addItem(eqItem); // Failed, add back to inv
             }
         }
         else {
@@ -1700,33 +1948,63 @@ RG.RogueInvAndEquip = function(actor) {
         return false;
     };
 
-    /** Unequips item and puts it back to inventory.*/
-    this.unequipItem = function(slotType, n) {
-        var eqItems = _eq.getItems(slotType);
-        if (n < eqItems.length) {
-            var item = eqItems[n];
-            if (_eq.unequipItem(slotType, n)) {
-                this.addItem(item);
-                return true;
+    var _getItemToEquip = function(item) {
+        var res = _inv.removeItem(item);
+        if (res) return _inv.getRemovedItem();
+        return null;
+    };
+
+    /** Equips up to N items of given type. */
+    this.equipNItems = function(item, n) {
+        if (_inv.hasItem(item)) {
+            var res = _inv.removeNItems(item, n);
+            if (res) {
+                var removedItem = _inv.getRemovedItem();
+                if (_eq.equipItem(removedItem)) {
+                    return true;
+                }
+                else {
+                    _inv.addItem(removedItem);
+                }
             }
         }
         return false;
     };
 
+    /** Unequips item and puts it back to inventory.*/
+    this.unequipItem = function(slotType, n) {
+        var eqItem = _eq.getItem(slotType);
+        if (!RG.isNullOrUndef([eqItem])) {
+            if (_eq.unequipItem(slotType, n)) {
+                var rmvItems = _eq.getUnequipped(slotType);
+                if (rmvItems !== null) {
+                    this.addItem(rmvItems);
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    /** Unequips and returns N items. Doesn't add to inv.*/
     this.unequipAndGetItem = function(slotType, n) {
-        var eqItems = _eq.getItems(slotType);
-        if (n < eqItems.length) {
-            return eqItems.pop();
+        var eqItem = _eq.getItem(slotType);
+        if (!RG.isNullOrUndef([eqItem])) {
+            if (_eq.unequipItem(slotType, n)) {
+                return _eq.getUnequipped(slotType);
+            }
         }
         return null;
     };
 
     this.getWeapon = function() {
-        var items = _eq.getItems("hand");
-        if (items.length > 0) {
-            return items[0];
-        }
+        var item = _eq.getItem("hand");
+        if (!RG.isNullOrUndef([item])) return item;
         return null;
+    };
+
+    this.getEquipped = function(slotType) {
+        return _eq.getItem(slotType);
     };
 
 
@@ -1783,7 +2061,7 @@ RG.RogueActor = function(name) { // {{{2
 
     /** Returns missile equipped by the player.*/
     this.getMissile = function() {
-        return _invEq.getEquipment().getItems("missile")[0];
+        return _invEq.getEquipment().getItem("missile");
     };
 
     /** Returns the next action for this actor.*/
@@ -3469,6 +3747,7 @@ RG.FCCGame = function() {
             var potion = new RG.RogueItemPotion("Healing potion");
             level.addItem(potion);
             var missile = _parser.createActualObj("items", "Shuriken");
+            missile.count = 20;
             level.addItem(missile);
 
             this.addNRandItems(_parser, itemsPerLevel, level, 20*(nl +1));
