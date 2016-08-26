@@ -206,6 +206,11 @@ body {
     color: white;
 };
 
+.cell-item-spirit {
+    background-color: purple;
+    color: white;
+};
+
 //---------------------------------------------------------------------
 // MENUS
 //---------------------------------------------------------------------
@@ -250,6 +255,12 @@ body {
 #game-board {
     margin-left: 10px;
     margin-right: 10px;
+    cursor: crosshair;
+
+    span:hover {
+        color: black;
+        background-color: rgba(255, 255, 255, 0.5);
+    };
 }
 
 .ctrl-bottom {
