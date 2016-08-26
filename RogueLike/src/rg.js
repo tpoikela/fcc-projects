@@ -334,6 +334,10 @@ var RG = { // {{{2
         return null;
     },
 
+    strengthToDamage: function(str) {
+        return Math.round(str / 4);
+    },
+
     // Default FOV range for actors
     FOV_RANGE: 4,
     ROWS: 30,

@@ -34,32 +34,15 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         stairs: [],
     };
 
+    // Assign unique ID for each level
     var _id = RG.RogueLevel.prototype.idCount++;
 
     this.getID = function() {return _id;};
 
-    this.getActors = function() {
-        return _p.actors;
-    };
+    this.getActors = function() {return _p.actors;};
 
-    this.setMap = function(map) {
-        _map = map;
-    };
-    this.getMap = function() {
-        return _map;
-    };
-
-    /** Returns all properties in a given location.*/
-    this.getProps = function(x, y) {
-        if (!RG.isNullOrUndef([x, y])) {
-            console.error("getProps in RogueLevel not implemented.");
-        }
-        else {
-            RG.nullOrUndefError(this, "arg |x|", x);
-            RG.nullOrUndefError(this, "arg |y|", y);
-            return null;
-        }
-    };
+    this.setMap = function(map) {_map = map;};
+    this.getMap = function() {return _map;};
 
     /** Given a level, returns stairs which lead to that level.*/
     this.getStairs = function(level) {
@@ -149,9 +132,6 @@ RG.RogueLevel = function(cols, rows) { // {{{2
             if (_map.hasXY(x, y)) {
                 this._addPropToLevelXY("actors", actor, x, y);
                 RG.debug(this, "Added actor to map x: " + x + " y: " + y);
-                if (actor.isPlayer()) {
-                    this.onFirstEnter();
-                }
                 return true;
             }
             else {
@@ -240,6 +220,8 @@ RG.RogueLevel = function(cols, rows) { // {{{2
     // CALLBACKS
     //---------------------------------------------------------------------------
     var _callbacks = {};
+
+    // For setting the callbacks
     this.setOnEnter = function(cb) {_callbacks.OnEnter = cb;};
     this.setOnFirstEnter = function(cb) {_callbacks.OnFirstEnter = cb;};
     this.setOnExit = function(cb) {_callbacks.OnExit = cb;};
@@ -271,7 +253,6 @@ RG.RogueLevel = function(cols, rows) { // {{{2
             _onFirstExitDone = true;
         }
     };
-
 
 }; // }}} Level
 RG.RogueLevel.prototype.idCount = 0;
@@ -653,17 +634,19 @@ RG.extend2(RG.CombatComponent, RG.Component);
 RG.StatsComponent = function() {
     RG.Component.call(this, "Stats");
 
-    var _accuracy = 5;
-    var _agility  = 5;
+    var _accuracy  = 5;
+    var _agility   = 5;
+    var _strength  = 5;
     var _willpower = 5;
-
-    var _speed = 100;
+    var _speed     = 100;
 
     /** These determine the chance of hitting. */
     this.setAccuracy = function(accu) {_accuracy = accu;};
     this.getAccuracy = function() {return _accuracy;};
     this.setAgility = function(agil) {_agility = agil;};
     this.getAgility = function() {return _agility;};
+    this.setStrength = function(str) {_strength = str;};
+    this.getStrength = function() {return _strength;};
     this.setWillpower = function(_wp) {_willpower = wp;};
     this.getWillpower = function() {return _willpower;};
 
@@ -919,10 +902,9 @@ RG.AttackSystem = function(type, compTypes) {
             var totalAttack = attackPoints + accuracy/2 + attEquip;
             var totalDefense = defPoints + agility/2 + defEquip;
             var hitChange = totalAttack / (totalAttack + totalDefense);
-
-            //RG.gameMsg(_att.getName() + " attacks " + _def.getName());
             if (hitChange > Math.random()) {
-                var totalDamage = damage;
+                var strDamage = RG.strengthToDamage(_att.get("Stats").getStrength());
+                var totalDamage = damage + strDamage;
                 if (totalDamage > 0)
                     this.doDamage(_att, _def, damage);
                 else
@@ -2020,10 +2002,6 @@ RG.RogueInvAndEquip = function(actor) {
         var res = _inv.removeItem(item);
         if (res) {
             var rmvItem = _inv.getRemovedItem();
-            if (rmvItem.getName() === "Collar") {
-                console.log("COLLAR XXX");
-                console.log("Armour type: " + rmvItem.getArmourType());
-            }
             return rmvItem;
         }
         return null;
@@ -4381,7 +4359,9 @@ RG.RogueObjectStubParser = function() {
         return null;
     };
 
-    /** Returns a property from object selected randomly.*/
+    /** Returns a property from an object, selected randomly. For example,
+     * given object {a: 1, b: 2, c: 3}, may return 1,2 or 3 with equal probability.
+     * */
     this.getRandFromObj = function(obj) {
         var keys = Object.keys(obj);
         var len = keys.length;
@@ -4389,6 +4369,8 @@ RG.RogueObjectStubParser = function() {
         return obj[keys[randIndex]];
     };
 
+    /** Filters given category with a function. Func gets each object as arg,
+     * and must return either true or false.*/
     this.filterCategWithFunc = function(categ, func) {
         var objects = this.dbGet({categ: categ});
         var res = [];
@@ -4406,7 +4388,7 @@ RG.RogueObjectStubParser = function() {
 
     };
 
-    /** Creates a random actor based on danger value.*/
+    /** Creates a random actor based on danger value or a filter function.*/
     this.createRandomActor = function(obj) {
         if (obj.hasOwnProperty("danger")) {
             var danger = obj.danger;
@@ -4425,7 +4407,7 @@ RG.RogueObjectStubParser = function() {
         }
     };
 
-    /** Creates a random item based on selection functions.*/
+    /** Creates a random item based on selection function.*/
     this.createRandomItem = function(obj) {
         if (obj.hasOwnProperty("func")) {
             var res = this.filterCategWithFunc("items", obj.func);
@@ -4443,11 +4425,6 @@ RG.RogueObjectStubParser = function() {
         var randIndex = Math.floor(Math.random() * len);
         return arr[randIndex];
     };
-
-};
-
-/** Object database with commands to retrieve random variables.*/
-RG.RogueObjectDatabase = function(obj) {
 
 };
 
