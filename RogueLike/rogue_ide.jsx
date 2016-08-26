@@ -62,20 +62,22 @@ var RoguelikeTop = React.createClass({
     },
 
     /** Sets the size of the shown map.*/
-    setViewSize: function(evt, obj) {
+    setViewSize: function(evt, obj, xOrY) {
         if (obj === "+") {
-            this.viewportX += 5;
-            this.viewportY += 5;
+            if (xOrY === "X") this.viewportX += 5;
+            else this.viewportY += 2;
         };
         if (obj === "-") {
-            this.viewportX -= 5;
-            this.viewportY -= 5;
+            if (xOrY === "X") this.viewportX -= 5;
+            else this.viewportY -= 2;
         };
         this.setState({render: true, renderFullScreen: true});
     },
 
     setViewType: function(type) {
         if (type === "map") {
+           this.viewportCharX = this.viewportX;
+           this.viewportCharY = this.viewportY;
            this.viewportX = this.game.getPlayer().getLevel().getMap().cols;
            this.viewportY = this.game.getPlayer().getLevel().getMap().rows;
            this.setState({
@@ -118,7 +120,6 @@ var RoguelikeTop = React.createClass({
     /** When a cell is clicked, shows some debug info. */
     onCellClick: function(evt, x, y, cell) {
         if (this.isTargeting) {
-            console.log("<Top> Trying ranged attack to " + x + ", " + y);
             var player = this.game.getPlayer();
             var invEq = player.getInvEq();
             var missile = invEq.unequipAndGetItem("missile", 1);
@@ -128,7 +129,6 @@ var RoguelikeTop = React.createClass({
                 mComp.setTargetXY(x, y);
                 mComp.setDamage(missile.getDamage());
                 mComp.setAttack(missile.getAttack());
-                console.log("Setting range to " + missile.getAttackRange());
                 mComp.setRange(missile.getAttackRange());
                 missile.add("Missile", mComp);
                 this.game.update({cmd: "missile"});
@@ -137,6 +137,7 @@ var RoguelikeTop = React.createClass({
                 debug("<Top> Ranged attack to x: " + x + ", y:" + y);
             }
             else {
+                RG.gameWarn("No missile equipped. Cannot shoot.");
                 debug("<Top> No missile equipped. No ranged to x: " + x + ", y:" + y);
             }
             this.isTargeting = false;
@@ -274,6 +275,7 @@ var RoguelikeTop = React.createClass({
         }
         else {
             console.log("Targeting now...");
+            RG.gameWarn("Click on a square to attack with missile weapon.");
             this.isTargeting = true;
         }
         this.setState({render: true});
@@ -499,12 +501,20 @@ var RadioButtons = React.createClass({
  * new game and changing screen size.*/
 var GamePanel = React.createClass({
 
-    setViewSizePlus: function(evt) {
-        this.props.setViewSize(evt, "+");
+    setViewSizeXPlus: function(evt) {
+        this.props.setViewSize(evt, "+", "X");
     },
 
-    setViewSizeNeg: function(evt) {
-        this.props.setViewSize(evt, "-");
+    setViewSizeXNeg: function(evt) {
+        this.props.setViewSize(evt, "-", "X");
+    },
+
+    setViewSizeYPlus: function(evt) {
+        this.props.setViewSize(evt, "+", "Y");
+    },
+
+    setViewSizeYNeg: function(evt) {
+        this.props.setViewSize(evt, "-", "Y");
     },
 
     render: function() {
@@ -512,8 +522,10 @@ var GamePanel = React.createClass({
             <div>
                 <button id="start-button" className="btn btn-info" data-toggle="modal" data-target="#gameStartModal">Start</button>
                 <button id="help-button" className="btn btn-info" data-toggle="modal" data-target="#gameHelpModal">Help</button>
-                <button onClick={this.setViewSizePlus}>+</button>
-                <button onClick={this.setViewSizeNeg}>-</button>
+                <button onClick={this.setViewSizeXPlus}>+X</button>
+                <button onClick={this.setViewSizeXNeg}>-X</button>
+                <button onClick={this.setViewSizeYPlus}>+Y</button>
+                <button onClick={this.setViewSizeYNeg}>-Y</button>
             </div>
         );
     }
@@ -560,6 +572,7 @@ var GameInventory = React.createClass({
         };
     },
 
+    /** Called when "Drop" is clicked. Drops item to the ground.*/
     dropItem: function(evt) {
         if (this.selectedItem !== null) {
             var invEq = this.props.player.getInvEq();
@@ -853,7 +866,7 @@ var GameStats = React.createClass({
 
     render: function() {
         var player = this.props.player;
-        var dungeonLevel = this.props.dungeonLevel;
+        var dungeonLevel = player.getLevel().getLevelNumber();
 
         var eqAtt = player.getEquipAttack();
         var eqDef = player.getEquipDefense();
@@ -864,7 +877,10 @@ var GameStats = React.createClass({
             Att: player.get("Combat").getAttack() + eqAtt,
             Def: player.get("Combat").getDefense() + eqDef,
             Pro: player.get("Combat").getProtection() + eqProt,
+
+            Str: player.get("Stats").getStrength(),
             Agi: player.get("Stats").getAgility(),
+            Acc: player.get("Stats").getAccuracy(),
             Speed: player.get("Stats").getSpeed(),
             XP: player.get("Experience").getExp(),
             XL: player.get("Experience").getExpLevel(),
@@ -907,8 +923,10 @@ var ViewZoom = React.createClass({
 
 });
 
+/** Object which manages the shown part of the level.*/
 var Viewport = function(viewportX, viewportY, map) {
 
+    // Size of the viewport, feel free to adjust
     this.viewportX = viewportX;
     this.viewportY = viewportY;
 
@@ -1072,11 +1090,10 @@ var GameCell = React.createClass({
 
     render: function() {
         var className = this.props.className;
-        /*return (
-        <td className={className} onClick={this.onCellClick}>{this.props.cellChar}</td>
-        );*/
         return (
-            <span className={className} onClick={this.onCellClick}>{this.props.cellChar}</span>
+            <span className={className} onClick={this.onCellClick}>
+                {this.props.cellChar}
+            </span>
         );
     }
 
