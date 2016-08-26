@@ -26,6 +26,9 @@ var RG  = getSource("RG", "./src/rg.js");
 RG.RogueLevel = function(cols, rows) { // {{{2
     var _map = null;
 
+    // Assign unique ID for each level
+    var _id = RG.RogueLevel.prototype.idCount++;
+
     // Level properties
     var _p = {
         actors: [],
@@ -34,8 +37,9 @@ RG.RogueLevel = function(cols, rows) { // {{{2
         stairs: [],
     };
 
-    // Assign unique ID for each level
-    var _id = RG.RogueLevel.prototype.idCount++;
+    var _levelNo = 0;
+    this.setLevelNumber = function(no) {_levelNo = no;};
+    this.getLevelNumber = function() {return _levelNo;};
 
     this.getID = function() {return _id;};
 
@@ -3734,6 +3738,9 @@ RG.FCCGame = function() {
 
         this.allDemonsKilled = function() {
             RG.gameMsg("Humans have vanquished all demons! But it's not over...");
+
+            var windsEvent = new RG.RogueOneShotEvent( function(){}, 20*100,
+                "Winds are blowing stronger. You feel it's getting freezing.");
             var beastEvent = new RG.RogueOneShotEvent(
                 that.spawnBeastArmy.bind(that,_level, _parser), 50*100,
                 "Winter spread by Blizzard Beasts! Hell seems to freeze.");
@@ -3748,7 +3755,7 @@ RG.FCCGame = function() {
             var msgEvent = new RG.RogueOneShotEvent(function() {}, 10*100,
                 "All enemies are dead! You emerge victorious. Congratulations!");
             _game.addEvent(msgEvent);
-            var msgEvent2 = new RG.RogueOneShotEvent(function() {}, 10*100,
+            var msgEvent2 = new RG.RogueOneShotEvent(function() {}, 20*100,
                 "But Battles in North will continue soon in larger scale...");
             _game.addEvent(msgEvent2);
         };
@@ -3762,6 +3769,8 @@ RG.FCCGame = function() {
         var nLevels = obj.levels;
         var sqrPerMonster = obj.sqrPerMonster;
         var sqrPerItem = obj.sqrPerItem;
+
+        var levelCount = 1;
 
         var game = new RG.RogueGame();
         var player = this.createFCCPlayer(game, obj);
@@ -3785,6 +3794,7 @@ RG.FCCGame = function() {
             var levelType = levels[nLevelType];
             if (nl === 0) levelType = "ruins";
             var level = this.createLevel(levelType, cols, rows);
+            level.setLevelNumber(levelCount++);
 
             game.addLevel(level);
             if (nl === 0) {
@@ -3818,8 +3828,8 @@ RG.FCCGame = function() {
         summoner.setBrain(new RG.SummonerBrain(summoner));
         lastLevel.addActor(summoner, bossCell.getX(), bossCell.getY());
 
-        //var extraLevel = this.createLevel("arena", cols, rows);
-        var extraLevel = this.createLastBattle(game, obj);
+        var extraLevel = this.createLastBattle(game, {cols: 80, rows: 60});
+        extraLevel.setLevelNumber(levelCount);
 
         // Connect levels with stairs
         for (nl = 0; nl < nLevels; nl++) {
@@ -3881,6 +3891,8 @@ RG.FCCGame = function() {
 
     };
 
+    var _playerFOV = RG.FOV_RANGE;
+
     /** Can be used to create a short debugging game for testing.*/
     this.createFCCDebugGame = function(obj, game, player) {
         var sqrPerMonster = obj.sqrPerMonster;
@@ -3890,7 +3902,7 @@ RG.FCCGame = function() {
         //var monstersPerLevel = Math.round(numFree / sqrPerMonster);
         //var itemsPerLevel = Math.round(numFree / sqrPerItem);
         game.addPlayer(player);
-        player.setFOVRange(50);
+        //player.setFOVRange(50);
         return game;
     };
 
@@ -3908,6 +3920,14 @@ RG.FCCGame = function() {
                 that.spawnDemonArmy.bind(that, level, _parser), 100 * 20,
                 "Demon hordes are unleashed from the unsilent abyss!");
             game.addEvent(demonEvent);
+        });
+
+        level.setOnEnter( function() {
+            _playerFOV = game.getPlayer().getFOVRange();
+            game.getPlayer().setFOVRange(20);
+        });
+        level.setOnExit( function() {
+            game.getPlayer().setFOVRange(_playerFOV);
         });
 
         game.addLevel(level);
