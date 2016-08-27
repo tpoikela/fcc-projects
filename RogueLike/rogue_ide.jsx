@@ -127,8 +127,8 @@ var RoguelikeTop = React.createClass({
             if (!RG.isNullOrUndef([missile])) {
                 var mComp = new RG.MissileComponent(player);
                 mComp.setTargetXY(x, y);
-                mComp.setDamage(missile.getDamage());
-                mComp.setAttack(missile.getAttack());
+                mComp.setDamage(RG.getMissileDamage());
+                mComp.setAttack(RG.getMissileAttack(player, missile));
                 mComp.setRange(missile.getAttackRange());
                 missile.add("Missile", mComp);
                 this.game.update({cmd: "missile"});

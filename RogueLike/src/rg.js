@@ -164,6 +164,7 @@ var RG = { // {{{2
             "default": "(",
             "corpse" : "§",
             "potion" : "!",
+            "spirit" : "*",
         },
         traps: {},
     },
@@ -185,6 +186,7 @@ var RG = { // {{{2
         },
         items: {
             "potion": "cell-item-potion",
+            "spirit": "cell-item-spirit",
             "default": "cell-item-default",
         },
         traps: {
@@ -334,9 +336,29 @@ var RG = { // {{{2
         return null;
     },
 
+    //--------------------------------------------------------------
+    // COMBAT-RELATED FUNCTIONS
+    //--------------------------------------------------------------
+
+    getMissileDamage: function(att, miss) {
+        var dmg = missile.getDamage();
+        dmg += Math.round(att.get("Stats").getAgility() / 3);
+    },
+
+    getMissileAttack: function(att, miss) {
+        var attack = att.get("Combat").getAttack();
+        attack += att.getInvEq().getEquipment().getAttack();
+        attack += att.get("Stats").getAccuracy() / 2;
+        attack += att.getInvEq().getEquipment().getAccuracy() / 2;
+        attack += miss.getAttack();
+
+        return attack;
+    },
+
     strengthToDamage: function(str) {
         return Math.round(str / 4);
     },
+
 
     // Default FOV range for actors
     FOV_RANGE: 4,

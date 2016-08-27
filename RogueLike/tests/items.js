@@ -258,6 +258,12 @@ describe('How item stacks work with equipped missiles', function() {
         inv.addItem(plate);
         expect(invEq.equipItem(plate)).to.equal(true);
 
+        var wolfSpirit = new RG.RogueItemSpirit("Wolf spirit");
+        wolfSpirit.get("Stats").setStrength(9);
+        inv.addItem(wolfSpirit);
+        expect(invEq.equipItem(wolfSpirit)).to.equal(true);
+        expect(eq.getStrength()).to.equal(9);
+
     });
 
 });

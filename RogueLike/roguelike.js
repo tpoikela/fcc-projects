@@ -399,7 +399,9 @@ RG.Component = function(type) {
 
     var _type = type;
     var _entity = null;
+
     this.getType = function() {return _type;};
+    this.setType = function(type) {_type = type;};
 
     this.getEntity = function() {return _entity;};
     this.setEntity = function(entity) {
@@ -425,6 +427,23 @@ RG.Component.prototype.addCallback = function(entity) {
 RG.Component.prototype.removeCallback = function(entity) {
     this.setEntity(null);
     RG.POOL.emitEvent(this.getType(), {remove:true, entity: entity});
+};
+
+RG.Component.prototype.clone = function() {
+    var comp = new RG.Component(this.getType());
+    return comp;
+};
+
+RG.Component.prototype.copy = function(rhs) {
+    this.setType(rhs.getType());
+};
+
+RG.Component.prototype.equals = function(rhs) {
+    return this.getType() === rhs.getType();
+};
+
+RG.Component.prototype.toString = function() {
+    return "Component: " + this.getType();
 };
 
 /** Action component is added to all schedulable acting entities.*/
@@ -651,13 +670,49 @@ RG.StatsComponent = function() {
     this.getAgility = function() {return _agility;};
     this.setStrength = function(str) {_strength = str;};
     this.getStrength = function() {return _strength;};
-    this.setWillpower = function(_wp) {_willpower = wp;};
+    this.setWillpower = function(wp) {_willpower = wp;};
     this.getWillpower = function() {return _willpower;};
 
     this.setSpeed = function(speed) {_speed = speed;};
     this.getSpeed = function() {return _speed;};
 
 };
+
+RG.StatsComponent.prototype.clone = function() {
+    var comp = new RG.StatsComponent();
+    comp.copy(this);
+    return comp;
+};
+
+RG.StatsComponent.prototype.copy = function(rhs) {
+    RG.Component.prototype.copy.call(this, rhs);
+    this.setAccuracy(rhs.getAccuracy());
+    this.setAgility(rhs.getAgility());
+    this.setStrength(rhs.getStrength());
+    this.setWillpower(rhs.getWillpower());
+    this.setSpeed(rhs.getSpeed());
+};
+
+RG.StatsComponent.prototype.equals = function(rhs) {
+    var res = this.getType() === rhs.getType();
+    res = res && this
+    res = res && this.getAccuracy() === rhs.getAccuracy();
+    res = res && this.getAgility() === rhs.getAgility();
+    res = res && this.getStrength() === rhs.getStrength();
+    res = res && this.getWillpower() === rhs.getWillpower();
+    res = res && this.getSpeed() === rhs.getSpeed();
+    return res;
+};
+
+RG.StatsComponent.prototype.toString = function() {
+    var txt = "";
+    if (this.getAccuracy()) txt += "Acc: " + this.getAccuracy();
+    if (this.getAgility()) txt += " ,Agi: " + this.getAgility();
+    if (this.getStrength()) txt += " ,Str: " + this.getStrength();
+    if (this.getWillpower()) txt += " ,Wil: " + this.getWillpower();
+    return txt;
+};
+
 RG.extend2(RG.StatsComponent, RG.Component);
 
 
@@ -900,17 +955,25 @@ RG.AttackSystem = function(type, compTypes) {
             var damage       = attComp.getDamage();
 
             var accuracy = _att.get("Stats").getAccuracy();
+            var strength = _att.get("Stats").getStrength();
+
             var agility = _def.get("Stats").getAgility();
 
+            accuracy += _att.getInvEq().getEquipment().getAccuracy();
+            strength += _att.getInvEq().getEquipment().getStrength();
+            agility += _def.getInvEq().getEquipment().getAgility();
+
+            if (_att.isPlayer()) console.log("Pure Str is " + strength);
             // Actual hit change calculation
             var totalAttack = attackPoints + accuracy/2 + attEquip;
             var totalDefense = defPoints + agility/2 + defEquip;
             var hitChange = totalAttack / (totalAttack + totalDefense);
             if (hitChange > Math.random()) {
-                var strDamage = RG.strengthToDamage(_att.get("Stats").getStrength());
+                var strDamage = RG.strengthToDamage(strength);
+                if (_att.isPlayer()) console.log("Str damage is " + strDamage);
                 var totalDamage = damage + strDamage;
                 if (totalDamage > 0)
-                    this.doDamage(_att, _def, damage);
+                    this.doDamage(_att, _def, totalDamage);
                 else
                     RG.gameMsg(_att.getName() + " fails to hurt " + _def.getName());
             }
@@ -1158,33 +1221,38 @@ RG.MovementSystem = function(type, compTypes) {
         }
     };
 
-    this.moveEntity = function(actor) {
-        var x = actor.get("Movement").getX();
-        var y = actor.get("Movement").getY();
-        var level = actor.get("Movement").getLevel();
+    this.moveEntity = function(ent) {
+        var x = ent.get("Movement").getX();
+        var y = ent.get("Movement").getY();
+        var level = ent.get("Movement").getLevel();
         var map = level.getMap();
         var cell = map.getCell(x, y);
 
         if (cell.isFree()) {
-            var xOld = actor.getX();
-            var yOld = actor.getY();
-            RG.debug(this, "Trying to move actor from " + xOld + ", " + yOld);
+            var xOld = ent.getX();
+            var yOld = ent.getY();
+            RG.debug(this, "Trying to move ent from " + xOld + ", " + yOld);
 
-            if (map.removeProp(xOld, yOld, "actors", actor)) {
-                map.setProp(x, y, "actors", actor);
-                actor.setXY(x, y);
-                if (actor.isPlayer()) this.checkMessageEmits(cell);
-                actor.remove("Movement");
+            var propType = ent.getPropType();
+            if (map.removeProp(xOld, yOld, propType, ent)) {
+                map.setProp(x, y, propType, ent);
+                ent.setXY(x, y);
+
+                if (ent.hasOwnProperty("isPlayer")) {
+                    if (ent.isPlayer()) this.checkMessageEmits(cell);
+                }
+
+                ent.remove("Movement");
                 return true;
             }
             else {
-                RG.err("MovementSystem", "moveActorTo", "Couldn't remove actor.");
+                RG.err("MovementSystem", "moveActorTo", "Couldn't remove ent.");
             }
         }
         else {
             RG.debug(this, "Cell wasn't free at " + x + ", " + y);
         }
-        actor.remove("Movement");
+        ent.remove("Movement");
         return false;
     };
 
@@ -1274,6 +1342,7 @@ RG.extend2(RG.CommunicationSystem, RG.System);
  * items with null owners. Ownership shouldn't be ever set to null. */
 RG.RogueItem = function(name) {
     RG.Ownable.call(this, null);
+    RG.Entity.call(this);
     this.setPropType(RG.TYPE_ITEM);
 
     var _name = name;
@@ -1303,7 +1372,6 @@ RG.RogueItem = function(name) {
     this.getWeight = function() {return _weight;};
     this.setValue = function(value) {_value = value;};
     this.getValue = function() {return _value;};
-
 
 };
 RG.RogueItem.prototype.toString = function() {
@@ -1480,7 +1548,6 @@ RG.extend2(RG.RogueItemPotion, RG.RogueItem);
 RG.RogueItemMissile = function(name) {
     RG.RogueItem.call(this, name);
     RG.DamageObject.call(this);
-    RG.Entity.call(this);
     this.setType("missile");
 
 };
@@ -1683,7 +1750,6 @@ RG.extend2(RG.RogueItemContainer, RG.RogueItem);
 /** Spirit items are wearables which can have powerful use abilities as well.*/
 RG.RogueItemSpirit = function(name) {
     RG.RogueItem.call(this, name);
-    RG.Entity.call(this);
     this.setType("spirit");
 
     this.getArmourType = function() {return "spirit";};
@@ -1691,9 +1757,53 @@ RG.RogueItemSpirit = function(name) {
     var stats = new RG.StatsComponent();
     this.add("Stats", stats);
 
+    var _brain = new RG.SpiritBrain(this);
+
+    this.add("Action", new RG.ActionComponent());
+
+    this.isPlayer = function() {return false;};
+
+    /** Get next action for this spirit.*/
+    this.nextAction = function(obj) {
+        var cb = _brain.decideNextAction(obj);
+        var action = null;
+
+        if (cb !== null) {
+            var speed = this.get("Stats").getSpeed();
+            var duration = parseInt(RG.BASE_SPEED/speed * RG.ACTION_DUR);
+            action = new RG.RogueAction(duration, cb, {});
+        }
+        else {
+            action = new RG.RogueAction(0, function(){}, {});
+        }
+        return action;
+    };
+
 };
+
+RG.RogueItemSpirit.prototype.toString = function() {
+    var txt = this.getName() + ", " + this.getType() + ", ";
+    txt = this.get("Stats").toString();
+    return txt;
+};
+
+RG.RogueItemSpirit.prototype.equals = function(item) {
+    var res = RG.RogueItem.prototype.equals.call(this, item);
+    res = res && (this.getType() === item.getType());
+    return res;
+};
+
+RG.RogueItemSpirit.prototype.copy = function(rhs) {
+    this.get("Stats").copy(rhs.get("Stats"));
+};
+
+RG.RogueItemSpirit.prototype.clone = function() {
+    var newSpirit = new RG.RogueItemSpirit(this.getName());
+    newSpirit.copy(this);
+    return newSpirit;
+};
+
 RG.extend2(RG.RogueItemSpirit, RG.RogueItem);
-RG.extend2(RG.RogueItemSpirit, RG.Entity);
 
 //---------------------------------------------------------------------------
 // EQUIPMENT AND INVENTORY
@@ -1822,6 +1932,7 @@ RG.RogueEquipment = function(actor) {
      * ones.*/
     this.equipItem = function(item) {
         if (item.hasOwnProperty("getArmourType")) {
+            console.log("Equipping armour " + item.getArmourType());
             if (_slots[item.getArmourType()].equipItem(item)) {
                 _equipped.push(item);
                 return true;
@@ -1910,6 +2021,12 @@ RG.RogueEquipment = function(actor) {
                 if (item.hasOwnProperty(funcname)) {
                     result += item[funcname]();
                 }
+                else if (item.has("Stats")) {
+                    var sComp = item.get("Stats");
+                    if (sComp.hasOwnProperty(funcname)) {
+                        result += sComp[funcname]();
+                    }
+                }
             }
         }
         return result;
@@ -1917,12 +2034,21 @@ RG.RogueEquipment = function(actor) {
 
     // Dynamically generated accessors for different stats
     var _mods = ["getDefense", "getAttack", "getProtection", "getSpeed", "getWillpower",
-        "getAccuracy", "getAgility"];
+        "getAccuracy", "getAgility", "getStrength"];
 
+    var that = this;
     for (var i = 0; i < _mods.length; i++) {
-        this[_mods[i]] = function() {
-            return this.propertySum(_mods[i]);
+
+        // Use closure to fix the function name
+        var getFunc = function() {
+            var privVar = _mods[i];
+            return function() {
+                return that.propertySum(privVar);
+            };
+
         };
+
+        this[_mods[i]] = getFunc();
     }
 
 };
@@ -2632,6 +2758,9 @@ RG.SummonerBrain = function(actor) {
     this.numSummoned = 0;
     this.maxSummons = 20;
 
+    var _memory = this.getMemory();
+    _memory.addEnemyType("player");
+
     this.decideNextAction = function(obj) {
         var level = _actor.getLevel();
         var seenCells = this.getSeenCells();
@@ -2783,6 +2912,19 @@ RG.HumanBrain = function(actor) {
 };
 
 RG.extend2(RG.HumanBrain, RG.RogueBrain);
+
+/** Brain object used by Spirit objects.*/
+RG.SpiritBrain = function(actor) {
+    RG.RogueBrain.call(this, actor);
+    var _actor = actor;
+
+    /** Returns the next action for the spirit.*/
+    this.decideNextAction = function(obj) {
+        var seenCells = this.getSeenCells();
+        return this.exploreLevel(seenCells);
+    };
+};
+RG.extend2(RG.SpiritBrain, RG.RogueBrain);
 
 // }}} BRAINS
 
@@ -3898,6 +4040,12 @@ RG.FCCGame = function() {
         var sqrPerMonster = obj.sqrPerMonster;
         var sqrPerItem = obj.sqrPerItem;
         var level = this.createLastBattle(game, obj);
+
+        var spirit = new RG.RogueItemSpirit("Wolf spirit");
+        spirit.get("Stats").setStrength(500);
+        level.addItem(spirit, 2, 1);
+        //spirit.get("Action").enable();
+
         //var numFree = level.getMap().getFree().length;
         //var monstersPerLevel = Math.round(numFree / sqrPerMonster);
         //var itemsPerLevel = Math.round(numFree / sqrPerItem);
@@ -4271,6 +4419,7 @@ RG.RogueObjectStubParser = function() {
                     case "weapon": return new RG.RogueItemWeapon(obj.name);
                     case "food": return new RG.RogueItemFood(obj.name);
                     case "missile": return new RG.RogueItemMissile(obj.name);
+                    case "spirit": return new RG.RogueItemSpirit(obj.name);
                     case "tool": break;
                 }
                 return new RG.RogueItem(obj.name); // generic, useless
