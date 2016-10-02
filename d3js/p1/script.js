@@ -1,4 +1,10 @@
 
+
+/**
+ * Tooltip for showing year/USD figure based on the following tip:
+ * https://stackoverflow.com/questions/10805184/d3-show-data-on-mouseover-of-circle
+ */
+
 var gdp_url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceData/master/GDP-data.json";
 
 var bHeightMax = 700; // Equal to 20,000 BUSD
@@ -58,8 +64,6 @@ var processGDPData = function(data) {
     var firstYear = dates[0];
     var lastYear = dates[dates.length-1];
 
-    console.log("Values length: " + values.length);
-
     var svg = d3.select("svg");
 
     bWidthMax = parseInt(svg.attr("width")) - margin.left - margin.right;
@@ -83,7 +87,7 @@ var processGDPData = function(data) {
     // Create X-axis
     g.append("g")
         .attr("class", "axis x--axis")
-        .attr("transform", "translate(0, " + (bHeightMax - 20) + ")")
+        .attr("transform", "translate(0, " + barHeight + ")")
         .call(
             d3.axisBottom(scaleX)
                 .tickValues(d3.range(1950, 2016, 5))
@@ -96,6 +100,7 @@ var processGDPData = function(data) {
         .call(d3.axisLeft(scaleY).ticks(10)
         );
 
+    // Data is mapped to rect-elements here
     g.selectAll(".bar")
         .data(finalData)
         .enter().append("rect")
@@ -118,9 +123,16 @@ var processGDPData = function(data) {
                 return tooltip.style("visibility", "hidden");
             });
 
+    // Create label for y-axis
+    svg.append("text")
+        .attr("text-anchor", "middle")
+        .attr("transform", "translate(" + (margin.right + 25) + "," +
+            (bHeightMax/2) + ") rotate(-90)")
+        .text("Gross Domestic Product, billion USD");
+
 };
 
-
+/** Gets the GDP data from the URL.*/
 function getGDPData() {
     var jqxhr = $.getJSON( gdp_url, processGDPData)
         .done(function() {
