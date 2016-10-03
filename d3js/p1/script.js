@@ -149,16 +149,17 @@ var processGDPData = function(data) {
                         var diff = d2.val - d1.val;
                         var perYear = diff / years;
                         timeSpan = "<p>From: " + ym1 + "</p><p>To: " + ym2 + "</p>";
-                        percent = Math.log2(d2.val/d1.val) / years;
+                        percent = Math.pow(2, (Math.log2(d2.val/d1.val) / years));
                     }
                     else {
                         var years = d1.year - d2.year;
                         var diff = d1.val - d2.val;
                         var perYear = diff / years;
                         timeSpan = "<p>From: " + ym2 + "<br/>To: " + ym1 + "</p>";
-                        percent = Math.log2(d1.val/d2.val) / years;
+                        percent = Math.pow(2, (Math.log2(d1.val/d2.val) / years));
                     }
 
+                    percent -= 1.0;
                     percent *= 100;
 
                     var boxHTML = timeSpan + "<p>Diff: " + diff + " billion USD<br/>" +
