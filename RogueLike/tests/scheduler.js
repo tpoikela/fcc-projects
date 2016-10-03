@@ -36,6 +36,7 @@ describe('Scheduling one action', function() {
         var action = new Action(20, function() {});
 
         expect(actor.isPlayer()).to.equal(false);
+        player.setIsPlayer(true);
         expect(player.isPlayer()).to.equal(true);
 
         actor.id = 1234;
@@ -73,10 +74,59 @@ describe('Scheduling one action', function() {
         sch.setAction(action);
         expect(nextActor.id).to.equal(1234);
         expect(nextActor.isPlayer()).to.equal(false);
-        //expect(nextActor).to.equal(null);
         expect(sch.remove(player)).to.equal(true);
 
         expect(sch.remove(falseActor)).to.equal(false);
+
+    });
+});
+
+var testCB = function(setToZero) {
+    setToZero = 0;
+};
+
+var MockAction = function(dur) {
+
+    var _dur = dur;
+
+    this.setDuration = function(dur) {_dur = dur;};
+    this.getDuration = function() {return _dur;};
+};
+
+describe('Canceling events and actor actions', function() {
+    var sch = new RG.RogueScheduler();
+    var act = new MockAction(100);
+
+    it('Removes the event like it never happened', function() {
+        var testActor = new RG.RogueActor("actor");
+        var notZero = 555;
+        var changeEvent = new RG.RogueOneShotEvent(testCB, 200, "This happened");
+        sch.add(testActor, true, 100);
+        sch.add(changeEvent, true, 190);
+
+        var next = sch.next();
+        sch.setAction(act);
+        expect(next).to.equal(testActor);
+
+        next = sch.next();
+        expect(next).to.equal(changeEvent);
+        act.setDuration(190);
+        sch.setAction(act);
+
+        next = sch.next();
+        act.setDuration(100);
+        sch.setAction(act);
+        expect(next).to.equal(testActor);
+
+        next = sch.next();
+        expect(next).to.equal(testActor);
+        sch.setAction(act);
+
+        sch.remove(changeEvent);
+
+        next = sch.next();
+        expect(next).to.equal(testActor);
+        sch.setAction(act);
 
     });
 });

@@ -11,6 +11,9 @@ $main-color-3: darken($main-color-2, 15%);
 
 $ctrl-top-color: darken($main-color, 10%);
 
+$ruby-white: #111111;
+$ruby-red: #EE1111;
+
 @mixin fonts {
     font-family: 'Josefin Sans', sans-serif;
 }
@@ -60,6 +63,17 @@ body {
     }
 };
 
+#mov-buttons-table {
+    border: 1px solid black;
+    font-size: 16px;
+    padding: 5px;
+
+};
+
+.select-label {
+    width: 100px;
+};
+
 //------------------------------------------------------------------
 // CELL StyleS
 //------------------------------------------------------------------
@@ -94,6 +108,11 @@ body {
     color: black;
 };
 
+.cell-actor-winter {
+    background-color: white;
+    color: blue;
+};
+
 //----------
 // ELEMENTS
 //----------
@@ -125,12 +144,22 @@ body {
     color: blue;
 };
 
+.cell-element-ice-wall {
+    background-color: blue;
+    color: white;
+};
+
 //----------
 // ITEMS
 //----------
 .cell-item-default {
     background-color: brown;
 }
+
+.cell-item-potion {
+    background-color: white;
+    color: purple;
+};
 
 .cell-item-armour {
     background-color: green;
@@ -147,10 +176,44 @@ body {
     color: white;
 };
 
+.cell-item-missile {
+    background-color: white;
+    color: red;
+};
+
+.cell-item-leather {
+    background-color: brown;
+    color: white;
+};
+
+.cell-item-iron {
+    background-color: Silver;
+    color: white;
+};
+
+.cell-item-ruby-glass {
+    background-color: $ruby-white;
+    color: $ruby-red;
+};
+
+.cell-item-ice {
+    background-color: white;
+    color: blue;
+};
+
+.cell-item-magic {
+    background-color: purple;
+    color: white;
+};
+
+.cell-item-spirit {
+    background-color: purple;
+    color: white;
+};
+
 //---------------------------------------------------------------------
 // MENUS
 //---------------------------------------------------------------------
-
 
 #mount-point {
     margin-top: 10px;
@@ -165,6 +228,7 @@ body {
     font-size: 18px;
     padding-top: 2px;
     padding-left: 5px;
+    overflow: auto;
 }
 
 .game-stats {
@@ -190,6 +254,12 @@ body {
 #game-board {
     margin-left: 10px;
     margin-right: 10px;
+    cursor: crosshair;
+
+    span:hover {
+        color: black;
+        background-color: rgba(255, 255, 255, 0.5);
+    };
 }
 
 .ctrl-bottom {
@@ -209,5 +279,11 @@ body {
     border-radius: 5px;
     margin-bottom: 2px;
     padding: 2px;
+};
+
+#items-box {
+    height: 400px;
+    overflow: auto;
+
 };
 

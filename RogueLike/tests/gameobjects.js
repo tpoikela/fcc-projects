@@ -19,6 +19,7 @@ RG.cellRenderArray = RG.cellRenderVisible;
 
 describe('How actors are created from file', function() {
     var parser = new Parser();
+
     it('Returns base objects and supports also base', function() {
         var wolfNew = parser.parseObjStub("actors", {
             name: "wolf", attack: 15, defense: 10, damage: "1d6 + 2",
@@ -48,17 +49,19 @@ describe('How actors are created from file', function() {
         // Create a reference actor 
         var wolfObj = new Actor("wolf");
         wolfObj.setType("wolf");
-        wolfObj.setAttack(15);
-        wolfObj.setDefense(10);
-        wolfObj.setDamage("1d6 + 2");
-        wolfObj.setHP(9);
+        wolfObj.get("Combat").setAttack(15);
+        wolfObj.get("Combat").setDefense(10);
+        wolfObj.get("Combat").setDamage("1d6 + 2");
+        wolfObj.get("Health").setHP(9);
+        var wolfComp = wolfObj.get("Combat");
 
         // Create actor using parsed stub data
         var createdWolf = parser.createActualObj("actors", "wolf");
-        expect(createdWolf.getAttack()).to.equal(wolfObj.getAttack());
-        expect(createdWolf.getDefense()).to.equal(wolfObj.getDefense());
+        var cWolfComp = createdWolf.get("Combat");
+        expect(cWolfComp.getAttack()).to.equal(wolfComp.getAttack());
+        expect(cWolfComp.getDefense()).to.equal(wolfComp.getDefense());
         expect(createdWolf.getType()).to.equal(wolfObj.getType());
-        expect(createdWolf.getHP()).to.equal(wolfObj.getHP());
+        expect(createdWolf.get("Health").getHP()).to.equal(wolfObj.get("Health").getHP());
 
         var player = RG.FACT.createPlayer("player", {});
         player.setType("player");
@@ -71,7 +74,8 @@ describe('How actors are created from file', function() {
         expect(RG.getCellChar(cell)).to.equal(actorChar);
 
         var randWolf = parser.createRandomActor({danger: 3});
-        expect(randWolf.getAttack()).to.equal(superWolf.attack);
+        expect(randWolf !== null).to.equal(true);
+        expect(randWolf.get("Combat").getAttack()).to.equal(superWolf.attack);
 
         var punyWolf = parser.parseObjStub("actors", {name: "Puny wolf",
             base: "wolf", attack: 1, defense: 50}
@@ -80,17 +84,18 @@ describe('How actors are created from file', function() {
         var punyWolfCreated = parser.createRandomActor({
             func: function(actor) {return actor.attack < 2;}
         });
-        expect(punyWolfCreated.getDefense()).to.equal(50);
-        expect(punyWolfCreated.getAttack()).to.equal(1);
+        expect(punyWolfCreated.get("Combat").getDefense()).to.equal(50);
+        expect(punyWolfCreated.get("Combat").getAttack()).to.equal(1);
 
     });
 });
 
-describe('How items are created from objects', function() {
+describe('How food items are created from objects', function() {
    var parser = new Parser();
     it('description', function() {
         var foodBase = parser.parseObjStub("items", {type: "food", name: "foodBase",
-        weight: 0.1, misc: "XXX", dontCreate: true, "char": "%"});
+            weight: 0.1, misc: "XXX", dontCreate: true, "char": "%",
+            className: "cell-item-food"});
 
         var food = parser.parseObjStub("items", {base: "foodBase", name: "Dried meat",
             energy: 100, value: 5
@@ -100,6 +105,8 @@ describe('How items are created from objects', function() {
         expect(food.value).to.equal(5);
         expect(food.type).to.equal("food");
         expect(food.weight).to.equal(0.1);
+        expect(food.char).to.equal("%");
+        expect(food.className).to.equal("cell-item-food");
 
         var expFood = parser.parseObjStub("items", {name: "Gelee", energy: 500, 
             weight: 0.2, value: 100, base: "foodBase"});
@@ -116,17 +123,15 @@ describe('How items are created from objects', function() {
 
         expect(randFood.getEnergy()).to.equal(100);
         expect(randFood.getValue()).to.equal(5);
+        RGTest.checkChar(randFood, "%");
+        RGTest.checkCSSClassName(randFood, "cell-item-food");
 
         var geleeFood = parser.createRandomItem({
             func: function(item) {return item.value >= 99;}
         });
         expect(geleeFood.getEnergy()).to.equal(500);
         expect(geleeFood.getType()).to.equal("food");
-
-        var testCell = RG.FACT.createFloorCell();
-        testCell.setExplored(true);
-        testCell.setProp("items", geleeFood);
-        expect(RG.getCellChar(testCell)).to.equal("%");
+        RGTest.checkChar(geleeFood, "%");
 
     });
 });
@@ -147,19 +152,25 @@ describe('It contains all game content info', function() {
         expect(coyote.danger).to.equal(2);
 
         var rat = parser.get("actors", "rat");
-        expect(rat.hp).to.equal(10);
+        expect(rat.hp).to.equal(5);
         var ratObj = parser.createActualObj("actors", "rat");
         expect(ratObj.getType()).to.equal("rat");
-        expect(ratObj.getHP()).to.equal(10);
-        expect(ratObj.getMaxHP()).to.equal(10);
-        expect(ratObj.getAttack()).to.equal(1);
-        expect(ratObj.getDefense()).to.equal(1);
+        expect(ratObj.get("Health").getHP()).to.equal(5);
+        expect(ratObj.get("Health").getMaxHP()).to.equal(5);
+        expect(ratObj.get("Combat").getAttack()).to.equal(1);
+        expect(ratObj.get("Combat").getDefense()).to.equal(1);
+        expect(ratObj.get("Stats").getSpeed()).to.equal(100);
         RGTest.checkChar(ratObj, "r");
         RGTest.checkCSSClassName(ratObj, "cell-actor-animal");
+
     });
 
 
     it('Should parse all items properly', function() {
+        var bayStub = parser.get("items", "Bayonette");
+        expect(bayStub.base).to.equal("MeleeWeaponBase");
+        var bayon = parser.createActualObj("items", "Bayonette");
+        RGTest.checkCSSClassName(bayon, "cell-item-melee-weapon");
     });
 
 
@@ -168,9 +179,16 @@ describe('It contains all game content info', function() {
         expect(larmour.defense).to.equal(2);
 
         var armObj = parser.createActualObj("items", "Leather armour");
-        expect(armObj.getArmourType()).to.equal("body");
+        expect(armObj.getArmourType()).to.equal("chest");
         expect(armObj.getAttack()).to.equal(0);
         expect(armObj.getDefense()).to.equal(2);
+
+    });
+
+    it('Should parse missiles with correct ranges', function() {
+        var missObj = parser.createActualObj("items", "Shuriken");
+        expect(missObj.getAttackRange()).to.equal(3);
+        expect(missObj.getWeight()).to.equal(0.1);
 
     });
 });

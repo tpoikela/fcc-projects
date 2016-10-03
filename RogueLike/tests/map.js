@@ -253,6 +253,9 @@ describe('Tests to check that basic operations for map work', function() {
 //---------------------------------------------------------------------------
 
 describe('Moving actors around in the game', function() {
+
+    var movSystem = new RG.MovementSystem("Movement", ["Movement"]);
+
     it('Moves but is blocked by walls.', function() {
         var actor = new Actor(true);
         var level = new Level(10, 10);
@@ -265,14 +268,18 @@ describe('Moving actors around in the game', function() {
         expect(actor.getY()).to.equal(2);
 
         // Actors x,y changes due to move
-        expect(level.moveActorTo(actor, 2, 3)).to.equal(true);
+        var movComp = new RG.MovementComponent(2, 3, level);
+        actor.add("Movement", movComp);
+        movSystem.update();
         expect(actor.getX()).to.equal(2);
         expect(actor.getY()).to.equal(3);
 
         // Create a wall to block the passage
         var wall = new Element("wall");
         level.getMap().setBaseElemXY(4, 4, wall);
-        expect(level.moveActorTo(actor, 4, 4)).to.equal(false);
+        //expect(level.moveActorTo(actor, 4, 4)).to.equal(false);
+        var movComp = new RG.MovementComponent(4, 4, level);
+        movSystem.update();
         expect(actor.getX(), "X didn't change due to wall").to.equal(2);
         expect(actor.getY()).to.equal(3);
 
@@ -328,7 +335,9 @@ describe('Moving actors around in the game', function() {
         stairsDown23.setTargetStairs(stairsUp32);
         stairsUp32.setTargetStairs(stairsDown23);
 
-        level2.moveActorTo(player, 12, 13);
+        var movComp = new RG.MovementComponent(12, 13, level2);
+        player.add("Movement", movComp);
+        movSystem.update();
         level2.useStairs(player);
         expect(player.getLevel()).to.equal(level3);
         expect(player.getX()).to.equal(6);

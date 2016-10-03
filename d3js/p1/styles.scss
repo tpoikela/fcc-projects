@@ -1,0 +1,40 @@
+
+
+$width: 960px;
+
+
+body {
+    background-color: darken(cyan, 20%);
+    font-family: Verdana, serif;
+};
+
+.plot-container {
+    background-color: darken(white, 11%);
+    margin: 0 auto;
+    width: $width;
+};
+
+rect {
+    fill: red;
+};
+
+rect:hover {
+    fill: lighten(blue, 20%);
+};
+
+.my-tooltip {
+    color: black;
+    height: 75px;
+    width: 200px;
+    background-color: rgba(192, 192, 192, 0.5);
+    border: 1px solid black;
+    border-radius: 3px;
+};
+
+.dollars {
+    font-size: 20px;
+};
+
+.text-primary {
+    color: white;
+};
