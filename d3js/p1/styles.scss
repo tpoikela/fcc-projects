@@ -1,15 +1,17 @@
 
 
 $width: 960px;
-
+$box-bg-color: rgba(192, 192, 192, 0.5);
+$body-bg-color: darken(cyan, 20%);
+$plot-bg-color: darken(white, 11%);
 
 body {
-    background-color: darken(cyan, 20%);
+    background-color: $body-bg-color;
     font-family: Verdana, serif;
 };
 
 .plot-container {
-    background-color: darken(white, 11%);
+    background-color: $plot-bg-color;
     margin: 0 auto;
     width: $width;
 };
@@ -26,7 +28,7 @@ rect:hover {
     color: black;
     height: 75px;
     width: 200px;
-    background-color: rgba(192, 192, 192, 0.5);
+    background-color: $box-bg-color;
     border: 1px solid black;
     border-radius: 3px;
 };
@@ -37,4 +39,10 @@ rect:hover {
 
 .text-primary {
     color: white;
+};
+
+.comparison-box {
+    //margin: auto;
+    background-color: $box-bg-color;
+    padding: 7px;
 };
