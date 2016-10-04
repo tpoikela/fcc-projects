@@ -6,8 +6,8 @@
 
 var data_url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceData/master/cyclist-data.json";
 
-var bHeightMax = 700;
-var bWidthMax = 960;
+var bHeightMax = 0;
+var bWidthMax = 0;
 
 var margin = {top: 20, left: 50, right: 40, bottom: 50};
 
@@ -41,10 +41,8 @@ var newDate = function(min_sec) {
 };
 
 var processCyclistData = function(data) {
-    console.log("Data is " + data);
     var items = data;
     var bestTime = "00:00";
-
     var NLast = items.length - 1;
 
     var places  = items.map(function(item) {return parseInt(item.Place);});
@@ -53,8 +51,6 @@ var processCyclistData = function(data) {
     var secDiffs = [];
 
     if (places[0] === 1) bestTime = seconds[0];
-    console.log("Best time in secs: " + bestTime);
-
 
     var finalData = [];
     for (var i = 0; i < times.length; i++) {
@@ -79,12 +75,6 @@ var processCyclistData = function(data) {
     // Creates scales for mapping data (domain) to pixels (range)
     var scaleX = d3.scaleLinear().range([0, bWidthMax]);
     scaleX.domain([maxDiffSec, 0]);
-
-    /*
-    secDiffs.map(function(d, i) {
-        return d;
-    }));
-   */
 
     var scaleY = d3.scaleLinear()
         .domain([0, d3.max(places)])
@@ -124,7 +114,6 @@ var processCyclistData = function(data) {
             .attr("r", 5.0)
             .attr("cx", function(d) {
                 var res = scaleX(d.diff);
-                console.log("Returning scale for " + d.diff + " " + scaleX(d.diff));
                 return scaleX(d.diff);
             })
             .attr("cy", function(d) {return scaleY(d.place);})
@@ -161,6 +150,24 @@ var processCyclistData = function(data) {
         .text("Position");
 
     // Create legend
+    var legend = g.append("g")
+        .attr("fill", "brown")
+        //.attr("transform", "translate(" + (bWidthMax - 50) + "," + (bHeightMax - 50) + ")")
+        .attr("transform", "translate(" + 0 + "," + 0 + ")")
+        .text("No doping allegations");
+
+    legend.append("circle")
+        .attr("r", 5.0)
+        .attr("cx", 500)
+        .attr("cy", 400)
+        .attr("fill", "red");
+
+    legend.append("circle")
+        .attr("r", 5.0)
+        .attr("cx", 500)
+        .attr("cy", 430)
+        .attr("fill", "blue");
+
 
 };
 
