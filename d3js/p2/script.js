@@ -1,35 +1,15 @@
 
-
 /**
- * Tooltip for showing year/USD figure based on the following tip:
- * https://stackoverflow.com/questions/10805184/d3-show-data-on-mouseover-of-circle
+ * Short tutorial about scatter plots:
+ * http://bl.ocks.org/d3noob/38744a17f9c0141bcd04
  */
 
 var data_url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceData/master/cyclist-data.json";
 
-var bHeightMax = 700; // Equal to 20,000 BUSD
+var bHeightMax = 700;
 var bWidthMax = 960;
 
-$(document).ready( function () {
-    getCyclistData();
-});
-
 var margin = {top: 20, left: 50, right: 40, bottom: 50};
-
-var yearToDate = {};
-
-var dataPair = [];
-
-var dateToYM = function(date) {
-    var ymd = date.split("-");
-    var year = ymd[0];
-    var mon = ymd[1];
-    if (mon === "01") mon = "Q1 - January";
-    if (mon === "04") mon = "Q2 - April";
-    if (mon === "07") mon = "Q3 - July";
-    if (mon === "10") mon = "Q4 - October";
-    return year + " - " + mon;
-};
 
 var tooltip = d3.select("body")
     .append("div")
@@ -38,52 +18,92 @@ var tooltip = d3.select("body")
     .style("z-index", "10")
     .style("visibility", "hidden");
 
-var comparisonBox = d3.select("body")
-    .append("div")
-    .classed("comparison-box", true)
-    .style("position", "absolute")
-    .style("z-index", "10")
-    .style("visibility", "hidden");
+/** Formats the HTML for tooltip based on the data.*/
+var getTooltipHTML = function(d) {
+    var html = '<p>';
+    html += d.name + ': ' + d.nationality + '<br/>';
+    html += "Place: " + d.place + '<br/>';
+    html += "Year: " + d.year;
+    if (d.place === 1) html += " <span class='text-warning'>Fastest</span><br/>";
+    html += '</p>';
+    if (d.doping.length > 0) {
+        html += "<p class='text-danger doping'>Doping: " + d.doping + '</p>';
+    }
+    else {
+        html += "<p class='text-success'>No doping allegiations" + '</p>';
+    }
+    return html;
+};
+
+var newDate = function(min_sec) {
+    var ms = min_sec.split(":");
+    return new Date(2000, 0, 1, 0, parseInt(ms[0]), parseInt(ms[1]));
+};
 
 var processCyclistData = function(data) {
     console.log("Data is " + data);
     var items = data;
+    var bestTime = "00:00";
 
-    var places = items.map(function(item) {return item.Place;});
-    var times = items.map(function(item) {return item.Time;});
+    var NLast = items.length - 1;
+
+    var places  = items.map(function(item) {return parseInt(item.Place);});
+    var times   = items.map(function(item) {return item.Time;});
+    var seconds = items.map(function(item) {return parseInt(item.Seconds);});
+    var secDiffs = [];
+
+    if (places[0] === 1) bestTime = seconds[0];
+    console.log("Best time in secs: " + bestTime);
+
 
     var finalData = [];
     for (var i = 0; i < times.length; i++) {
-        var d = {place: places[i], time: times[i], name: items[i].Name, doping: items[i].Doping};
+        var diff = seconds[i] - bestTime;
+        secDiffs[i] = diff;
+        var d = {place: places[i], time: times[i], name: items[i].Name, doping: items[i].Doping,
+            seconds: seconds[i], diff: diff, nationality: items[i].Nationality, year: items[i].Year};
         finalData.push(d);
     }
+
+    var maxDiffSec = seconds[NLast] - bestTime;
 
     var svg = d3.select("svg");
 
     bWidthMax = parseInt(svg.attr("width")) - margin.left - margin.right;
     bHeightMax = parseInt(svg.attr("height")) - margin.top - margin.bottom;
-    var barHeight = bHeightMax - 20;
+    var highestPoint = bHeightMax - 20;
 
     var g = svg.append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
     // Creates scales for mapping data (domain) to pixels (range)
     var scaleX = d3.scaleLinear().range([0, bWidthMax]);
-    scaleX.domain(times.map(function(d, i) {
+    scaleX.domain([maxDiffSec, 0]);
+
+    /*
+    secDiffs.map(function(d, i) {
         return d;
     }));
+   */
 
     var scaleY = d3.scaleLinear()
-        .domain([d3.max(places), 0])
-        .range([0, barHeight]);
+        .domain([0, d3.max(places)])
+        .range([0, highestPoint]);
 
     // Create X-axis
     g.append("g")
         .attr("class", "axis x--axis")
-        .attr("transform", "translate(0, " + barHeight + ")")
+        .attr("transform", "translate(0, " + highestPoint + ")")
         .call(
             d3.axisBottom(scaleX)
-                .tickValues(d3.range(d3.min(times), d3.max(times), 1))
+                .tickValues(d3.range(d3.min(secDiffs), d3.max(secDiffs)+30, 30))
+                .tickFormat(function(d) {
+                    var min = Math.floor(d / 60);
+                    var sec = d % 60;
+                    if (min === 0) min = "00";
+                    if (sec === 0) sec = "00";
+                    return ""+min+":"+sec;
+                })
         );
 
     // Create Y-axis
@@ -93,85 +113,26 @@ var processCyclistData = function(data) {
         .call(d3.axisLeft(scaleY).ticks(10)
         );
 
-    // Data is mapped to rect-elements here
-    g.selectAll(".bar")
+    // Data is mapped to circle-elements here
+    g.selectAll("dot")
         .data(finalData)
-        .enter().append("rect")
-            .attr("height", function(d) {return scaleY(0) - scaleY(d.val);})
-            .attr("width", scaleX.bandwidth())
-            .attr("x", function(d, i) {return scaleX(d.year)})
-            .attr("y", function(d, i) {return scaleY(d.val);})
-
-            .on("mousedown", function(d, i) {
-                var x = d3.event.pageX;
-                var y = d3.event.pageY;
-
-                d.x = x;
-                d.y = y;
-
-                if (dataPair.length === 2) {
-                    dataPair = [];
-                }
-                dataPair.unshift(d);
-
-                if (dataPair.length === 2) {
-                    var d1 = dataPair[0];
-                    var d2 = dataPair[1];
-
-                    var x1 = d1.x;
-                    var y1 = d1.y;
-                    var x2 = d2.x;
-                    var y2 = d2.y;
-                    var ym1 = dateToYM(d1.date);
-                    var ym2 = dateToYM(d2.date);
-
-                    var timeSpan = "";
-                    var percent = 0;
-
-                    if (d1.year < d2.year) {
-                        var years = d2.year - d1.year;
-                        var diff = d2.val - d1.val;
-                        var perYear = diff / years;
-                        timeSpan = "<p>From: " + ym1 + "</p><p>To: " + ym2 + "</p>";
-                        percent = Math.pow(2, (Math.log2(d2.val/d1.val) / years));
-                    }
-                    else {
-                        var years = d1.year - d2.year;
-                        var diff = d1.val - d2.val;
-                        var perYear = diff / years;
-                        timeSpan = "<p>From: " + ym2 + "<br/>To: " + ym1 + "</p>";
-                        percent = Math.pow(2, (Math.log2(d1.val/d2.val) / years));
-                    }
-
-                    percent -= 1.0;
-                    percent *= 100;
-
-                    var boxHTML = timeSpan + "<p>Diff: " + diff + " billion USD<br/>" +
-                        "Yearly: " + perYear.toFixed(2) + 
-                        "(" + percent.toFixed(2) + "%) billion USD</p>";
-
-                    comparisonBox.style("top", bHeightMax/2 +"px")
-                        .style("left", bWidthMax-50 +"px");
-                    comparisonBox.html(boxHTML);
-                    return comparisonBox.style("visibility", "visible");
-                }
-                else if (dataPair.length === 1) {
-                    var ym = dateToYM(d.date);
-                    var boxHTML = "<p>" + ym + "</p>";
-                    comparisonBox.style("top", bHeightMax/2 +"px")
-                        .style("left", bWidthMax-50 +"px");
-                    comparisonBox.html(boxHTML);
-                    return comparisonBox.style("visibility", "visible");
-                }
-                else {
-                    return comparisonBox.style("visibility", "hidden");
-                }
+        .enter().append("circle")
+            .attr("fill", function(d) {
+                if (d.doping.length === 0) return "blue";
+                else return "red";
             })
+            .attr("r", 5.0)
+            .attr("cx", function(d) {
+                var res = scaleX(d.diff);
+                console.log("Returning scale for " + d.diff + " " + scaleX(d.diff));
+                return scaleX(d.diff);
+            })
+            .attr("cy", function(d) {return scaleY(d.place);})
 
+            // Needed for showing/hiding the tooltip
             .on("mouseover", function(d, i) {
-                var yearMonth = dateToYM(d.date);
-                tooltip.html('<p>' + yearMonth +
-                    "</p><p class='dollars'>$" + d.val + " billion</p>");
+                var tooltipHTML = getTooltipHTML(d);
+                tooltip.html(tooltipHTML);
                 return tooltip.style("visibility", "visible");
             })
 
@@ -185,12 +146,21 @@ var processCyclistData = function(data) {
                 return tooltip.style("visibility", "hidden");
             });
 
+    // Create label for x-axis
+    svg.append("text")
+        .attr("text-anchor", "middle")
+        .attr("transform", "translate(" + (bWidthMax/2) + "," +
+            (bHeightMax + margin.top + 10) + ")")
+        .text("Minutes behind the fastest time");
+
     // Create label for y-axis
     svg.append("text")
         .attr("text-anchor", "middle")
         .attr("transform", "translate(" + (margin.right + 25) + "," +
             (bHeightMax/2) + ") rotate(-90)")
-        .text("Gross Domestic Product, billion USD");
+        .text("Position");
+
+    // Create legend
 
 };
 
@@ -208,3 +178,9 @@ function getCyclistData() {
         });
 
 };
+
+
+// MAIN
+$(document).ready( function () {
+    getCyclistData();
+});
