@@ -9,7 +9,9 @@ var data_url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceD
 var bHeightMax = 0;
 var bWidthMax = 0;
 
-var margin = {top: 20, left: 50, right: 40, bottom: 50};
+var textYOffset = 3;
+
+var margin = {top: 20, left: 50, right: 80, bottom: 50};
 
 var tooltip = d3.select("body")
     .append("div")
@@ -18,12 +20,13 @@ var tooltip = d3.select("body")
     .style("z-index", "10")
     .style("visibility", "hidden");
 
-/** Formats the HTML for tooltip based on the data.*/
+/** Formats the HTML for tooltip based on the cyclist data.*/
 var getTooltipHTML = function(d) {
     var html = '<p>';
     html += d.name + ': ' + d.nationality + '<br/>';
     html += "Place: " + d.place + '<br/>';
     html += "Year: " + d.year;
+    html += "Time: " + d.time;
     if (d.place === 1) html += " <span class='text-warning'>Fastest</span><br/>";
     html += '</p>';
     if (d.doping.length > 0) {
@@ -35,10 +38,6 @@ var getTooltipHTML = function(d) {
     return html;
 };
 
-var newDate = function(min_sec) {
-    var ms = min_sec.split(":");
-    return new Date(2000, 0, 1, 0, parseInt(ms[0]), parseInt(ms[1]));
-};
 
 var processCyclistData = function(data) {
     var items = data;
@@ -56,8 +55,10 @@ var processCyclistData = function(data) {
     for (var i = 0; i < times.length; i++) {
         var diff = seconds[i] - bestTime;
         secDiffs[i] = diff;
-        var d = {place: places[i], time: times[i], name: items[i].Name, doping: items[i].Doping,
-            seconds: seconds[i], diff: diff, nationality: items[i].Nationality, year: items[i].Year};
+        var d = {place: places[i], 
+            time: times[i], name: items[i].Name, doping: items[i].Doping,
+            seconds: seconds[i], diff: diff, nationality: items[i].Nationality, 
+            year: items[i].Year};
         finalData.push(d);
     }
 
@@ -77,7 +78,7 @@ var processCyclistData = function(data) {
     scaleX.domain([maxDiffSec, 0]);
 
     var scaleY = d3.scaleLinear()
-        .domain([0, d3.max(places)])
+        .domain([0, d3.max(places) + 2])
         .range([0, highestPoint]);
 
     // Create X-axis
@@ -100,40 +101,48 @@ var processCyclistData = function(data) {
     g.append("g")
         .attr("class", "axis y-axis")
         .text("Place")
-        .call(d3.axisLeft(scaleY).ticks(10)
-        );
+        .call(d3.axisLeft(scaleY).ticks(10));
 
     // Data is mapped to circle-elements here
-    g.selectAll("dot")
-        .data(finalData)
-        .enter().append("circle")
-            .attr("fill", function(d) {
-                if (d.doping.length === 0) return "blue";
-                else return "red";
-            })
-            .attr("r", 5.0)
-            .attr("cx", function(d) {
-                var res = scaleX(d.diff);
-                return scaleX(d.diff);
-            })
-            .attr("cy", function(d) {return scaleY(d.place);})
+    var node = g.selectAll("dot")
+        .data(finalData).enter().append("g");
 
-            // Needed for showing/hiding the tooltip
-            .on("mouseover", function(d, i) {
-                var tooltipHTML = getTooltipHTML(d);
-                tooltip.html(tooltipHTML);
-                return tooltip.style("visibility", "visible");
-            })
+    node.append("circle")
+        .attr("fill", function(d) {
+            if (d.doping.length === 0) return "blue";
+            else return "red";
+        })
+        .attr("r", 5.0)
+        .attr("cx", function(d) {
+            var res = scaleX(d.diff);
+            return scaleX(d.diff);
+        })
+        .attr("cy", function(d) {return scaleY(d.place);})
 
-            .on("mousemove", function(d, i) {
-                return tooltip
-                    .style("top", (d3.event.pageY-10)+"px")
-                    .style("left",(d3.event.pageX+10)+"px");
-            })
+        // Needed for showing/hiding the tooltip
+        .on("mouseover", function(d, i) {
+            var tooltipHTML = getTooltipHTML(d);
+            tooltip.html(tooltipHTML);
+            return tooltip.style("visibility", "visible");
+        })
 
-            .on("mouseout", function(){
-                return tooltip.style("visibility", "hidden");
-            });
+        .on("mousemove", function(d, i) {
+            return tooltip
+                .style("top", (d3.event.pageY-10)+"px")
+                .style("left",(d3.event.pageX+10)+"px");
+        })
+
+        .on("mouseout", function(){
+            return tooltip.style("visibility", "hidden");
+        });
+
+    // Appends the biker name after each circle in the plot
+    node.append("text")
+        .attr("x", function(d) {return scaleX(d.diff) + 7;})
+        .attr("y", function(d) {return scaleY(d.place) + textYOffset;})
+        .attr("class", "biker-name")
+        .text(function(d) {return d.name;});
+
 
     // Create label for x-axis
     svg.append("text")
@@ -145,22 +154,26 @@ var processCyclistData = function(data) {
     // Create label for y-axis
     svg.append("text")
         .attr("text-anchor", "middle")
-        .attr("transform", "translate(" + (margin.right + 25) + "," +
+        .attr("transform", "translate(" + (margin.left + 25) + "," +
             (bHeightMax/2) + ") rotate(-90)")
         .text("Position");
 
     // Create legend
     var legend = g.append("g")
         .attr("fill", "brown")
-        //.attr("transform", "translate(" + (bWidthMax - 50) + "," + (bHeightMax - 50) + ")")
         .attr("transform", "translate(" + 0 + "," + 0 + ")")
         .text("No doping allegations");
 
     legend.append("circle")
         .attr("r", 5.0)
         .attr("cx", 500)
-        .attr("cy", 400)
+        .attr("cy", 400 )
         .attr("fill", "red");
+
+    legend.append("text")
+        .attr("x", 510)
+        .attr("y", 400 + textYOffset)
+        .text("Doping allegations");
 
     legend.append("circle")
         .attr("r", 5.0)
@@ -168,10 +181,21 @@ var processCyclistData = function(data) {
         .attr("cy", 430)
         .attr("fill", "blue");
 
+    legend.append("text")
+        .attr("x", 510)
+        .attr("y", 430 + textYOffset)
+        .text("NO doping allegations");
+
+    g.append("text")
+        .attr("x", 100)
+        .attr("y", 100)
+        .atrr("class", "fastest-times")
+        .text("35 fastest times up Alpe d'Huez");
+
 
 };
 
-/** Gets the GDP data from the URL.*/
+/** Gets the cyclist data from the URL.*/
 function getCyclistData() {
     var jqxhr = $.getJSON( data_url, processCyclistData )
         .done(function() {
@@ -184,7 +208,7 @@ function getCyclistData() {
             //console.log( "complete" );
         });
 
-};
+}
 
 
 // MAIN

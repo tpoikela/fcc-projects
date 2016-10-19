@@ -1,7 +1,7 @@
 
 
 $width: 960px;
-$box-bg-color: rgba(192, 192, 192, 0.5);
+$box-bg-color: rgba(192, 192, 192, 0.9);
 $body-bg-color: darken(cyan, 20%);
 $plot-bg-color: darken(white, 11%);
 
@@ -26,9 +26,9 @@ rect:hover {
 
 .my-tooltip {
     color: black;
-    //height: 75px;
     width: 200px;
     background-color: $box-bg-color;
+    padding: 3px;
     border: 1px solid black;
     border-radius: 3px;
 };
@@ -46,4 +46,9 @@ rect:hover {
     color: black;
     width: 100px;
     height: 100px;
+};
+
+.biker-name {
+    font-size: 9px;
+
 };
