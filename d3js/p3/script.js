@@ -1,15 +1,32 @@
 
 /**
- * Short tutorial about scatter plots:
- * http://bl.ocks.org/d3noob/38744a17f9c0141bcd04
+ * See an example of heatmap in http://bl.ocks.org/tjdecke/5558084.
  */
 
-var data_url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceData/master/cyclist-data.json";
+var data_url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceData/master/global-temperature.json";
+
+var months = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+
+var numMonths = d3.range(1, 12, 1);
+
+var numToMonth = {};
+
+for (var i = 0; i < months.length; i++) {
+    numToMonth[numMonths[i]] = months[i];
+}
 
 var bHeightMax = 0;
 var bWidthMax = 0;
 
 var textYOffset = 3;
+
+var legendXOffset = 0;
+var legendYOffset = 0;
+
+// Size of rectangles in the plot
+var rectX = 3;
+var rectY = 6;
 
 var margin = {top: 20, left: 50, right: 80, bottom: 50};
 
@@ -39,73 +56,82 @@ var getTooltipHTML = function(d) {
 };
 
 
-var processCyclistData = function(data) {
+var processWeatherData = function(data) {
     var items = data;
-    var bestTime = "00:00";
-    var NLast = items.length - 1;
+    var baseTemp = data.baseTemperature;
+    var monthly = data.monthlyVariance;
+    var nEntries = monthly.length;
+    var lastEntry = monthly[nEntries - 1];
 
-    var places  = items.map(function(item) {return parseInt(item.Place);});
-    var times   = items.map(function(item) {return item.Time;});
-    var seconds = items.map(function(item) {return parseInt(item.Seconds);});
-    var secDiffs = [];
+    var firstYear = monthly[0].year;
+    var lastYear = lastEntry.year;
 
-    if (places[0] === 1) bestTime = seconds[0];
+    console.log("Years: " + firstYear + " - " + lastYear);
 
-    var finalData = [];
-    for (var i = 0; i < times.length; i++) {
-        var diff = seconds[i] - bestTime;
-        secDiffs[i] = diff;
-        var d = {place: places[i], 
-            time: times[i], name: items[i].Name, doping: items[i].Doping,
-            seconds: seconds[i], diff: diff, nationality: items[i].Nationality, 
-            year: items[i].Year};
-        finalData.push(d);
-    }
+    var minTemp = 5;
+    var maxTemp = 16;
 
-    var maxDiffSec = seconds[NLast] - bestTime;
+    var colorScale = d3.scaleLinear().domain([minTemp, maxTemp])
+        .range([d3.rgb("#0000FF"), d3.rgb('#FF0000')]);
 
     var svg = d3.select("svg");
-
     bWidthMax = parseInt(svg.attr("width")) - margin.left - margin.right;
     bHeightMax = parseInt(svg.attr("height")) - margin.top - margin.bottom;
-    var highestPoint = bHeightMax - 20;
 
     var g = svg.append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
+    for (var i = minTemp; i <= maxTemp; i++) {
+        var rect = g.append("rect")
+            .attr("fill", colorScale(i))
+            .attr("x", i*50+legendXOffset)
+            .attr("y", 20+legendYOffset)
+            .attr("width", 40)
+            .attr("height", 40);
+    }
+
     // Creates scales for mapping data (domain) to pixels (range)
     var scaleX = d3.scaleLinear().range([0, bWidthMax]);
-    scaleX.domain([maxDiffSec, 0]);
+    scaleX.domain([firstYear, lastYear]);
 
-    var scaleY = d3.scaleLinear()
-        .domain([0, d3.max(places) + 2])
-        .range([0, highestPoint]);
+    var plotHighestX = bHeightMax - 20;
 
     // Create X-axis
     g.append("g")
         .attr("class", "axis x--axis")
-        .attr("transform", "translate(0, " + highestPoint + ")")
+        .attr("transform", "translate(0, " + plotHighestX + ")")
         .call(
             d3.axisBottom(scaleX)
-                .tickValues(d3.range(d3.min(secDiffs), d3.max(secDiffs)+30, 30))
-                .tickFormat(function(d) {
+                .tickValues(d3.range(firstYear, lastYear, 10))
+                /*.tickFormat(function(d) {
                     var min = Math.floor(d / 60);
                     var sec = d % 60;
                     if (min === 0) min = "00";
                     if (sec === 0) sec = "00";
                     return ""+min+":"+sec;
-                })
+                })*/
         );
+
+    var scaleY = d3.scaleLinear()
+        .domain(numMonths)
+        .range([0, plotHighestX]);
 
     // Create Y-axis
     g.append("g")
         .attr("class", "axis y-axis")
-        .text("Place")
-        .call(d3.axisLeft(scaleY).ticks(10));
+        .text("Month")
+        .call(
+            d3.axisLeft(scaleY)
+                .tickValues(d3.range(1, 12, 1))
+                .tickFormat(function(d) {return numToMonth[d];})
+        );
+
+    return 1;
+
 
     // Data is mapped to circle-elements here
     var node = g.selectAll("dot")
-        .data(finalData).enter().append("g");
+        .data(monthly).enter().append("g");
 
     node.append("circle")
         .attr("fill", function(d) {
@@ -196,13 +222,13 @@ var processCyclistData = function(data) {
 };
 
 /** Gets the cyclist data from the URL.*/
-function getCyclistData() {
-    var jqxhr = $.getJSON( data_url, processCyclistData )
+function getAndPlotWeatherData() {
+    var jqxhr = $.getJSON( data_url, processWeatherData )
         .done(function() {
             //console.log( "second success" );
         })
         .fail(function() {
-            console.error("Failed to get the cyclist data.");
+            console.error("Failed to get the weather data.");
         })
         .always(function() {
             //console.log( "complete" );
@@ -213,5 +239,5 @@ function getCyclistData() {
 
 // MAIN
 $(document).ready( function () {
-    getCyclistData();
+    getAndPlotWeatherData();
 });
