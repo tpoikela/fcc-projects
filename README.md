@@ -26,9 +26,18 @@ storage for retaining the recipes between sessions.
 The classic game with cellular automata. You can select the board size,
 randomize the starting board and select the speed of the game.
 
-[RogueLike](#)
+[RogueLike](https://codepen.io/tpoikela/full/akgrZg/)
 
 My first attempt at RogueLike game. The specs can be found at
 [FreeCodeCamp](https://www.freecodecamp.com/challenges/build-a-roguelike-dungeon-crawler-game).
 
 
+## d3.js projects
+
+[Bar Graph]()
+
+Demonstration of how to do a bar graph using d3.js.
+
+[Scatter Plot]()
+
+Demonstration of how to do a scatter plot using d3.js.
