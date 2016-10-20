@@ -8,7 +8,7 @@ var data_url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceD
 var months = ["January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"];
 
-var numMonths = d3.range(1, 12, 1);
+var numMonths = d3.range(1, 13, 1);
 
 var numToMonth = {};
 
@@ -23,12 +23,18 @@ var textYOffset = 3;
 
 var legendXOffset = 0;
 var legendYOffset = 0;
-
 // Size of rectangles in the plot
-var rectX = 3;
-var rectY = 6;
+var rectX = 4;
+var rectY = 30;
 
-var margin = {top: 20, left: 50, right: 80, bottom: 50};
+var margin = {top: 20, left: 10, right: 80, bottom: 50};
+
+var monthLabelX = margin.left;
+var xAxisYOffset = margin.top + 12 * rectY + rectY/2;
+var plotXOffset = 100;
+
+var colorScaleX = monthLabelX + 100;
+var colorScaleTranslater = "translate(" + colorScaleX + "," + (xAxisYOffset + 50) + ")";
 
 var tooltip = d3.select("body")
     .append("div")
@@ -37,42 +43,60 @@ var tooltip = d3.select("body")
     .style("z-index", "10")
     .style("visibility", "hidden");
 
-/** Formats the HTML for tooltip based on the cyclist data.*/
-var getTooltipHTML = function(d) {
+/** Formats the HTML for tooltip based on the weather data.*/
+var getTooltipHTML = function(d, baseTemp) {
     var html = '<p>';
-    html += d.name + ': ' + d.nationality + '<br/>';
-    html += "Place: " + d.place + '<br/>';
+    html += "Month: " + numToMonth[parseInt(d.month)] + '<br/>';
     html += "Year: " + d.year;
-    html += " Time: " + d.time;
-    if (d.place === 1) html += " <span class='text-warning'>Fastest</span><br/>";
+    html += " Temp: " + (baseTemp - parseFloat(d.variance));
     html += '</p>';
-    if (d.doping.length > 0) {
-        html += "<p class='text-danger doping'>Doping: " + d.doping + '</p>';
-    }
-    else {
-        html += "<p class='text-success'>No doping allegiations" + '</p>';
-    }
     return html;
 };
 
+var getMinTemp = function(baseTemp, monthly) {
+    var minVar = 0.0;
+    for (var i = 0; i < monthly.length; i++) {
+        var d = parseFloat(monthly[i].variance);
+        if (d < minVar) {
+            minVar = d;
+
+        }
+    }
+    return baseTemp + minVar;
+};
+
+var getMaxTemp = function(baseTemp, monthly) {
+    var maxVar = 0.0;
+    for (var i = 0; i < monthly.length; i++) {
+        var d = parseFloat(monthly[i].variance);
+        if (d > maxVar) {
+            maxVar = d;
+        }
+    }
+    return baseTemp + maxVar;
+};
 
 var processWeatherData = function(data) {
     var items = data;
-    var baseTemp = data.baseTemperature;
+    var baseTemp = parseFloat(data.baseTemperature);
     var monthly = data.monthlyVariance;
     var nEntries = monthly.length;
     var lastEntry = monthly[nEntries - 1];
 
-    var firstYear = monthly[0].year;
-    var lastYear = lastEntry.year;
+    var firstYear = parseInt(monthly[0].year);
+    var lastYear = parseInt(lastEntry.year);
+    var maxYear = lastYear;
+    var yearDiff = lastYear - firstYear;
 
+    var minTemp = getMinTemp(baseTemp, monthly);
+    var maxTemp = getMaxTemp(baseTemp, monthly);
+
+    console.log("Min: " + minTemp + " Max: " + maxTemp);
     console.log("Years: " + firstYear + " - " + lastYear);
 
-    var minTemp = 5;
-    var maxTemp = 16;
-
-    var colorScale = d3.scaleLinear().domain([minTemp, maxTemp])
-        .range([d3.rgb("#0000FF"), d3.rgb('#FF0000')]);
+    var colorScale = d3.scaleLinear().domain(([minTemp, baseTemp, maxTemp]))
+        .interpolate(d3.interpolateHcl)
+        .range([d3.rgb("#0000FF"), d3.rgb('#00FF00'), d3.rgb('#FF0000')]);
 
     var svg = d3.select("svg");
     bWidthMax = parseInt(svg.attr("width")) - margin.left - margin.right;
@@ -81,10 +105,20 @@ var processWeatherData = function(data) {
     var g = svg.append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-    for (var i = minTemp; i <= maxTemp; i++) {
+    // Creates the month labels
+    g.selectAll(".monthLabel")
+        .data(numMonths).enter().append("text")
+        .attr("x", monthLabelX)
+        .attr("y", function(d) {return d*rectY + 3;})
+        .text(function(d) {return numToMonth[d];});
+
+
+    // Creates the colorscale
+    for (var i = minTemp; i <= maxTemp; i += 1.0) {
         var rect = g.append("rect")
+            .attr("transform", colorScaleTranslater)
             .attr("fill", colorScale(i))
-            .attr("x", i*50+legendXOffset)
+            .attr("x", i*42+legendXOffset)
             .attr("y", 20+legendYOffset)
             .attr("width", 40)
             .attr("height", 40);
@@ -99,55 +133,34 @@ var processWeatherData = function(data) {
     // Create X-axis
     g.append("g")
         .attr("class", "axis x--axis")
-        .attr("transform", "translate(0, " + plotHighestX + ")")
+        .attr("transform", "translate(" + plotXOffset + "," + xAxisYOffset + ")")
         .call(
             d3.axisBottom(scaleX)
-                .tickValues(d3.range(firstYear, lastYear, 10))
-                /*.tickFormat(function(d) {
-                    var min = Math.floor(d / 60);
-                    var sec = d % 60;
-                    if (min === 0) min = "00";
-                    if (sec === 0) sec = "00";
-                    return ""+min+":"+sec;
-                })*/
+                .tickValues(d3.range(1750, 2015, 10))
         );
 
     var scaleY = d3.scaleLinear()
         .domain(numMonths)
         .range([0, plotHighestX]);
 
-    // Create Y-axis
-    g.append("g")
-        .attr("class", "axis y-axis")
-        .text("Month")
-        .call(
-            d3.axisLeft(scaleY)
-                .tickValues(d3.range(1, 12, 1))
-                .tickFormat(function(d) {return numToMonth[d];})
-        );
-
-    return 1;
-
-
     // Data is mapped to circle-elements here
-    var node = g.selectAll("dot")
+    var node = g.selectAll("rect")
         .data(monthly).enter().append("g");
 
-    node.append("circle")
+    node.append("rect")
+        .attr("transform", "translate(" + plotXOffset + ", 0)")
         .attr("fill", function(d) {
-            if (d.doping.length === 0) return "blue";
-            else return "red";
+            return colorScale(baseTemp + parseFloat(d.variance));
         })
-        .attr("r", 5.0)
-        .attr("cx", function(d) {
-            var res = scaleX(d.diff);
-            return scaleX(d.diff);
-        })
-        .attr("cy", function(d) {return scaleY(d.place);})
+        .attr("height", rectY)
+        .attr("width", rectX)
+        //.attr("x", function(d) {return rectX * (yearDiff - (maxYear - parseInt(d.year)));})
+        .attr("x", function(d) {return scaleX(parseInt(d.year));})
+        .attr("y", function(d) {return rectY*parseInt(d.month);})
 
         // Needed for showing/hiding the tooltip
         .on("mouseover", function(d, i) {
-            var tooltipHTML = getTooltipHTML(d);
+            var tooltipHTML = getTooltipHTML(d, baseTemp);
             tooltip.html(tooltipHTML);
             return tooltip.style("visibility", "visible");
         })
@@ -161,6 +174,8 @@ var processWeatherData = function(data) {
         .on("mouseout", function(){
             return tooltip.style("visibility", "hidden");
         });
+
+    return 1;
 
     // Appends the biker name after each circle in the plot
     node.append("text")
