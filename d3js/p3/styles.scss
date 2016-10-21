@@ -1,5 +1,40 @@
 
 
-rect:hover {
-    background-color: white;
+$text-color: lighten(black, 20%);
+$plot-text-color: darken(white, 10%);
+
+body {
+    background-color: lighten(gray, 20%);
+    color: $text-color;
+};
+
+svg {
+    color: white;
+};
+
+.svg-text {
+    fill: white;
+};
+
+data-rect:hover {
+    fill: white;
+};
+
+.plot-container {
+    background-color: darken(gray, 10%);
+    width: 1280px;
+    margin: 0 auto;
+};
+
+.temp-tooltip {
+    background-color: gray;
+    padding: 10px;
+    border: 1px solid black;
+    border-radius: 10px;
+    height: 90px;
+    color: $plot-text-color;
+};
+
+.x-axis {
+    stroke: $plot-text-color;
 };
