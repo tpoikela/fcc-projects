@@ -8,12 +8,26 @@ body {
     color: $text-color;
 };
 
+.header1 {
+
+};
+
+.header2 {
+    font-size: 20px;
+
+};
+
 svg {
     color: white;
 };
 
 .svg-text {
     fill: white;
+};
+
+rect:hover {
+    fill: white;
+
 };
 
 data-rect:hover {
@@ -24,6 +38,8 @@ data-rect:hover {
     background-color: darken(gray, 10%);
     width: 1280px;
     margin: 0 auto;
+    border-radius: 30px;
+    box-shadow: 10px 5px 5px darken(gray, 20%);
 };
 
 .temp-tooltip {
@@ -32,9 +48,15 @@ data-rect:hover {
     border: 1px solid black;
     border-radius: 10px;
     height: 90px;
+    width: 110px;
     color: $plot-text-color;
 };
 
 .x-axis {
     stroke: $plot-text-color;
 };
+
+.author {
+    margin-top: 5px;
+
+}

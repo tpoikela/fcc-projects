@@ -8,8 +8,10 @@ var data_url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceD
 var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+var fontSize = 8; //px
 var numMonths = d3.range(1, 13, 1);
 
+// Maps number to month abbreviation
 var numToMonth = {};
 
 for (var i = 0; i < months.length; i++) {
@@ -25,11 +27,12 @@ var textYOffset = 3;
 
 var legendXOffset = 0;
 var legendYOffset = 0;
+
 // Size of rectangles in the plot
 var rectX = 4;
 var rectY = 30;
 
-var margin = {top: 20, left: 10, right: 80, bottom: 50};
+var margin = {top: 10, left: 10, right: 80, bottom: 30};
 
 var monthLabelX = margin.left;
 var xAxisYOffset = margin.top + 12 * rectY + rectY/2;
@@ -50,7 +53,7 @@ var getTooltipHTML = function(d, baseTemp) {
     var html = '<p>';
     html += "Month: " + numToMonth[parseInt(d.month)] + '<br/>';
     html += "Year: " + d.year + '<br/>';
-    html += " Temp: " + (baseTemp - parseFloat(d.variance)).toFixed(2);
+    html += " Temp: " + (baseTemp + parseFloat(d.variance)).toFixed(2);
     html += '</p>';
     return html;
 };
@@ -96,16 +99,15 @@ var processWeatherData = function(data) {
     var minTemp = getMinTemp(baseTemp, dataMonthly);
     var maxTemp = getMaxTemp(baseTemp, dataMonthly);
 
-    console.log("Min: " + minTemp + " Max: " + maxTemp);
-    console.log("Years: " + firstYear + " - " + lastYear);
-
     var temp1 = (minTemp + baseTemp) / 2;
     var temp2 = (maxTemp + baseTemp) / 2;
     var tempMid = (temp1 + temp2) / 2;
 
-    var colorScale = d3.scaleLinear().domain(([minTemp, temp1, tempMid, temp2, maxTemp]))
+    var colorScaleT = d3.scaleLinear()
+        .domain(([minTemp, temp1, tempMid, temp2, maxTemp]))
         .interpolate(d3.interpolateHcl)
-        .range([d3.rgb("#0000FF"), d3.rgb('#00FFFF'), d3.rgb('#00FF00'), d3.rgb('#FFFF00'), d3.rgb('#FF0000')]);
+        .range([d3.rgb("#0000FF"), d3.rgb('#00FFFF'), 
+            d3.rgb('#00FF00'), d3.rgb('#FFFF00'), d3.rgb('#FF0000')]);
 
     var svg = d3.select("svg");
     bWidthMax = parseInt(svg.attr("width")) - margin.left - margin.right;
@@ -123,15 +125,15 @@ var processWeatherData = function(data) {
         .text(function(d) {return numToMonth[d];});
 
 
-    // Creates the colorscale
+    var boxY = 20+legendYOffset;
+    var textY = boxY + 55;
+    // Creates the colorscale legend below the plot
     for (i = minTemp; i <= maxTemp; i += 1.0) {
-        var boxX = i*42+legendXOffset;
-        var boxY = 20+legendYOffset;
-        var textY = boxY + 55;
+        var boxX = i*42+legendXOffset+15;
 
         var rect = g.append("rect")
             .attr("transform", colorScaleTranslater)
-            .attr("fill", colorScale(i))
+            .attr("fill", colorScaleT(i))
             .attr("x", boxX)
             .attr("y", boxY)
             .attr("width", 40)
@@ -140,15 +142,23 @@ var processWeatherData = function(data) {
         g.append("text")
             .attr("class", "svg-text")
             .attr("transform", colorScaleTranslater)
-            .attr("x", boxX)
+            .attr("x", boxX + 5)
             .attr("y", textY)
             .text(i.toFixed(2));
 
+
     }
+
+    g.append("text")
+        .attr("class", "svg-text")
+        .attr("transform", colorScaleTranslater)
+        .attr("x", legendXOffset)
+        .attr("y", boxY + 20 + fontSize)
+        .text("Temperature");
 
     // Creates scales for mapping data (domain) to pixels (range)
     var scaleX = d3.scaleLinear().range([0, bWidthMax]);
-    scaleX.domain([1750, 2015]);
+    scaleX.domain([1753, 2015]);
 
     var plotHighestX = bHeightMax - 20;
 
@@ -158,33 +168,24 @@ var processWeatherData = function(data) {
         .attr("transform", "translate(" + plotXOffset + "," + xAxisYOffset + ")")
         .call(
             d3.axisBottom(scaleX)
-                .tickValues(d3.range(1750, 2015, 10))
+                .tickValues(d3.range(1753, 2015, 10))
                 .tickFormat(function(d) {return ""+d;})
         );
 
-    var scaleY = d3.scaleLinear()
-        .domain(numMonths)
-        .range([0, plotHighestX]);
-
-    // Data is mapped to rect-elements here
-    var node = g.selectAll("rect")
+    // Data is mapped to data-rect-elements here
+    var node = g.selectAll(".data-rect")
         .data(dataMonthly).enter();
 
     node.append("rect")
         .attr("class", "data-rect")
         .attr("transform", "translate(" + plotXOffset + ", 0)")
         .attr("fill", function(d) {
-            return colorScale(baseTemp + parseFloat(d.variance));
+            return colorScaleT(baseTemp + parseFloat(d.variance));
         })
         .attr("height", rectY)
         .attr("width", rectX)
         .attr("x", function(d) {return scaleX(parseInt(d.year));})
         .attr("y", function(d) {return rectY*parseInt(d.month);})
-        .attr("debug", function(d) {
-            if (parseInt(d.year) <= 1754) {
-            console.log("Year: " + d.year + " Month: " + d.month);
-            }
-        })
 
         // Needed for showing/hiding the tooltip
         .on("mouseover", function(d, i) {
@@ -194,9 +195,18 @@ var processWeatherData = function(data) {
         })
 
         .on("mousemove", function(d, i) {
-            return tooltip
-                .style("top", (d3.event.pageY-10)+"px")
-                .style("left",(d3.event.pageX+10)+"px");
+            var x = d3.event.pageX;
+            var y = d3.event.pageY;
+            if (d.year < 1990) {
+                return tooltip
+                    .style("top", (y-10)+"px")
+                    .style("left",(x+10)+"px");
+            }
+            else {
+                return tooltip
+                    .style("top", (y-10)+"px")
+                    .style("left",(x-120)+"px");
+            }
         })
 
         .on("mouseout", function(){
