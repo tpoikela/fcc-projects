@@ -1,0 +1,14 @@
+
+$node-color: #ccc;
+$link-color: #777;
+
+.node {
+    fill: $node-color;
+    stroke: #fff;
+    stroke-width: 2px;
+}
+
+.link {
+    stroke: $link-color;
+    stroke-width: 2px;
+}
