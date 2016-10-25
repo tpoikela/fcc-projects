@@ -140,7 +140,7 @@ force.on('end', function() {
     // give the node a non-zero radius so that it's visible
     // in the container.
 
-    node.attr('r', 25)
+    node.attr('r', width/25)
         .attr('cx', function(d) { return d.x; })
         .attr('cy', function(d) { return d.y; });
 
