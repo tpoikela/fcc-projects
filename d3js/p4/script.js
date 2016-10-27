@@ -11,17 +11,12 @@
             <rect x="135" y="0" width="150" height="150"/>
         </clipPath>
     </defs>
-        <image transform="translate(-135,0)" width="550" height="420" 
+        <image transform="translate(-135,0)" width="550" height="420"
             xlink:href="static/img/iconSheet.png" clip-path="url(#c)"/>
 
 */
 
 var data_url = "https://raw.githubusercontent.com/DealPete/forceDirected/master/countries.json";
-var blankImageUrl = "https://s3-us-west-2.amazonaws.com/s.cdpn.io/575121/blank.png";
-var image_url = 'https://s3-us-west-2.amazonaws.com/s.cdpn.io/575121/flags.png';
-
-var margin = {top: 10, left: 10, right: 80, bottom: 30};
-var nodeRadius = 25;
 var SIMULATION = null;
 
 var processCountryData = function(data) {
@@ -35,7 +30,7 @@ var processCountryData = function(data) {
 
     var forceMany = d3.forceManyBody();
     var forceLink = d3.forceLink(links);
-    var forceCenter = d3.forceCenter(width /2, height / 2);
+    var forceCenter = d3.forceCenter(width / 2, height / 2);
 
 	// Taken from github page d3.js 3d.4
 	SIMULATION = d3.forceSimulation(nodes)
@@ -65,20 +60,37 @@ var processCountryData = function(data) {
 		.nodes(nodes)
 		.on("tick", ticked);
 
-	SIMULATION.force("link").links(links);
+	//SIMULATION.force("link").links(links);
 
 	function ticked() {
+
+		node
+            .style("top", function(d) {
+                var pixels = Math.max(8, Math.min(width - 8, parseInt(d.y)));
+                d.y = pixels;
+                return pixels + "px";
+            })
+            .style("left", function(d) {
+                var pixels = Math.max(8, Math.min(width - 16, parseInt(d.x)));
+                d.x = pixels;
+                return pixels + "px";
+            });
+
 		link
 			.attr("x1", function(d) { return d.source.x + 8; })
 			.attr("y1", function(d) { return d.source.y + 8; })
 			.attr("x2", function(d) { return d.target.x + 8; })
 			.attr("y2", function(d) { return d.target.y + 8; });
-
-		node
-			.style("top", function(d) { return parseInt(d.y) + "px"; })
-			.style("left", function(d) { return parseInt(d.x) + "px"; });
 	}
 
+};
+
+function countLinks(linkArr) {
+    var num = 0;
+    for (var i = 0; i < linkArr.length; i++) {
+        ++num;
+    }
+    return num;
 };
 
 function dragstarted(d) {
