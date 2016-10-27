@@ -5,32 +5,38 @@
  * second array contains links (edges) between the nodes.
  */
 
-/* NOTE: To include sprites in SVG, the following structure can be used:
-	<defs>
-        <clipPath id="c">
-            <rect x="135" y="0" width="150" height="150"/>
-        </clipPath>
-    </defs>
-        <image transform="translate(-135,0)" width="550" height="420"
-            xlink:href="static/img/iconSheet.png" clip-path="url(#c)"/>
-
-*/
-
 var data_url = "https://raw.githubusercontent.com/DealPete/forceDirected/master/countries.json";
 var SIMULATION = null;
 
+var margin = {top: 100, left: 20, right: 20, bottom: 20};
+
+var width = 1200;
+var height = 800;
+
 var processCountryData = function(data) {
     var svg    = d3.select("svg");
+    svg.attr("width", width);
+    svg.attr("height", height);
+
+    var innerWidth = width - margin.left - margin.right;
+    var innerHeight = height - margin.top - margin.bottom;
+
 	var mainDiv = d3.select(".node-container");
-    var width  = parseInt(svg.attr("width"));
-    var height = parseInt(svg.attr("height"));
 
 	var nodes = data.nodes;
 	var links = data.links;
 
+    var minLeftX = margin.left;
+    var maxRightX = margin.left + width;
+    var centerX = minLeftX + (maxRightX - minLeftX) / 2;
+
+    var minTopY = margin.top;
+    var maxBottomY = margin.top + height;
+    var centerY = minTopY + (maxBottomY - minTopY) / 2;
+
     var forceMany = d3.forceManyBody();
     var forceLink = d3.forceLink(links);
-    var forceCenter = d3.forceCenter(width / 2, height / 2);
+    var forceCenter = d3.forceCenter(centerX, centerY);
 
 	// Taken from github page d3.js 3d.4
 	SIMULATION = d3.forceSimulation(nodes)
@@ -38,11 +44,19 @@ var processCountryData = function(data) {
 		.force("link", forceLink)
 		.force("center", forceCenter);
 
-	var link = svg.append("g")
+    var g = svg.append("g");
+    //g.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    g.append("rect")
+        .attr("fill", "cyan")
+        .attr("width", innerWidth)
+        .attr("height", innerHeight);
+
+	var link = g
 		.selectAll('line')
 		.data(links).enter().append('line')
 			.attr("class", "link")
-			.attr("stroke-width", 3);
+			.attr("stroke-width", 3)
+            .attr("fill", "black");
 
 	var node = mainDiv.selectAll('.flag')
 		.data(nodes)
@@ -60,19 +74,23 @@ var processCountryData = function(data) {
 		.nodes(nodes)
 		.on("tick", ticked);
 
-	//SIMULATION.force("link").links(links);
 
+    /** This is called to update the position of links and nodes.*/
 	function ticked() {
 
+        /** Here we update CSS properties left/top as well as x- and
+         * y-coordinates related to the node. */
 		node
             .style("top", function(d) {
-                var pixels = Math.max(8, Math.min(width - 8, parseInt(d.y)));
-                d.y = pixels;
+                var pixels = Math.max(8+minTopY, 
+                    Math.min(maxBottomY - 8, parseInt(d.y)));
+                //console.log("Pixels Y is " + pixels);
+                d.y = pixels - margin.top;
                 return pixels + "px";
             })
             .style("left", function(d) {
-                var pixels = Math.max(8, Math.min(width - 16, parseInt(d.x)));
-                d.x = pixels;
+                var pixels = Math.max(8+minLeftX, Math.min(maxRightX - 16, parseInt(d.x)));
+                d.x = pixels - margin.left;
                 return pixels + "px";
             });
 

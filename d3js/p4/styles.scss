@@ -3,10 +3,11 @@ $node-color: #ccc;
 $link-color: #777;
 
 svg {
-	position: absolute;
-	top: 0;
-	left: 0;
 	z-index: -1;
+    border: 2px solid red;
+}
+
+g {
     border: 1px solid black;
 }
 
@@ -14,14 +15,4 @@ svg {
     stroke: $link-color;
     stroke-width: 2px;
 }
-
-.test-div {
-    left: 100px;
-    top: 300px;
-    width: 100px;
-    height: 200px;
-    background-color: blue;
-    position: absolute;
-}
-
 
