@@ -2,14 +2,25 @@
 $node-color: #ccc;
 $link-color: #777;
 
-.node {
-    fill: $node-color;
-    stroke: #fff;
-    stroke-width: 2px;
+svg {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: -1;
 }
 
 .link {
     stroke: $link-color;
     stroke-width: 2px;
 }
+
+.test-div {
+    left: 100px;
+    top: 300px;
+    width: 100px;
+    height: 200px;
+    background-color: blue;
+    position: absolute;
+}
+
 
