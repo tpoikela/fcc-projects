@@ -8,14 +8,19 @@
 var data_url = "https://raw.githubusercontent.com/DealPete/forceDirected/master/countries.json";
 var SIMULATION = null;
 
-var margin = {top: 100, left: 20, right: 20, bottom: 20};
+var margin = {top: 20, left: 50, right: 50, bottom: 20};
+
+var svgOffsetY = 100;
+
+var halfFlag = 8;
+var fullFlag = 16;
 
 var width = 1200;
 var height = 800;
 
 var processCountryData = function(data) {
     var svg    = d3.select("svg");
-    svg.attr("width", width);
+    //svg.attr("width", width);
     svg.attr("height", height);
 
     var innerWidth = width - margin.left - margin.right;
@@ -26,17 +31,23 @@ var processCountryData = function(data) {
 	var nodes = data.nodes;
 	var links = data.links;
 
+    //-------------------------------------------------
+    // These values are for internal link locations
+    //-------------------------------------------------
     var minLeftX = margin.left;
-    var maxRightX = margin.left + width;
+    var maxRightX = margin.left + innerWidth;
     var centerX = minLeftX + (maxRightX - minLeftX) / 2;
 
     var minTopY = margin.top;
-    var maxBottomY = margin.top + height;
+    var maxBottomY = margin.top + innerHeight;
     var centerY = minTopY + (maxBottomY - minTopY) / 2;
 
     var forceMany = d3.forceManyBody();
     var forceLink = d3.forceLink(links);
     var forceCenter = d3.forceCenter(centerX, centerY);
+
+    forceMany.strength(-10);
+    forceLink.distance(10);
 
 	// Taken from github page d3.js 3d.4
 	SIMULATION = d3.forceSimulation(nodes)
@@ -45,7 +56,7 @@ var processCountryData = function(data) {
 		.force("center", forceCenter);
 
     var g = svg.append("g");
-    //g.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    g.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
     g.append("rect")
         .attr("fill", "cyan")
         .attr("width", innerWidth)
@@ -82,16 +93,18 @@ var processCountryData = function(data) {
          * y-coordinates related to the node. */
 		node
             .style("top", function(d) {
-                var pixels = Math.max(8+minTopY, 
-                    Math.min(maxBottomY - 8, parseInt(d.y)));
-                //console.log("Pixels Y is " + pixels);
-                d.y = pixels - margin.top;
-                return pixels + "px";
+                var dataY = Math.max(minTopY, 
+                    Math.min(maxBottomY - halfFlag, parseInt(d.y)));
+                d.y = dataY - margin.top;
+                var topMargin = dataY + svgOffsetY;
+                return topMargin + "px";
             })
             .style("left", function(d) {
-                var pixels = Math.max(8+minLeftX, Math.min(maxRightX - 16, parseInt(d.x)));
-                d.x = pixels - margin.left;
-                return pixels + "px";
+                var dataX = Math.max(minLeftX, 
+                    Math.min(maxRightX - fullFlag, parseInt(d.x)));
+                d.x = dataX - margin.left;
+                var leftMargin = dataX;
+                return leftMargin + "px";
             });
 
 		link
