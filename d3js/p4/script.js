@@ -8,22 +8,29 @@
 var data_url = "https://raw.githubusercontent.com/DealPete/forceDirected/master/countries.json";
 var SIMULATION = null;
 
-var margin = {top: 20, left: 50, right: 50, bottom: 20};
+var margin = {top: 0, left: 0, right: 0, bottom: 0};
 
-var svgOffsetY = 100;
+var svgOffsetY = 60;
 
 var halfFlag = 8;
 var fullFlag = 16;
 
 var width = 1200;
-var height = 800;
+var height = 600;
 
 var processCountryData = function(data) {
     var svg    = d3.select("svg");
+    var g = svg.append("g");
+
+    var svgElem = svg.node();
+    var bBox  = svgElem.getBoundingClientRect();
+    width = bBox.width;
+    margin.left = bBox.left;
+
     //svg.attr("width", width);
     svg.attr("height", height);
 
-    var innerWidth = width - margin.left - margin.right;
+    var innerWidth = width;// - margin.left - margin.right;
     var innerHeight = height - margin.top - margin.bottom;
 
 	var mainDiv = d3.select(".node-container");
@@ -46,6 +53,9 @@ var processCountryData = function(data) {
     var forceLink = d3.forceLink(links);
     var forceCenter = d3.forceCenter(centerX, centerY);
 
+    console.log("Gravity center X: " + centerX);
+    console.log("Gravity center Y: " + centerY);
+
     forceMany.strength(-10);
     forceLink.distance(10);
 
@@ -55,8 +65,6 @@ var processCountryData = function(data) {
 		.force("link", forceLink)
 		.force("center", forceCenter);
 
-    var g = svg.append("g");
-    g.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
     g.append("rect")
         .attr("fill", "cyan")
         .attr("width", innerWidth)
