@@ -14,7 +14,7 @@ h1 {
     margin-top:0;
 }
 
-
+$box-bg-color: rgba(192, 192, 192, 0.9);
 $link-color: #777;
 $header-bg-color: gray;
 $header-height: 60px;
@@ -26,8 +26,7 @@ svg {
 }
 
 .svg-container {
-    background-color: lighten(black, 20%);
-};
+    background-color: lighten(black, 20%); };
 
 .header-container {
     height: $header-height;
@@ -46,3 +45,12 @@ g {
 .author {
     color: $text-white;
 }
+
+.my-tooltip {
+    color: black;
+    width: 200px;
+    background-color: $box-bg-color;
+    padding: 3px;
+    border: 1px solid black;
+    border-radius: 3px;
+};

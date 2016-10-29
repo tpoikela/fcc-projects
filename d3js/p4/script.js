@@ -18,7 +18,27 @@ var fullFlag = 16;
 var width = 1200;
 var height = 600;
 
+var numSource = {};
+
+var tooltip = d3.select("body")
+    .append("div")
+    .classed("my-tooltip", true)
+    .style("position", "absolute")
+    .style("z-index", "10")
+    .style("visibility", "hidden");
+
+/** Formats the HTML for tooltip based on the cyclist data.*/
+var getTooltipHTML = function(d) {
+    var html = '<p>';
+    var index = d.index;
+    html += d.country + '<br/>';
+    html += "Neighbours: " + numSource[index] + '<br/>';
+    html += '</p>';
+    return html;
+};
+
 var processCountryData = function(data) {
+    var i = 0;
     var svg    = d3.select("svg");
     var g = svg.append("g");
 
@@ -38,6 +58,16 @@ var processCountryData = function(data) {
 	var nodes = data.nodes;
 	var links = data.links;
 
+
+    for (i = 0; i < links.length; i++) {
+        if (numSource.hasOwnProperty[links[i].source]) {
+            numSource[links[i].source] += 1;
+        }
+        else {
+            numSource[links[i].source] = 1;
+        }
+    }
+
     //-------------------------------------------------
     // These values are for internal link locations
     //-------------------------------------------------
@@ -56,8 +86,18 @@ var processCountryData = function(data) {
     console.log("Gravity center X: " + centerX);
     console.log("Gravity center Y: " + centerY);
 
-    forceMany.strength(-10);
-    forceLink.distance(10);
+    //forceMany.strength(-15);
+    forceMany.distanceMax(200);
+    forceLink.distance(30);
+    forceLink.strength(0.7);
+
+    forceMany.strength(function(d) {
+        var index = d.index;
+        var nSources = numSource[index];
+        if (nSources > 8) return -5000;
+        //return -30;
+        return -1* nSources * 30;
+    });
 
 	// Taken from github page d3.js 3d.4
 	SIMULATION = d3.forceSimulation(nodes)
@@ -83,6 +123,23 @@ var processCountryData = function(data) {
             .attr("class", function(d) {
 				return "flag flag-" + d.code;
 			})
+
+            .on("mouseover", function(d, i) {
+                var tooltipHTML = getTooltipHTML(d);
+                tooltip.html(tooltipHTML);
+                return tooltip.style("visibility", "visible");
+            })
+
+            .on("mousemove", function(d, i) {
+                return tooltip
+                    .style("top", (d3.event.pageY-10)+"px")
+                    .style("left",(d3.event.pageX+10)+"px");
+            })
+
+            .on("mouseout", function(){
+                return tooltip.style("visibility", "hidden");
+            })
+
 			.call(d3.drag()
 				.on("start", dragstarted)
 				.on("drag", dragged)
