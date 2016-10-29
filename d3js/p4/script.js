@@ -36,7 +36,7 @@ var getTooltipHTML = function(d) {
     var html = '<p>';
     var index = d.index;
     html += d.country + '<br/>';
-    html += "Neighbours: " + numSource[index] + '<br/>';
+    //html += "Neighbours: " + numSource[index] + '<br/>';
     html += '</p>';
     return html;
 };
@@ -111,7 +111,7 @@ var processCountryData = function(data) {
 		.force("center", forceCenter);
 
     g.append("rect")
-        .attr("fill", "cyan")
+        .attr("fill", "#AAAAAA")
         .attr("width", innerWidth)
         .attr("height", innerHeight);
 
@@ -164,7 +164,7 @@ var processCountryData = function(data) {
 		node
             .style("top", function(d) {
                 var dataY = Math.max(minTopY, 
-                    Math.min(maxBottomY - halfFlag, parseInt(d.y)));
+                    Math.min(maxBottomY - 2*halfFlag, parseInt(d.y)));
                 d.y = dataY - margin.top;
                 var topMargin = dataY + svgOffsetY;
                 return topMargin + "px";
@@ -196,12 +196,12 @@ function countLinks(linkArr) {
 
 function dragstarted(d) {
   if (!d3.event.active) SIMULATION.alphaTarget(0.3).restart();
-  d.fx = d.x;
+  d.fx = d.x + margin.left;
   d.fy = d.y;
 }
 
 function dragged(d) {
-  d.fx = d3.event.x;
+  d.fx = d3.event.x + margin.left;
   d.fy = d3.event.y;
 }
 
