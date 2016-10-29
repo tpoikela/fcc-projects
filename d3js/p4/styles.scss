@@ -19,10 +19,18 @@ $link-color: #777;
 $header-bg-color: gray;
 $header-height: 60px;
 
+$ctrl-panel-color: lighten(gray, 20%);
+
 svg {
 	z-index: -1;
     border: 2px solid red;
     width: 100%;
+}
+
+input {
+    display: inline;
+    width: 50px;
+
 }
 
 .svg-container {
@@ -54,3 +62,18 @@ g {
     border: 1px solid black;
     border-radius: 3px;
 };
+
+.label {
+    margin-left: 5px;
+
+}
+
+.ctrl-panel {
+    background-color: $ctrl-panel-color;
+    border: 1px solid black;
+    border-radius: 10px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding: 3px;
+
+}

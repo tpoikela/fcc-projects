@@ -6,7 +6,11 @@
  */
 
 var data_url = "https://raw.githubusercontent.com/DealPete/forceDirected/master/countries.json";
+
 var SIMULATION = null;
+var forceCenter = null;
+var forceLink = null;
+var forceMany = null;
 
 var margin = {top: 0, left: 0, right: 0, bottom: 0};
 
@@ -79,24 +83,25 @@ var processCountryData = function(data) {
     var maxBottomY = margin.top + innerHeight;
     var centerY = minTopY + (maxBottomY - minTopY) / 2;
 
-    var forceMany = d3.forceManyBody();
-    var forceLink = d3.forceLink(links);
-    var forceCenter = d3.forceCenter(centerX, centerY);
+    forceMany = d3.forceManyBody();
+    forceLink = d3.forceLink(links);
+    forceCenter = d3.forceCenter(centerX, centerY);
 
-    console.log("Gravity center X: " + centerX);
-    console.log("Gravity center Y: " + centerY);
+    var linkDistance = 30;
+    var linkStrength = 0.7;
 
-    //forceMany.strength(-15);
+    $("#gravity-x").val(centerX);
+    $("#gravity-y").val(centerY);
+    $("#link-dist").val(linkDistance);
+    $("#link-str").val(linkStrength);
+    $("#many-body").val("*");
+
     forceMany.distanceMax(200);
-    forceLink.distance(30);
-    forceLink.strength(0.7);
+    forceLink.distance(linkDistance);
+    forceLink.strength(linkStrength);
 
     forceMany.strength(function(d) {
-        var index = d.index;
-        var nSources = numSource[index];
-        if (nSources > 8) return -5000;
-        //return -30;
-        return -1* nSources * 30;
+        return -100;
     });
 
 	// Taken from github page d3.js 3d.4
@@ -223,6 +228,48 @@ function getAndPlotCountryData() {
 
 // MAIN
 $(document).ready( function () {
+
+    $("#gravity-x").change(function() {
+        centerX = $(this).val();
+        if (forceCenter !== null) {
+            forceCenter.x(parseInt(centerX));
+            SIMULATION.restart();
+        }
+    });
+
+    $("#gravity-y").change(function() {
+        var centerY = $(this).val();
+        if (forceCenter !== null) {
+            forceCenter.y(parseInt(centerY));
+            SIMULATION.restart();
+        }
+    });
+
+    $("#link-str").change(function() {
+        var str = parseFloat($(this).val());
+        if (forceLink !== null) {
+            console.log("Setting link strength to " + str);
+            forceLink.strength(str);
+            SIMULATION.restart();
+        }
+    });
+
+    $("#link-dist").change(function() {
+        var dist = parseInt($(this).val());
+        if (forceLink !== null) {
+            forceLink.distance(dist);
+            SIMULATION.restart();
+        }
+    });
+
+    $("#many-body").change(function() {
+        var str = parseInt($(this).val());
+        if (forceMany !== null) {
+            forceMany.strength(str);
+            SIMULATION.restart();
+        }
+    });
+
     getAndPlotCountryData();
 });
 
