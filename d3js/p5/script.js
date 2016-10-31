@@ -30,6 +30,11 @@ var getTooltipHTML = function(d) {
     return html;
 };
 
+var $SLIDER = null;
+
+var massMin = 0;
+var massMax = -1;
+
 var width = document.getElementById('container').offsetWidth;
 var height = width / 2;
 
@@ -51,9 +56,6 @@ var MeteorData = function(feature) {
     for (i = 0; i < propNames.length; i++) {
         if (props.hasOwnProperty(propNames[i])) {
             this[propNames[i]] = props[propNames[i]];
-            if (props[propNames[i]] === null) {
-                console.log("Null attr " + propNames[i]);
-            }
         }
         else {
             console.log("Property " + propNames[i] + " doesn't exist.");
@@ -142,65 +144,57 @@ function draw(topo) {
     // The code to draw the meteorite information is put here
     //---------------------------------------------------------------------------
 
-    d3.json(meteoriteURL, function(err, data) {
-        var i = 0;
-        var largestMass = 0;
-        console.log("Finding now meteorite data...");
-        if (err) {
-            console.log("ERROR happened: " + err);
-        }
-        else {
-            for (i = 0; i < data.features.length; i++) {
-                if (i < 10) {
-                    console.log(JSON.stringify(data.features[i]));
-                    console.log("Coords: " + data.features[i].geometry.coordinates);
+    if (meteorDataList.length === 0) {
+        d3.json(meteoriteURL, function(err, data) {
+            var i = 0;
+            var largestMass = 0;
+            console.log("Finding now meteorite data...");
+            if (err) {
+                console.log("ERROR happened: " + err);
+            }
+            else {
+                for (i = 0; i < data.features.length; i++) {
+                    if (i < 10) {
+                        console.log(JSON.stringify(data.features[i]));
+                        console.log("Coords: " + data.features[i].geometry.coordinates);
+                    }
+
+                    var meteor = new MeteorData(data.features[i]);
+                    meteorDataList.push(meteor);
+
+                    var mass = meteor.getMass();
+                    if (mass > largestMass) {
+                        largestMass = mass;
+                    }
+
                 }
 
-                var meteor = new MeteorData(data.features[i]);
-                meteorDataList.push(meteor);
+                console.log("Largest found mass is " + largestMass);
 
-                var mass = meteor.getMass();
-                if (mass > largestMass) {
-                    largestMass = mass;
-                }
+                // TODO create mapping mass -> r
+
+                console.log("Found " + meteorDataList.length + " meteorites.");
+
+                meteorDataList.forEach(function(i) {
+                    addMeteorite(i);
+                });
 
             }
 
-            console.log("Largest found mass is " + largestMass);
-
-            // TODO create mapping mass -> r
-
-            console.log("Found " + meteorDataList.length + " meteorites.");
-
-            /*
-            var meteors = g.selectAll(".meteorite")
-                .data(meteorDataList).enter()
-                .append("circle")
-                .attr("class", "meteorite")
-                .attr("cx", function(d) {
-                    var latLon = [d.getLat(), d.getLong()];
-                    return projection(latLon)[1];
-                })
-                .attr("cy", function(d) {
-                    var latLon = [d.getLat(), d.getLong()];
-                    return projection(latLon)[0];
-                })
-                .attr("r", function(d) {return 5;});
-                //.attr("r", function(d) {return d.getMass();});
-            */
-            meteorDataList.forEach(function(i) {
-                addMeteorite(i);
-            });
-
-        }
+			if ($SLIDER === null) createMassSlider(largestMass);
 
 
-
-    });
+        })
+    }
+    else {
+        meteorDataList.forEach(function(i) {
+            addMeteorite(i);
+        });
+    }
 
 }
 
-
+/** Redraws the full thing.*/
 function redraw() {
     width = document.getElementById('container').offsetWidth;
     height = width / 2;
@@ -234,6 +228,16 @@ function move() {
     //adjust the country hover stroke width based on zoom level
     d3.selectAll(".country").style("stroke-width", 1.5 / s);
 
+    //TODO adjust the meteorite stroke width based on zoom level
+    //TODO adjust the meteorite radius based on zoom level
+    g.selectAll(".meteorite")
+        .style("stroke-width", 1.0 / s)
+        .attr("r", function(d) {
+        var mass = d.getMass();
+        var radius = massToRadius(mass);
+        return radius / s;
+    });
+
 }
 
 
@@ -256,7 +260,7 @@ function click() {
 
 // Converts a meteorite mass into radius
 function massToRadius(mass) {
-    var scale = 2;
+    var scale = 3;
     if (mass < 5000) return 1*scale;
     if (mass < 50000) return 2*scale;
     if (mass < 500000) return 3*scale;
@@ -276,6 +280,10 @@ function addMeteorite(d) {
     var mass = d.getMass();
     var radius = massToRadius(mass);
 
+    if (massMax !== -1) {
+        if (mass > massMax) return;
+    }
+    if (mass < massMin) return;
     if (lat === null) return;
     if (lon === null) return;
 
@@ -317,3 +325,22 @@ function addMeteorite(d) {
     }
 
 }
+
+
+$(function() {
+    var largest = 2000000000;
+	$SLIDER = $( "#slider-range" );
+	$SLIDER.slider({
+		range: true,
+		min: 0,
+		max: largest,
+		values: [ 0, largest ],
+		slide: function( event, ui ) {
+			$( "#amount" ).val( ui.values[ 0 ] + " - " + ui.values[ 1 ] );
+            massMin = ui.values[0];
+            massMax = ui.values[1];
+		}
+	});
+	$( "#amount" ).val($SLIDER.slider("values", 0) + " - "
+		 + $SLIDER.slider( "values", 1 ) );
+});

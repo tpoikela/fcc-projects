@@ -14,7 +14,7 @@
   border:2px solid #000;
   border-radius: 5px;
   height:100%;
-  //overflow:hidden;
+  overflow:hidden;
   background: #F0F8FF;
 }
 
@@ -42,7 +42,7 @@
 .meteorite {
     fill: red;
     stroke: #FFF;
-    stroke-width: 0.5px;
+    stroke-width: 1.0;
 }
 
 .meteorite:hover {

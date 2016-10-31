@@ -5,17 +5,31 @@
 <script src="js/d3.min.js"></script>
 <script src="js/topojson.v1.min.js"></script>
 
+<link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+
+<script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+
 <link rel="stylesheet" href="styles.css" type="text/css" media="screen" charset="utf-8">
 
 </head>
 <body>
 
   <h1>Meteorite landing map with D3.js</h1>
-
+  <p>Hover mouse over one of the landing sites to see more information about the
+  corresponding meteorite.</p>
 
   <div id="container"></div>
 
+  <p>
+    <label for="amount">Mass range:</label>
+    <input type="text" id="amount" readonly style="border:0; color:#f6931f;
+        font-weight:bold;">
+  </p>
+  <div id="slider-range"></div>
+
   <p> Based on <a href="http://techslides.com/d3-map-starter-kit/">World Map Template</a>.</p>
+
 
 <script src="script.js" type="text/javascript" charset="utf-8"></script>
 
