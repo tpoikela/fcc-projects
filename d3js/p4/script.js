@@ -31,7 +31,7 @@ var tooltip = d3.select("body")
     .style("z-index", "10")
     .style("visibility", "hidden");
 
-/** Formats the HTML for tooltip based on the cyclist data.*/
+/** Formats the HTML for tooltip based on the country data.*/
 var getTooltipHTML = function(d) {
     var html = '<p>';
     var index = d.index;
