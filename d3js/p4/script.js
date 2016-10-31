@@ -51,17 +51,15 @@ var processCountryData = function(data) {
     width = bBox.width;
     margin.left = bBox.left;
 
-    //svg.attr("width", width);
     svg.attr("height", height);
 
-    var innerWidth = width;// - margin.left - margin.right;
+    var innerWidth = width;
     var innerHeight = height - margin.top - margin.bottom;
 
 	var mainDiv = d3.select(".node-container");
 
 	var nodes = data.nodes;
 	var links = data.links;
-
 
     for (i = 0; i < links.length; i++) {
         if (numSource.hasOwnProperty[links[i].source]) {
