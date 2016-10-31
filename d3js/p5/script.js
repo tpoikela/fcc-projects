@@ -175,14 +175,13 @@ function draw(topo) {
 
                 console.log("Found " + meteorDataList.length + " meteorites.");
 
+                if ($SLIDER === null) createMassSlider(largestMass);
+
                 meteorDataList.forEach(function(i) {
                     addMeteorite(i);
                 });
 
             }
-
-			if ($SLIDER === null) createMassSlider(largestMass);
-
 
         })
     }
@@ -326,9 +325,7 @@ function addMeteorite(d) {
 
 }
 
-
-$(function() {
-    var largest = 2000000000;
+function createMassSlider(largest) {
 	$SLIDER = $( "#slider-range" );
 	$SLIDER.slider({
 		range: true,
@@ -339,8 +336,9 @@ $(function() {
 			$( "#amount" ).val( ui.values[ 0 ] + " - " + ui.values[ 1 ] );
             massMin = ui.values[0];
             massMax = ui.values[1];
+            redraw();
 		}
 	});
 	$( "#amount" ).val($SLIDER.slider("values", 0) + " - "
 		 + $SLIDER.slider( "values", 1 ) );
-});
+};
